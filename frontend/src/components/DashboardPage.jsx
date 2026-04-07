@@ -296,10 +296,26 @@ export function DashboardPage() {
     };
   }, [executiveDynamic.conversions, executiveDynamic.investment, funnel_kpis]);
 
-  const avgEff =
-    filteredCampaigns.length > 0
-      ? filteredCampaigns.reduce((s, c) => s + Number(c.efficiency_score), 0) / filteredCampaigns.length
-      : 0;
+  /** Ranking só por eficiência: scores finitos, ordenação estável e barras vs. líder do filtro. */
+  const efficiencyRanking = useMemo(() => {
+    const rows = enrichedCampaigns.map((c) => {
+      const raw = Number(c.efficiency_score);
+      const eff = Number.isFinite(raw) ? raw : 0;
+      return { ...c, eff };
+    });
+    rows.sort((a, b) => b.eff - a.eff || String(a.name).localeCompare(String(b.name)));
+    const n = rows.length;
+    if (n === 0) {
+      return { rows: [], maxEff: 1, minEff: 0, avg: 0 };
+    }
+    const sum = rows.reduce((s, r) => s + r.eff, 0);
+    return {
+      rows,
+      maxEff: Math.max(...rows.map((r) => r.eff), 1e-6),
+      minEff: rows[rows.length - 1].eff,
+      avg: sum / n,
+    };
+  }, [enrichedCampaigns]);
 
   useEffect(() => {
     const uid = session?.user?.id;
@@ -401,12 +417,12 @@ export function DashboardPage() {
                 {report.governance_label}
               </span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-black leading-none tracking-tighter text-primary">{report.title}</h1>
-            <div className="flex flex-wrap items-center gap-4 text-on-surface-variant font-semibold">
-              <p className="text-lg">{report.cycle_label}</p>
-              <span className="w-1.5 h-1.5 bg-outline-variant hidden sm:block" />
-              <p className="text-lg">{report.unit_label}</p>
-            </div>
+            <h1 className="text-4xl md:text-5xl font-black leading-none tracking-tighter text-primary">
+              Painel de performance de campanhas e insights
+            </h1>
+            <p className="text-lg text-on-surface-variant font-semibold">
+              Obras, imóveis e projetos · Meta Ads e Google Ads
+            </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <div className="bg-white border border-outline-variant px-4 py-3 flex items-center gap-3">
@@ -444,7 +460,7 @@ export function DashboardPage() {
         <nav
           className="flex border-b border-outline-variant overflow-x-auto no-scrollbar"
           role="tablist"
-          aria-label="Seções do relatório"
+          aria-label="Seções do painel"
         >
           {TABS.map((t) => {
             const on = tab === t.id;
@@ -468,7 +484,7 @@ export function DashboardPage() {
         </nav>
 
         <section className="bg-white border border-surface-container-high p-4 md:p-5">
-          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
             <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">Filtros de análise</h3>
             <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
               {filteredCampaigns.length} campanha(s) exibida(s)
@@ -819,49 +835,87 @@ export function DashboardPage() {
                 <option value="conv_desc">Conversões maiores primeiro</option>
               </select>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                {filteredInsights.map((i, idx) => {
-                  const camp = campaigns.find((c) => c.id === i.campaign_id);
-                  return (
-                    <div key={idx} className="bg-white border border-surface-container-high p-5 shadow-sm flex gap-4">
-                      <div
-                        className={`shrink-0 px-2 py-1 text-[9px] font-black uppercase border ${insightTypeClass(i.insight_type)} h-fit`}
-                      >
-                        {insightTypeLabel(i.insight_type)}
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <p className="text-sm font-black text-primary">{i.title}</p>
-                          {camp && <span className="text-[9px] font-bold text-on-surface-variant">{camp.external_id}</span>}
-                          {i.impact_label && (
-                            <span className="text-[9px] font-black uppercase text-on-surface-variant">{i.impact_label}</span>
-                          )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-stretch">
+              {/* Mesma altura nas duas colunas; rolagem só na área útil */}
+              <div className="flex min-h-0 h-[min(62vh,480px)] lg:h-[min(68vh,520px)] flex-col border border-surface-container-high bg-white shadow-sm">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 space-y-2">
+                  {filteredInsights.map((i, idx) => {
+                    const camp = campaigns.find((c) => c.id === i.campaign_id);
+                    return (
+                      <div key={idx} className="border-b border-surface-container-high last:border-0 pb-2 last:pb-0 flex gap-3">
+                        <div
+                          className={`shrink-0 self-start px-1.5 py-0.5 text-[8px] font-black uppercase border ${insightTypeClass(i.insight_type)}`}
+                        >
+                          {insightTypeLabel(i.insight_type)}
                         </div>
-                        <p className="text-[11px] text-on-surface-variant leading-relaxed">{i.detail}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            <p className="text-xs font-black text-primary leading-tight">{i.title}</p>
+                            {camp && <span className="text-[9px] font-bold text-on-surface-variant">{camp.external_id}</span>}
+                            {i.impact_label && (
+                              <span className="text-[9px] font-black uppercase text-on-surface-variant">{i.impact_label}</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-on-surface-variant leading-snug mt-0.5">{i.detail}</p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-              <div className="bg-white border border-surface-container-high p-8 shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Score de eficiência por campanha</p>
-                <div className="space-y-4 max-h-[560px] overflow-y-auto pr-1">
-                  {[...tableCampaigns]
-                    .sort((a, b) => Number(b.efficiency_score) - Number(a.efficiency_score))
-                    .map((c) => (
-                      <div key={c.id}>
-                        <div className="flex justify-between text-[10px] font-bold uppercase mb-1">
-                          <span className="text-on-surface-variant truncate max-w-[70%]">{c.name}</span>
-                          <span className="text-primary">{Number(c.efficiency_score).toFixed(1)}</span>
+              <div className="flex min-h-0 h-[min(62vh,480px)] lg:h-[min(68vh,520px)] flex-col bg-white border border-surface-container-high p-4 md:p-5 shadow-sm">
+                <div className="shrink-0 mb-3 space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                    Ranking de eficiência
+                  </p>
+                  <p className="text-[10px] text-on-surface-variant leading-snug">
+                    Ordenação sempre do maior para o menor score. Barras proporcionais ao 1º lugar no filtro atual (não ao limite 100).
+                  </p>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1.5 pr-1">
+                  {efficiencyRanking.rows.map((c, i) => {
+                    const pct = (c.eff / efficiencyRanking.maxEff) * 100;
+                    const topClass =
+                      i === 0
+                        ? 'bg-tertiary/8 border-l-[3px] border-l-tertiary'
+                        : i === 1
+                          ? 'bg-slate-100/80 border-l-[3px] border-l-slate-400'
+                          : i === 2
+                            ? 'bg-amber-50/90 border-l-[3px] border-l-amber-500'
+                            : 'border-l-[3px] border-l-transparent';
+                    return (
+                      <div key={c.id} className={`rounded-sm pl-2 pr-1 py-1.5 ${topClass}`}>
+                        <div className="flex items-baseline gap-2 mb-0.5">
+                          <span
+                            className="shrink-0 w-6 text-[9px] font-black text-on-surface-variant tabular-nums"
+                            title="Posição no ranking"
+                          >
+                            {i + 1}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase text-on-surface-variant truncate min-w-0 flex-1 leading-tight">
+                            {c.name}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-black tabular-nums text-primary">{c.eff.toFixed(1)}</span>
                         </div>
-                        <div className="w-full bg-surface-container h-2">
-                          <div className="bg-tertiary h-full" style={{ width: `${Number(c.efficiency_score)}%` }} />
+                        <div className="ml-8 w-[calc(100%-1.5rem)] bg-surface-container h-1.5 rounded-sm overflow-hidden">
+                          <div
+                            className="bg-tertiary h-full rounded-sm transition-[width] duration-200"
+                            style={{ width: `${pct}%` }}
+                          />
                         </div>
                       </div>
-                    ))}
-                  <p className="text-[10px] text-on-surface-variant pt-2">
-                    Média do portfólio filtrado: <strong>{avgEff.toFixed(1)}</strong>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-on-surface-variant shrink-0 pt-3 border-t border-surface-container-high space-y-0.5">
+                  <p>
+                    <span className="font-bold text-primary">Resumo do filtro:</span> mín.{' '}
+                    <strong>{efficiencyRanking.rows.length ? efficiencyRanking.minEff.toFixed(1) : '—'}</strong>
+                    {' · '}
+                    média <strong>{efficiencyRanking.rows.length ? efficiencyRanking.avg.toFixed(1) : '—'}</strong>
+                    {' · '}
+                    máx. <strong>{efficiencyRanking.rows.length ? efficiencyRanking.rows[0].eff.toFixed(1) : '—'}</strong>
+                    <span className="text-on-surface-variant/70"> ({efficiencyRanking.rows.length} camp.)</span>
                   </p>
                 </div>
               </div>
