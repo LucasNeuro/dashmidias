@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { money, intFmt } from '../lib/format';
 import { Panel } from './Panel';
+import { DataPolicyModal, hasAcceptedDataPolicy } from './DataPolicyModal';
 
 const TABS = [
   { id: 'overview', label: 'Visão Geral' },
@@ -90,6 +91,8 @@ export function DashboardPage() {
   const [expandedCampaignId, setExpandedCampaignId] = useState(null);
   const [insightTypeFilter, setInsightTypeFilter] = useState('all');
   const [campaignSort, setCampaignSort] = useState('priority');
+  const [policyRequiredOpen, setPolicyRequiredOpen] = useState(() => !hasAcceptedDataPolicy());
+  const [policyInfoOpen, setPolicyInfoOpen] = useState(false);
 
   const {
     report = {},
@@ -243,6 +246,51 @@ export function DashboardPage() {
     }));
   }, [filteredCampaigns]);
 
+  const channelCardsDynamic = useMemo(() => {
+    const bySlug = new Map(channelBreakdown.map((c) => [c.slug, c]));
+    const totalSpend = channelBreakdown.reduce((s, c) => s + Number(c.spend || 0), 0);
+
+    return channels.map((ch) => {
+      const row = bySlug.get(ch.slug);
+      const spend = Number(row?.spend || 0);
+      const roas = Number(row?.roas || 0);
+      const participation = totalSpend > 0 ? Math.round((spend / totalSpend) * 100) : 0;
+
+      let caption = 'Sem volume no período';
+      if (participation >= 50) caption = 'Maior participação';
+      else if (participation >= 25) caption = 'Boa participação';
+      else if (participation > 0) caption = 'Em otimização';
+
+      return {
+        ...ch,
+        investment: spend,
+        roas,
+        participation_bar_pct: participation,
+        performance_caption: caption,
+      };
+    });
+  }, [channelBreakdown, channels]);
+
+  const funnelDynamic = useMemo(() => {
+    const qualified = Number(executiveDynamic.conversions || 0);
+    const baseQualified = Number(funnel_kpis?.qualified_count || 0);
+    const baseClosed = Number(funnel_kpis?.closed_count || 0);
+    const closeRate = baseQualified > 0 ? baseClosed / baseQualified : 0;
+    const closed = Math.round(qualified * closeRate);
+    const qualificationPct = executiveDynamic.investment > 0 ? (qualified / executiveDynamic.investment) * 100 : 0;
+
+    return {
+      qualified,
+      closed,
+      qualificationPct,
+      closeRatePct: closeRate * 100,
+      closedLabel: funnel_kpis?.closed_label || 'Negócios Fechados',
+      closedHelper:
+        funnel_kpis?.closed_helper ||
+        'Valor dinâmico estimado a partir da taxa histórica de fechamento do relatório.',
+    };
+  }, [executiveDynamic.conversions, executiveDynamic.investment, funnel_kpis]);
+
   const avgEff =
     filteredCampaigns.length > 0
       ? filteredCampaigns.reduce((s, c) => s + Number(c.efficiency_score), 0) / filteredCampaigns.length
@@ -311,6 +359,14 @@ export function DashboardPage() {
 
   return (
     <>
+      <DataPolicyModal
+        mode="required"
+        open={policyRequiredOpen}
+        onClose={() => setPolicyRequiredOpen(false)}
+        onAccepted={() => setPolicyRequiredOpen(false)}
+      />
+      <DataPolicyModal mode="info" open={policyInfoOpen} onClose={() => setPolicyInfoOpen(false)} />
+
       {loading && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-primary text-white text-[10px] font-black uppercase tracking-widest">
           Carregando dados…
@@ -523,7 +579,7 @@ export function DashboardPage() {
             </div>
             <div className="bg-white border border-surface-container-high overflow-hidden">
               <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-surface-container-high">
-                {channels.map((ch) => (
+                {channelCardsDynamic.map((ch) => (
                   <button
                     key={ch.slug}
                     type="button"
@@ -535,7 +591,7 @@ export function DashboardPage() {
                         {ch.display_name}
                       </span>
                       <span className={`${ch.slug === 'meta_ads' ? 'text-tertiary' : 'text-primary'} font-black text-lg`}>
-                        {ch.roas}x ROAS
+                        {Number(ch.roas || 0).toFixed(2)}x ROAS
                       </span>
                     </div>
                     <div className="space-y-1">
@@ -690,8 +746,10 @@ export function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Oportunidades Qualificadas</p>
-                    <p className="text-3xl font-black">{intFmt(funnel_kpis.qualified_count ?? 0)}</p>
-                    <p className="text-[11px] font-medium text-white/50 mt-1">{funnel_kpis.qualified_helper}</p>
+                    <p className="text-3xl font-black">{intFmt(funnelDynamic.qualified)}</p>
+                    <p className="text-[11px] font-medium text-white/50 mt-1">
+                      {funnel_kpis.qualified_helper || `${funnelDynamic.qualificationPct.toFixed(2)}% de conversões por investimento no período filtrado`}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-6">
@@ -699,9 +757,15 @@ export function DashboardPage() {
                     <span className="material-symbols-outlined text-primary text-4xl">handshake</span>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">{funnel_kpis.closed_label}</p>
-                    <p className="text-3xl font-black text-primary">{intFmt(funnel_kpis.closed_count ?? 0)}</p>
-                    <p className="text-[11px] font-medium text-white/50 mt-1">{funnel_kpis.closed_helper}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">
+                      {funnelDynamic.closedLabel}
+                    </p>
+                    <p className="text-3xl font-black text-white">
+                      {intFmt(funnelDynamic.closed)}
+                    </p>
+                    <p className="text-[11px] font-medium text-white/50 mt-1">
+                      {funnelDynamic.closedHelper} ({funnelDynamic.closeRatePct.toFixed(1)}% de fechamento estimado).
+                    </p>
                   </div>
                 </div>
               </div>
@@ -932,12 +996,13 @@ export function DashboardPage() {
               </span>
               {syncLabel}
             </div>
-            <a className="hover:text-tertiary transition-colors border-b border-transparent hover:border-tertiary" href="#">
-              Termos de Uso
-            </a>
-            <a className="hover:text-tertiary transition-colors border-b border-transparent hover:border-tertiary" href="#">
+            <button
+              type="button"
+              onClick={() => setPolicyInfoOpen(true)}
+              className="hover:text-tertiary transition-colors border-b border-transparent hover:border-tertiary bg-transparent cursor-pointer"
+            >
               Políticas de Dados
-            </a>
+            </button>
             <span className="text-outline">Build 2.4.0-GA</span>
           </div>
         </footer>
