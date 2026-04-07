@@ -66,11 +66,13 @@ export function AuthProvider({ children }) {
       /** Com “Confirm email” desligado no Supabase, retorna session e o usuário já fica logado. */
       async signUp(email, password, fullName) {
         if (!supabase) throw new Error('Supabase não configurado');
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: fullName || '' },
+            emailRedirectTo: origin ? `${origin}/` : undefined,
           },
         });
         if (error) throw error;
