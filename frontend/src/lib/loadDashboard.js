@@ -1,5 +1,13 @@
 import { getReportSlug, getSupabase } from './supabaseClient';
 
+/**
+ * Apelidos ? slug exato em public.reports.
+ * ?til quando VITE_REPORT_SLUG na Vercel ? curto (ex.: obra10) e no banco s? existe o slug longo.
+ */
+const REPORT_SLUG_ALIASES = {
+  obra10: 'obra10-2025-12-2026-02',
+};
+
 export async function listAvailableReports() {
   const supabase = getSupabase();
   if (!supabase) return [];
@@ -12,9 +20,15 @@ export async function listAvailableReports() {
 }
 
 async function resolveReport(supabase, desiredSlug) {
-  const { data: exact, error: e1 } = await supabase.from('reports').select('*').eq('slug', desiredSlug).maybeSingle();
-  if (e1) throw new Error(e1.message);
-  if (exact) return { report: exact, notice: null };
+  const candidates = [desiredSlug, REPORT_SLUG_ALIASES[desiredSlug]].filter(
+    (s, i, arr) => Boolean(s) && arr.indexOf(s) === i
+  );
+
+  for (const slug of candidates) {
+    const { data: exact, error: e1 } = await supabase.from('reports').select('*').eq('slug', slug).maybeSingle();
+    if (e1) throw new Error(e1.message);
+    if (exact) return { report: exact, notice: null };
+  }
 
   const { data: fallback, error: e2 } = await supabase
     .from('reports')
@@ -24,11 +38,11 @@ async function resolveReport(supabase, desiredSlug) {
     .maybeSingle();
 
   if (e2) throw new Error(e2.message);
-  if (!fallback) throw new Error(`Nenhum relat?rio encontrado na tabela reports.`);
+  if (!fallback) throw new Error('Nenhum relat?rio encontrado na tabela reports.');
 
   return {
     report: fallback,
-    notice: `Slug '${desiredSlug}' n?o encontrado. Exibindo '${fallback.slug}'.`,
+    notice: `Slug ?${desiredSlug}? n?o existe no banco. Exibindo ?${fallback.slug}?. Ajuste VITE_REPORT_SLUG na Vercel para esse slug e redeploy.`,
   };
 }
 
@@ -131,7 +145,7 @@ export async function loadDashboardBySlug(desiredSlug = getReportSlug()) {
     channels: normalizedChannels,
     meta_metrics,
     google_network: google_stats || [],
-    google_focus: google_meta?.focus_label || 'Foco: Inten??o de Compra',
+    google_focus: google_meta?.focus_label || 'Foco: Intenção de compra',
     funnel_steps: (funnel_steps || []).map((s) => ({
       sort_order: s.sort_order,
       title: s.title,
