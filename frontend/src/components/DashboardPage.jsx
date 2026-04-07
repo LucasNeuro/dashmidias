@@ -1,6 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { money, intFmt } from '../lib/format';
+import { logPanelAccess } from '../lib/panelAccessLog';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { Panel } from './Panel';
 import { DataPolicyModal, hasAcceptedDataPolicy } from './DataPolicyModal';
 
@@ -81,6 +85,7 @@ function campaignOverlapsRange(campaign, dateWindow) {
 }
 
 export function DashboardPage() {
+  const { session, isAdmin, signOut } = useAuth();
   const { loading, banner, payload, syncLabel, reportOptions, selectedSlug, setSelectedSlug } = useDashboardData();
   const [tab, setTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
@@ -295,6 +300,12 @@ export function DashboardPage() {
     filteredCampaigns.length > 0
       ? filteredCampaigns.reduce((s, c) => s + Number(c.efficiency_score), 0) / filteredCampaigns.length
       : 0;
+
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid || !isSupabaseConfigured()) return;
+    logPanelAccess(uid, '/');
+  }, [session?.user?.id]);
 
   useEffect(() => {
     setTab('overview');
@@ -1003,6 +1014,23 @@ export function DashboardPage() {
             >
               Políticas de Dados
             </button>
+            {isSupabaseConfigured() && isAdmin && (
+              <Link
+                to="/adm"
+                className="hover:text-tertiary transition-colors border-b border-transparent hover:border-tertiary"
+              >
+                Auditoria
+              </Link>
+            )}
+            {isSupabaseConfigured() && session && (
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="hover:text-tertiary transition-colors border-b border-transparent hover:border-tertiary bg-transparent cursor-pointer font-black uppercase tracking-widest"
+              >
+                Sair
+              </button>
+            )}
             <span className="text-outline">Build 2.4.0-GA</span>
           </div>
         </footer>
