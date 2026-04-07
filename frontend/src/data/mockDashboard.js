@@ -1,7 +1,7 @@
 /** Dados fictícios quando .env não está configurado ou a API falha */
 export function buildMockPayload() {
-  const periodStart = '2025-12-01';
-  const periodEnd = '2026-02-28';
+  const periodStart = '2025-11-01';
+  const periodEnd = '2026-03-31';
 
   const campaigns = [
     {
@@ -105,13 +105,15 @@ export function buildMockPayload() {
   return {
     report: {
       id: 'mock',
-      slug: 'demo-outubro-2024',
+      slug: 'mock-local-2025-11-2026-03',
       document_badge: 'Documento Reservado (mock)',
-      governance_label: 'Arqui System Governance',
+      governance_label: 'Obra10 Governance',
       title: 'Painel de performance de campanhas e insights',
-      cycle_label: 'Dez/2025 – Fev/2026',
+      cycle_label: 'Nov/2025 – Mar/2026',
       unit_label: 'Obras, imóveis e projetos',
-      period_range_label: '01 Dez 2025 — 28 Fev 2026',
+      period_range_label: '01 Nov 2025 — 31 Mar 2026',
+      period_start: periodStart,
+      period_end: periodEnd,
       campaigns_total_hint: campaigns.length + 24,
     },
     executive: {

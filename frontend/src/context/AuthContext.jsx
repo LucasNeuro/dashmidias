@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { formatAuthError } from '../lib/authErrors';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const AuthContext = createContext(null);
@@ -61,7 +62,7 @@ export function AuthProvider({ children }) {
       async signIn(email, password) {
         if (!supabase) throw new Error('Supabase não configurado');
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) throw new Error(formatAuthError(error));
       },
       /** Com “Confirm email” desligado no Supabase, retorna session e o usuário já fica logado. */
       async signUp(email, password, fullName) {
@@ -75,7 +76,7 @@ export function AuthProvider({ children }) {
             emailRedirectTo: origin ? `${origin}/` : undefined,
           },
         });
-        if (error) throw error;
+        if (error) throw new Error(formatAuthError(error));
         return data;
       },
       async signOut() {

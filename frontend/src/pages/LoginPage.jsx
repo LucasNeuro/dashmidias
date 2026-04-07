@@ -52,7 +52,7 @@ export function LoginPage() {
         navigate('/', { replace: true });
       }
     } catch (err) {
-      setError(err.message || 'Falha na autenticação');
+      setError(err.message || err.msg || 'Falha na autenticação');
     } finally {
       setBusy(false);
     }
