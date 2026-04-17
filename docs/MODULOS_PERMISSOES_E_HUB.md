@@ -2,7 +2,7 @@
 
 Este documento organiza os **módulos** do PRD “Sistema central do HUB”, a relação com as **entidades** do core, os **perfis de usuário** e o modelo de **permissões**, com ênfase no **usuário principal do HUB (Administrador HUB)**, que deve poder **controlar acessos e capacidades** de forma centralizada e auditável.
 
-Documentos relacionados: [SPEC.md](./SPEC.md), [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md), [ARQUITETURA.md](./ARQUITETURA.md). **Telas por papel:** [MODULOS_E_VISUALIZACOES_POR_PERFIL.md](./MODULOS_E_VISUALIZACOES_POR_PERFIL.md).
+Documentos relacionados: [SPEC.md](./SPEC.md), [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md), [ARQUITETURA.md](./ARQUITETURA.md). **Telas por papel:** [MODULOS_E_VISUALIZACOES_POR_PERFIL.md](./MODULOS_E_VISUALIZACOES_POR_PERFIL.md). **Mapa comercial CRM (venda vs operação), cinco segmentos e direcção templates/org/permissões:** [CRM_MAPA_COMERCIAL_CONTROLE_ORG.md](./CRM_MAPA_COMERCIAL_CONTROLE_ORG.md).
 
 ---
 

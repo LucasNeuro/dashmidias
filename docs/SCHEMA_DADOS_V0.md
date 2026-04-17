@@ -25,6 +25,8 @@ imoveis, contratos, projetos, obras, pagamentos, negocio_fornecedores (opcional 
 domain_events → negocio_id (opcional) + organizacao_id
 ```
 
+**Cadastro de organizações, administradores HUB e convites de utilizadores:** [CADASTRO_ORGANIZACOES_E_USUARIOS.md](./CADASTRO_ORGANIZACOES_E_USUARIOS.md).
+
 ---
 
 ## 2. Tabelas core
@@ -66,6 +68,10 @@ Empresas com as quais o HUB se relaciona (cliente PJ, parceiro).
 | `razao_social` | text | |
 | `nome_fantasia` | text | nullable |
 | `documento` | text | CNPJ etc.; nullable no início |
+| `cnpj_normalizado` | text | Opcional; 14 dígitos (sem máscara) para deduplicação e índice |
+| `dados_receita_jsonb` | jsonb | Opcional; snapshot da API **OpenCNPJ** (`datasets=receita`) — ver [database/empresas_cnpj_receita_jsonb.sql](../database/empresas_cnpj_receita_jsonb.sql) |
+| `receita_consultado_em` | timestamptz | Opcional; última consulta bem-sucedida |
+| `receita_fonte` | text | Opcional; default `opencnpj` |
 | `criado_em` / `atualizado_em` | timestamptz | |
 
 ### 2.4 `pessoas`

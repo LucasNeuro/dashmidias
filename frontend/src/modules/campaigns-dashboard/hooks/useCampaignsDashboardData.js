@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { buildMockPayload } from '../data/mockDashboard';
-import { listAvailableReports, loadDashboardBySlug } from '../lib/loadDashboard';
-import { getReportSlug, isSupabaseConfigured } from '../lib/supabaseClient';
+import { getReportSlug, isSupabaseConfigured } from '../../../lib/supabaseClient';
+import { buildMockPayload } from '../data/mockCampaignsDashboard';
+import { listAvailableReports, loadDashboardBySlug } from '../lib/loadCampaignsDashboard';
 
-export function useDashboardData() {
+export function useCampaignsDashboardData() {
   const [loading, setLoading] = useState(true);
   const [mock, setMock] = useState(false);
   const [banner, setBanner] = useState(null);
@@ -23,7 +23,7 @@ export function useDashboardData() {
             setPayload(buildMockPayload());
             setMock(true);
             setBanner('Usando dados mock: copie .env.example para .env e preencha VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY.');
-            setSyncLabel(`Mock ? ${new Date().toLocaleString('pt-BR')}`);
+            setSyncLabel(`Mock — ${new Date().toLocaleString('pt-BR')}`);
             setReportOptions([
               {
                 slug: 'mock',
@@ -42,7 +42,7 @@ export function useDashboardData() {
           setPayload(data);
           setMock(false);
           if (data.notice) setBanner(data.notice);
-          setSyncLabel(`Sincronizado ? ${new Date().toLocaleString('pt-BR')}`);
+          setSyncLabel(`Sincronizado — ${new Date().toLocaleString('pt-BR')}`);
         }
       } catch (e) {
         console.error(e);
@@ -50,7 +50,7 @@ export function useDashboardData() {
           setPayload(buildMockPayload());
           setMock(true);
           setBanner(`Falha ao ler Supabase: ${e.message}. Exibindo dados mock.`);
-          setSyncLabel(`Mock ? ${new Date().toLocaleString('pt-BR')}`);
+          setSyncLabel(`Mock — ${new Date().toLocaleString('pt-BR')}`);
         }
       } finally {
         if (!cancelled) setLoading(false);

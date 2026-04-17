@@ -1,0 +1,20 @@
+-- Tipos de parceiro / organização no HUB (espelho do catálogo em `frontend/src/lib/hubPartnerKinds.js`).
+-- Aplicar quando o cadastro de organizações for persistido no Postgres.
+
+-- CREATE TABLE IF NOT EXISTS public.hub_partner_kind (
+--   id smallserial PRIMARY KEY,
+--   slug text NOT NULL UNIQUE,
+--   label text NOT NULL,
+--   description text,
+--   sort_order smallint NOT NULL DEFAULT 0,
+--   active boolean NOT NULL DEFAULT true,
+--   created_at timestamptz NOT NULL DEFAULT now()
+-- );
+
+-- INSERT INTO public.hub_partner_kind (slug, label, description, sort_order) VALUES
+--   ('arquitetos', 'Arquitetos', 'Escritórios e profissionais de arquitetura', 1),
+--   ('engenharias', 'Engenharias', 'Empresas e profissionais de engenharia', 2),
+--   ('prestadores_servico', 'Prestadores de serviço', 'Serviços gerais vinculados à obra', 3),
+--   ('parceiros_produtos', 'Parceiros de produtos', 'Marcas, distribuidores e fornecedores', 4),
+--   ('imobiliarios', 'Imobiliários', 'Incorporadoras, imobiliárias e correlatos', 5)
+-- ON CONFLICT (slug) DO NOTHING;

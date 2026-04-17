@@ -20,9 +20,9 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 
 | Token Tailwind        | Hex       | Uso principal |
 |----------------------|-----------|----------------|
-| `primary`            | `#041627` | Títulos, bordas fortes, botões primários, fundo de overlays de loading |
+| `primary`            | `#0b1622` | Títulos, bordas fortes, fundos escuros (sidebar/login split), overlays de loading |
 | `secondary`          | `#515f74` | (definido no tema; uso pontual no produto) |
-| `tertiary`           | `#00a572` | Acento positivo, ROAS, badges ativos, CTAs secundários no modal |
+| `tertiary`           | `#22c55e` | Acento positivo, ROAS, badges ativos, CTA principal do login |
 | `surface`            | `#f7f9fb` | Fundo global do `<body>` (via `index.html`) |
 | `surface-container`  | `#eceef0` | Fundos de header de tabela, áreas neutras |
 | `surface-container-high` | `#e6e8ea` | Bordas e divisórias de cards |
@@ -54,7 +54,7 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 ### 2.3 Cantos e sombras
 
 - **`--radius-*`:** `0` (visual **sem arredondamento** no tema).
-- **Exceções pontuais:** `rounded-sm` em barras de progresso do ranking; checkbox da política; lista de regras de senha no cadastro.
+- **Exceções pontuais:** `rounded-sm` em barras de progresso do ranking; checkbox da política; lista de regras de senha no cadastro; badge **“Arqui System”** em HubBrandMark (§4.7.2) — `rounded-full`, tom cinza sobre fundo escuro.
 - **Sombras:** `shadow-sm`, `shadow-xl`, `shadow-2xl` em cartões, login e modal.
 
 ### 2.4 Ícones
@@ -108,6 +108,14 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 - Esquerda: **Arqui System** + **Internal Analytics Unit**, aviso de confidencialidade (`text-[10px] uppercase tracking-wider`).
 - Direita: indicador **live/sync** (ponto com `animate-ping`), **Políticas de Dados**, **Auditoria** (se admin), **Sair**, label de build **2.4.0-GA**.
 
+### 3.7 Shell autenticado com sidebar (`AppShell.jsx`)
+
+- **Objetivo:** unificar o layout pós-login em toda a aplicação (HUB, auditoria e módulos futuros).
+- **Estrutura desktop:** `aside` fixo (`lg:w-64`) com `bg-primary`, navegação vertical e bloco de contexto do tenant no rodapé.
+- **Estrutura mobile:** barra superior escura com navegação horizontal e scroll (`no-scrollbar`).
+- **Ativação de item:** barra lateral/borda em `tertiary` + fundo sutil (`bg-tertiary/15`).
+- **Contratos do componente:** `title`, `subtitle`, `headerActions`, `orgLabel`, `navItems` (já filtrados por permissão/módulo).
+
 ---
 
 ## 4. Componentes e padrões por área
@@ -151,13 +159,26 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 - ROAS: `text-tertiary font-black`; status: pill `bg-tertiary/10 border-tertiary/20` + ponto pulsante.
 - **Expansão:** segunda linha `bg-surface`, grid 1+2 colunas com resumo e `optimization_hint` + até 2 insights.
 
-### 4.7 Login (`LoginPage.jsx`)
+### 4.7 Auth — layout partilhado (`AuthSplitLayout`) + login
 
-- Página: `min-h-screen bg-surface-container-low`, card central `max-w-md bg-white border-2 border-primary shadow-xl p-8 space-y-6`.
-- Eyebrow: **Arqui System** `text-tertiary text-[10px] font-black uppercase tracking-[0.25em]`.
-- Botão primário: `bg-primary text-white py-3 text-[10px] font-black uppercase tracking-[0.2em]`.
-- Botão outline: `border-2 border-primary` com hover invertido.
-- Erro: `text-red-600`; sucesso/info: `text-tertiary`.
+**`AuthSplitLayout`** ([`src/components/AuthSplitLayout.jsx`](../frontend/src/components/AuthSplitLayout.jsx)): split usado em login, recuperação/redefinição de senha e cadastro `/acesso/governanca-hub`.
+
+- **Grid:** `grid-cols-1 lg:grid-cols-[0.95fr_1.45fr]`; fundo externo `bg-surface-container-low`; no **desktop** o contentor usa altura `100dvh` e `overflow-hidden` para o scroll **não** ser o da página inteira.
+- **Coluna esquerda (`aside`):** `bg-primary`, texto claro, componente **HubBrandMark** (§4.7.2) + `heroTitle` / `heroSubtitle` + `buildLabel` opcional. Pode ter scroll próprio só se o conteúdo exceder a viewport.
+- **Coluna direita:** `overflow-y-auto` — **só a zona do formulário** rola quando o conteúdo é alto; cartões com `max-w-md mx-auto`.
+- **Mobile:** colunas empilhadas; comportamento de scroll da página conforme o ecrã.
+
+**`LoginPage`** ([`src/pages/LoginPage.jsx`](../frontend/src/pages/LoginPage.jsx)):
+
+- Cartão: `w-full max-w-md mx-auto bg-white border-2 border-primary shadow-xl p-8 space-y-6`.
+- Título **“Acesso ao painel”**; texto de contexto (organizações habilitadas pelo Administrador HUB); sem duplicar marca no cartão (marca na lateral).
+- Campos e-mail e senha (toggle visibilidade); submit **Entrar** `bg-tertiary text-white` (`text-[10px] font-black uppercase tracking-[0.2em]`).
+- Links secundários: **Esqueci minha senha** → `/login/recuperar-senha`; **Solicitar perfil administrativo HUB** → `/acesso/governanca-hub`.
+- Erro: `text-red-600`.
+
+#### 4.7.2 Marca HUB (`HubBrandMark`)
+
+[`src/components/HubBrandMark.jsx`](../frontend/src/components/HubBrandMark.jsx): ícone Material **home** em `tertiary`, wordmark **Obra10+**, badge **Arqui System** (tons cinza/claros, `rounded-full`, variante `compact` no `AppShell` mobile).
 
 ### 4.8 Modal de política (`DataPolicyModal.jsx`)
 
@@ -172,6 +193,12 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 - Tabelas em `section` card branco, `thead sticky`, scroll limitado (`max-h-[360px]` / `480px`).
 - Badges de papel e `can_access_audit` com cores slate / tertiary / blue.
 
+### 4.10 Hub Core (`HubHomePage.jsx`)
+
+- Primeira tela funcional já usa `AppShell` no mesmo estilo do dashboard.
+- Blocos internos em cards brancos com borda leve (`border-surface-container-high`) e tipografia executiva (`font-black`, uppercase).
+- Navegação inicial com foco em `Hub`, `Campanhas` e `Auditoria`.
+
 ---
 
 ## 5. Estados globais da experiência
@@ -181,7 +208,7 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 | Carregamento inicial | Fullscreen `bg-primary text-white`, `text-[10px] font-black uppercase tracking-widest` (“Carregando dados…” / “Verificando sessão…”). |
 | Banner | Fixo topo `z-50`, `bg-red-700`, texto erro, mock ou aviso do Supabase. |
 | Dados mock | Mesmo layout; mensagem no banner orienta configurar `.env`. |
-| Supabase desligado | `App.jsx` exibe `DashboardPage` **sem** rota de login; painel direto com mock. |
+| Supabase desligado | `App.jsx` exibe `CampaignsDashboardPage` **sem** router de login/HUB; painel direto. |
 | Política não aceita | Modal `required` bloqueia até checkbox + “Aceitar e continuar”. |
 
 ---
@@ -208,18 +235,39 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 |---------|---------------------|
 | `index.html` | Title, favicon, fonts |
 | `src/index.css` | `@theme`, body, material-symbols, no-scrollbar |
-| `src/components/DashboardPage.jsx` | Shell do painel, abas, filtros, todas as seções métricas |
-| `src/components/Panel.jsx` | Gate de visibilidade por aba |
-| `src/components/DataPolicyModal.jsx` | Política obrigatória / informativa |
-| `src/pages/LoginPage.jsx` | Auth UI |
-| `src/pages/AdminAuditPage.jsx` | Tabelas admin |
-| `src/App.jsx` | Router, guards, modo sem Supabase |
+| `src/modules/campaigns-dashboard/CampaignsDashboardPage.jsx` | Módulo painel de campanhas: abas, filtros, métricas |
+| `src/modules/campaigns-dashboard/components/Panel.jsx` | Gate de visibilidade por aba |
+| `src/modules/hub-core/HubHomePage.jsx` | Núcleo HUB (shell + docs) |
+| `src/modules/crm-core/CrmHomePage.jsx` | CRM global multi-tenant (`negocios`, RLS) |
+| `src/components/AuthSplitLayout.jsx` | Split auth: hero + formulário; scroll só na coluna direita (desktop) |
+| `src/components/HubBrandMark.jsx` | Marca Obra10+ + badge Arqui System (login lateral e `AppShell`) |
+| `src/components/AppShell.jsx` | Shell pós-login com sidebar / navegação mobile |
+| `src/components/DataPolicyModal.jsx` | Política obrigatória / informativa (compartilhado) |
+| `src/pages/LoginPage.jsx` | Login; links recuperação e solicitação admin HUB |
+| `src/pages/ForgotPasswordPage.jsx` / `ResetPasswordPage.jsx` | Recuperação e redefinição de senha |
+| `src/pages/HubAdminSolicitacaoPage.jsx` | Cadastro `/acesso/governanca-hub` (signup + `hub_solicitacoes_admin`) |
+| `src/pages/HubPendingApprovalPage.jsx` | `/acesso/pendente-hub` — aguardando aprovação owner |
+| `src/pages/AdminAuditPage.jsx` | `/adm` — auditoria e fila de aprovação (owner) |
+| `src/lib/postLoginPath.js` | Destino pós-login (`/adm`, `/acesso/pendente-hub`, `/crm`) |
+| `src/App.jsx` | Router completo (auth, HUB, CRM, campanhas); ver [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md) |
 
 ---
 
 ## 9. Evolução do MKDS
 
 Ao alterar tokens, **atualize primeiro** `src/index.css` e **depois** este documento. Ao criar novos componentes, prefira reutilizar: labels em `text-[10px] font-black uppercase`, bordas `border-primary` ou `surface-container-high`, e largura máxima `max-w-[1800px]` para consistência com o painel principal.
+
+---
+
+## 9.1 Navegação principal e unificação de dados
+
+- **Hub (shell):** `HubHomePage` em `/` — visão institucional / documentação e acesso aos módulos (rota protegida).
+- **CRM (eixo do produto):** `CrmHomePage` em `/crm` — negócios globais; cada organização enxerga só o permitido por RLS; funis/pipeline por tenant são governados pelo HUB.
+- **Campanhas:** `/painel/campanhas` — dashboard de mídia (schema de relatórios já existente).
+- **Governança / pendência:** `/acesso/governanca-hub` (público, cadastro admin HUB); `/acesso/pendente-hub` (sessão, solicitação pendente sem admin); detalhes em [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md).
+- **Unificação Supabase:** projeto `dash-midias` concentra schema de campanhas **e** schema HUB (`organizacoes`, `perfis`, `hub_admins`, `hub_solicitacoes_admin`, `negocios`, etc.).
+- **Auth:** leitura de `profiles` (legado) + `perfis` + `hub_admins` + `hub_solicitacoes_admin` (pendente); `identityReady` evita redirect antes de resolver `isAdmin` e fila.
+- **Redirecionamento pós-login** (`getPostLoginPath`): administrador → `/adm`; solicitação pendente sem admin → `/acesso/pendente-hub`; caso contrário → `/crm`.
 
 ---
 
@@ -230,7 +278,8 @@ O repositório inclui a base **estratégica e de arquitetura** do **Obra10+ HUB*
 | Documento | Conteúdo |
 |-----------|----------|
 | [SPEC.md](./SPEC.md) | Visão do produto, princípios, entidades, módulos, eventos, stack React + Supabase |
-| [PLANEJAMENTO.md](./PLANEJAMENTO.md) | Fases, marcos M1–M12, riscos, estratégia de APIs |
+| [PLANEJAMENTO.md](./PLANEJAMENTO.md) | Fases, marcos M1–M12, MVP auth/governança HUB, riscos, estratégia de APIs |
+| [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md) | Rotas, guards, pós-login, tabelas Supabase e env (auth HUB) |
 | [ARQUITETURA.md](./ARQUITETURA.md) | Camadas, diagrama Mermaid, RLS, Edge Functions, fluxos |
 | [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md) | `organizacoes`, `negocios`, `domain_events`, convenções |
 | [FLUXO_INICIO_DESENVOLVIMENTO.md](./FLUXO_INICIO_DESENVOLVIMENTO.md) | Ordem: schema + RLS → React → webhooks |
@@ -244,8 +293,8 @@ O repositório inclui a base **estratégica e de arquitetura** do **Obra10+ HUB*
 | [ONNZE_TECNOLOGIA.md](./ONNZE_TECNOLOGIA.md) | Papel da Onnze na execução técnica |
 | [product_requirements_document.md](./product_requirements_document.md) | **Template** genérico de PRD (inglês); preencher ou substituir por PRD Obra10+ |
 
-### 10.1 Alinhamento visual: implementação × guia de identidade
+### 10.1 Alinhamento visual: fonte de verdade
 
-- **Código atual (`index.css`):** paleta **azul escuro + verde** (`primary` / `tertiary`), estilo “relatório denso” e bordas retas — documentada nas **§§1–2** deste MKDS.
-- **UI_LOGIN_E_IDENTIDADE.md:** paleta **charcoal + dourado** e cantos **8–12px** no login e shell futuro.
-- **Diretriz:** novas telas do **HUB completo** devem convergir para os tokens do guia **UI_LOGIN_E_IDENTIDADE** quando o produto unificar shell; até lá, o painel de campanhas mantém o tema já implementado e descrito nas seções 1–8 acima. Qualquer migração de tokens deve atualizar **os dois** arquivos (`index.css` + MKDS + `UI_LOGIN_E_IDENTIDADE` se mudar o contrato).
+- **Fonte de verdade atual:** `index.css` + este MKDS (paleta navy + verde do dashboard).
+- **Diretriz de produto:** todas as telas novas devem herdar o mesmo sistema visual (login, shell autenticado, módulos internos e auditoria).
+- **UI_LOGIN_E_IDENTIDADE.md:** referência de UX e linguagem; caso divergir de token, prevalece o padrão implementado no frontend até revisão formal de design system.

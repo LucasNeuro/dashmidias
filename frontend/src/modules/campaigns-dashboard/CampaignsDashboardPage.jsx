@@ -1,12 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { useDashboardData } from '../hooks/useDashboardData';
-import { money, intFmt } from '../lib/format';
-import { logPanelAccess } from '../lib/panelAccessLog';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
-import { Panel } from './Panel';
-import { DataPolicyModal, hasAcceptedDataPolicy } from './DataPolicyModal';
+import { AppShell } from '../../components/AppShell';
+import { DataPolicyModal, hasAcceptedDataPolicy } from '../../components/DataPolicyModal';
+import { useAuth } from '../../context/AuthContext';
+import { money, intFmt } from '../../lib/format';
+import { logPanelAccess } from '../../lib/panelAccessLog';
+import { getAppNavItems } from '../../lib/appNavItems';
+import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { Panel } from './components/Panel';
+import { useCampaignsDashboardData } from './hooks/useCampaignsDashboardData';
 
 const TABS = [
   { id: 'overview', label: 'Visão Geral' },
@@ -84,9 +86,9 @@ function campaignOverlapsRange(campaign, dateWindow) {
   return start <= dateWindow.end && end >= dateWindow.start;
 }
 
-export function DashboardPage() {
-  const { session, isAdmin, signOut } = useAuth();
-  const { loading, banner, payload, syncLabel, reportOptions, selectedSlug, setSelectedSlug } = useDashboardData();
+export function CampaignsDashboardPage() {
+  const { session, isAdmin, hubAdmin, isHubOwner, isPlatformOwner, signOut, portal } = useAuth();
+  const { loading, banner, payload, syncLabel, reportOptions, selectedSlug, setSelectedSlug } = useCampaignsDashboardData();
   const [tab, setTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
@@ -384,31 +386,32 @@ export function DashboardPage() {
     else setTab('overview');
   }
 
-  return (
-    <>
-      <DataPolicyModal
-        mode="required"
-        open={policyRequiredOpen}
-        onClose={() => setPolicyRequiredOpen(false)}
-        onAccepted={() => setPolicyRequiredOpen(false)}
-      />
-      <DataPolicyModal mode="info" open={policyInfoOpen} onClose={() => setPolicyInfoOpen(false)} />
+  const hubGovernance = hubAdmin || isHubOwner || isPlatformOwner;
+  const navItems = useMemo(
+    () => getAppNavItems({ isAdmin, hubGovernance, portal }),
+    [isAdmin, hubGovernance, portal]
+  );
 
-      {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-primary text-white text-[10px] font-black uppercase tracking-widest">
-          Carregando dados…
-        </div>
-      )}
-      {banner && (
-        <div className="fixed top-0 inset-x-0 z-50 bg-red-700 text-white text-center text-[11px] font-semibold py-2 px-4">
-          {banner}
-        </div>
-      )}
+  const usePlatformShell = isSupabaseConfigured();
+  const showAsPlatformOwner = isHubOwner || isPlatformOwner;
+  const shellSubtitle = showAsPlatformOwner
+    ? 'Visão consolidada — gestão global de campanhas (dono da plataforma ou e-mail owner). Obras, imóveis e projetos · Meta e Google.'
+    : 'Visão consolidada na rota da plataforma — gestão geral de campanhas e insights. Obras, imóveis e projetos · Meta e Google.';
 
-      <div className={`w-[96vw] max-w-[1800px] mx-auto px-4 py-8 lg:px-6 space-y-8 ${banner ? 'pt-16' : ''}`}>
+  const headerActions = (
+    <Link
+      to="/"
+      className="text-[10px] font-black uppercase tracking-widest border border-primary px-4 py-2 hover:bg-primary hover:text-white transition-colors"
+    >
+      Hub
+    </Link>
+  );
+
+  const dashboardInner = (
+      <div className={`w-full max-w-[1800px] mx-auto px-4 py-8 lg:px-6 space-y-8 min-w-0 ${banner ? 'pt-16' : ''}`}>
         <header className="flex flex-col md:flex-row justify-between items-end gap-6 pb-8 border-b-2 border-primary">
           <div className="space-y-3">
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
               <span className="bg-primary text-white text-[10px] font-black px-2 py-1 tracking-[0.2em] uppercase">
                 {report.document_badge}
               </span>
@@ -416,9 +419,14 @@ export function DashboardPage() {
                 <span className="material-symbols-outlined text-[12px]">security</span>
                 {report.governance_label}
               </span>
+              {usePlatformShell && showAsPlatformOwner ? (
+                <span className="bg-white/90 text-primary border border-primary text-[9px] font-black px-2 py-1 tracking-[0.2em] uppercase">
+                  Dono da plataforma
+                </span>
+              ) : null}
             </div>
-            <h1 className="text-4xl md:text-5xl font-black leading-none tracking-tighter text-primary">
-              Painel de performance de campanhas e insights
+            <h1 className="text-3xl md:text-4xl font-black leading-tight tracking-tighter text-primary">
+              Performance de campanhas e insights
             </h1>
             <p className="text-lg text-on-surface-variant font-semibold">
               Obras, imóveis e projetos · Meta Ads e Google Ads
@@ -1068,15 +1076,15 @@ export function DashboardPage() {
             >
               Políticas de Dados
             </button>
-            {isSupabaseConfigured() && isAdmin && (
+            {isSupabaseConfigured() && session && !usePlatformShell && (
               <Link
-                to="/adm"
+                to="/crm"
                 className="hover:text-tertiary transition-colors border-b border-transparent hover:border-tertiary"
               >
-                Auditoria
+                CRM / Plataforma
               </Link>
             )}
-            {isSupabaseConfigured() && session && (
+            {isSupabaseConfigured() && session && !usePlatformShell && (
               <button
                 type="button"
                 onClick={() => signOut()}
@@ -1089,6 +1097,41 @@ export function DashboardPage() {
           </div>
         </footer>
       </div>
+  );
+
+  return (
+    <>
+      <DataPolicyModal
+        mode="required"
+        open={policyRequiredOpen}
+        onClose={() => setPolicyRequiredOpen(false)}
+        onAccepted={() => setPolicyRequiredOpen(false)}
+      />
+      <DataPolicyModal mode="info" open={policyInfoOpen} onClose={() => setPolicyInfoOpen(false)} />
+
+      {loading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-primary text-white text-[10px] font-black uppercase tracking-widest">
+          Carregando dados…
+        </div>
+      )}
+      {banner && (
+        <div className="fixed top-0 inset-x-0 z-50 bg-red-700 text-white text-center text-[11px] font-semibold py-2 px-4">
+          {banner}
+        </div>
+      )}
+
+      {usePlatformShell ? (
+        <AppShell
+          title="Painel de campanhas"
+          subtitle={shellSubtitle}
+          navItems={navItems}
+          headerActions={headerActions}
+        >
+          {dashboardInner}
+        </AppShell>
+      ) : (
+        dashboardInner
+      )}
     </>
   );
 }

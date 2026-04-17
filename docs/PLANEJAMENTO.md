@@ -15,6 +15,18 @@ Este documento organiza **como** construir o sistema em etapas, alinhado ao [SPE
 
 ---
 
+## 1.1 Marco MVP — Auth e governança HUB (UI)
+
+Referência única de comportamento: [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md).
+
+**Já coberto no front atual:** entrada por portal (`/entrada` → `/login/:portal`); login e recuperação de senha (`AuthSplitLayout`); redirect pós-login via `getPostLoginPath` (`/adm`, `/acesso/pendente-hub`, ou `getParticipantHomePath` — hoje `/painel/campanhas`); página de pendência; `/adm` com fila visível ao owner (`VITE_HUB_OWNER_EMAIL`); identidade agregada em `AuthContext` (`profiles`, `perfis`, `hub_admins`, solicitação pendente). URLs legadas `/acesso/governanca-hub` redirecionam para `/entrada` (ver [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md)).
+
+**Pendentes / evolução (prioridade sugerida):** alinhar operação de “aprovar” na UI com promoção em `hub_admins` e estado em `hub_solicitacoes_admin` sem ambiguidade; notificação ao owner (e-mail ou canal interno); RPC ou transação única “aprovar e promover” se fizer sentido; revisão RLS com checklist; URLs e **Confirm email** do Supabase em produção; testes smoke (login → cada destino de `postLoginPath`; fluxo governança → pendente → aprovação).
+
+Este marco **não** substitui M2–M4 do quadro abaixo; complementa a fatia **identidade HUB** da Fase 1.
+
+---
+
 ## 2. Fases (alinhamento ao PRD)
 
 ### Fase 1 — Fundação e operação mínima viável
@@ -123,6 +135,7 @@ Ordem **sugerida**; ajustar conforme prioridade do negócio (ex.: imobiliário p
 
 | Arquivo | Conteúdo |
 |---------|----------|
+| [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md) | Rotas, guards, pós-login, tabelas Supabase — **implementado** (MVP UI auth HUB) |
 | [FLUXO_INICIO_DESENVOLVIMENTO.md](./FLUXO_INICIO_DESENVOLVIMENTO.md) | Ordem ideal: schema + RLS → React → integrações |
 | [ARQUITETURA.md](./ARQUITETURA.md) | Camadas, diagrama, fluxos, segurança, bounded contexts |
 | [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md) | Tabelas e colunas v0 (`negocios`, `domain_events`, etc.) |

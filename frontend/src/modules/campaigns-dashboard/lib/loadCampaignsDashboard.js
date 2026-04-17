@@ -1,4 +1,4 @@
-import { getReportSlug, getSupabase } from './supabaseClient';
+ï»¿import { getReportSlug, getSupabase } from '../../../lib/supabaseClient';
 
 /**
  * Apelidos ? slug exato em public.reports.
@@ -42,7 +42,7 @@ async function resolveReport(supabase, desiredSlug) {
 
   return {
     report: fallback,
-    notice: `Slug ?${desiredSlug}? n?o existe no banco. Exibindo ?${fallback.slug}?. Ajuste VITE_REPORT_SLUG na Vercel para esse slug e redeploy.`,
+    notice: `Slug ï¿½${desiredSlug}ï¿½ n?o existe no banco. Exibindo ï¿½${fallback.slug}ï¿½. Ajuste VITE_REPORT_SLUG na Vercel para esse slug e redeploy.`,
   };
 }
 
@@ -145,7 +145,7 @@ export async function loadDashboardBySlug(desiredSlug = getReportSlug()) {
     channels: normalizedChannels,
     meta_metrics,
     google_network: google_stats || [],
-    google_focus: google_meta?.focus_label || 'Foco: Intenção de compra',
+    google_focus: google_meta?.focus_label || 'Foco: IntenÃ§Ã£o de compra',
     funnel_steps: (funnel_steps || []).map((s) => ({
       sort_order: s.sort_order,
       title: s.title,

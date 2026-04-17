@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta Corporativa - AMBEV S.A.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .card-shadow { box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded uppercase">Ativa</span>
+                    <span class="text-slate-500 text-sm">Atualizado em 16/04/2026</span>
+                </div>
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">AMBEV S.A.</h1>
+                <p class="text-slate-500 flex items-center gap-2">
+                    <i class="fa-solid fa-building text-blue-500"></i>
+                    Filial Manaus • CNPJ: 07.526.557/0116-59
+                </p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="window.print()" class="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-print"></i> Imprimir
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Coluna Principal (Esquerda) -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Dados Básicos -->
+                <section class="bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2 border-b pb-3">
+                        <i class="fa-solid fa-circle-info text-blue-600"></i> Informações da Empresa
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                        <div>
+                            <p class="text-slate-400 mb-1">Natureza Jurídica</p>
+                            <p class="font-medium text-slate-700">Sociedade Anônima Aberta</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 mb-1">Porte</p>
+                            <p class="font-medium text-slate-700">Demais</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 mb-1">Capital Social (Equity)</p>
+                            <p class="font-bold text-blue-600 text-lg">R$ 58.308.213.544,96</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 mb-1">Fundação</p>
+                            <p class="font-medium text-slate-700">31/07/2023</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Atividades -->
+                <section class="bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-industry text-blue-600"></i> Atividades Econômicas
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+                            <p class="text-xs font-bold text-blue-600 uppercase mb-1">Atividade Principal</p>
+                            <p class="text-slate-800 font-medium">1113502 - Fabricação de cervejas e chopes</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Atividades Secundárias</p>
+                            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                                <p class="text-slate-700">1122401 - Fabricação de refrigerantes</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Quadro Societário -->
+                <section class="bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-users text-blue-600"></i> Quadro de Diretores
+                        </div>
+                        <span class="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">12 Membros</span>
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="text-slate-400 border-b">
+                                    <th class="pb-3 font-medium">Nome</th>
+                                    <th class="pb-3 font-medium">Cargo</th>
+                                    <th class="pb-3 font-medium">Desde</th>
+                                    <th class="pb-3 font-medium text-right">Idade</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100" id="members-list">
+                                <!-- Dinamicamente ou Manualmente aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Coluna Lateral (Direita) -->
+            <div class="space-y-6">
+                
+                <!-- Contato e Localização -->
+                <section class="bg-white p-6 rounded-2xl border border-slate-100 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-location-dot text-blue-600"></i> Localização
+                    </h2>
+                    <div class="space-y-4 text-sm">
+                        <div class="flex gap-3">
+                            <i class="fa-solid fa-map-marked-alt text-slate-400 mt-1"></i>
+                            <p class="text-slate-700 leading-relaxed">
+                                Avenida Constantino Nery, 2575<br>
+                                Flores, Manaus - AM<br>
+                                CEP: 69058-795
+                            </p>
+                        </div>
+                        <div class="flex gap-3 border-t pt-4">
+                            <i class="fa-solid fa-phone text-slate-400"></i>
+                            <p class="text-slate-700">(19) 3313-5680</p>
+                        </div>
+                        <div class="flex gap-3 border-t pt-4">
+                            <i class="fa-solid fa-envelope text-slate-400"></i>
+                            <p class="text-slate-700 break-all">opobrigaces@ambev.com.br</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Benefícios SUFRAMA -->
+                <section class="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-award"></i> Registro SUFRAMA
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center border-b border-white/20 pb-2">
+                            <span class="text-blue-100 text-sm">Número</span>
+                            <span class="font-mono font-bold">220120838</span>
+                        </div>
+                        <div class="flex justify-between items-center border-b border-white/20 pb-2">
+                            <span class="text-blue-100 text-sm">Situação</span>
+                            <span class="bg-green-400/20 text-green-300 text-xs px-2 py-0.5 rounded font-bold uppercase">Ativa</span>
+                        </div>
+                        <div class="pt-2">
+                            <p class="text-xs text-blue-100 mb-2 font-bold uppercase tracking-wider">Incentivos Ativos</p>
+                            <ul class="text-xs space-y-2">
+                                <li class="bg-white/10 p-2 rounded">IPI - Isenção (Consumo Interno)</li>
+                                <li class="bg-white/10 p-2 rounded">ICMS - Isenção (Industrialização)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Registros Estaduais -->
+                <section class="bg-white p-6 rounded-2xl border border-slate-100 card-shadow text-sm">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-file-contract text-blue-600"></i> Inscrição Estadual
+                    </h2>
+                    <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-slate-400">Número</span>
+                            <span class="font-medium">05.459.140-6 (AM)</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Tipo</span>
+                            <span class="font-medium text-slate-700">IE Normal</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const data = {
+            "members": [
+                { "since": "2022-12-26", "role": "Diretor", "name": "Felipe Moreira Haddad Baruque", "age": "41-50" },
+                { "since": "2025-03-06", "role": "Diretor", "name": "Carlos Eduardo Klutzenschell Lisboa", "age": "51-60" },
+                { "since": "2022-02-15", "role": "Diretor", "name": "Valdecir Duarte", "age": "41-50" },
+                { "since": "2017-12-08", "role": "Diretor", "name": "Eduardo Braga Cavalcanti de Lacerda", "age": "41-50" },
+                { "since": "2021-01-12", "role": "Diretor", "name": "Daniel Wakswaser Cordeiro", "age": "41-50" },
+                { "since": "2025-04-03", "role": "Diretor", "name": "Guilherme Fleury Parolari", "age": "41-50" },
+                { "since": "2022-02-15", "role": "Diretor", "name": "Daniela Gavranic Cachich", "age": "51-60" },
+                { "since": "2025-09-05", "role": "Diretor", "name": "Guilherme Malik Parente", "age": "41-50" },
+                { "since": "2022-06-13", "role": "Diretor", "name": "Carla Smith Prado", "age": "41-50" },
+                { "since": "2023-09-15", "role": "Diretor", "name": "Joao Coelho de Carvalho", "age": "41-50" },
+                { "since": "2016-01-06", "role": "Diretor", "name": "Ricardo Morais Pereira de Melo", "age": "51-60" },
+                { "since": "2019-01-01", "role": "Diretor", "name": "Paulo Andre Zagman", "age": "41-50" }
+            ]
+        };
+
+        const container = document.getElementById('members-list');
+        data.members.forEach(m => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="py-4 font-medium text-slate-800">${m.name}</td>
+                <td class="py-4 text-slate-500 text-xs uppercase font-bold">${m.role}</td>
+                <td class="py-4 text-slate-600">${new Date(m.since).toLocaleDateString('pt-BR')}</td>
+                <td class="py-4 text-right text-slate-600">${m.age} anos</td>
+            `;
+            container.appendChild(row);
+        });
+    </script>
+</body>
+</html>

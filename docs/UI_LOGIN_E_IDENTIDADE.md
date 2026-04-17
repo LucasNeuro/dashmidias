@@ -1,5 +1,15 @@
 # UI — Login e identidade visual (Obra10+ HUB)
 
+## Estado da implementação (front atual)
+
+O repositório **já implementa** autenticação e shell com a paleta e componentes descritos no [MKDS.md](./MKDS.md) e em [`frontend/src/index.css`](../frontend/src/index.css): **primary** navy (`#0b1622`), **tertiary** verde (`#22c55e`), superfícies cinza-claras, bordas retas no tema global (`--radius-*: 0`), e exceções pontuais (ex.: badge **Arqui System** em formato pílula na marca lateral).
+
+As tabelas de **tokens `--obra-*`** e o **dourado** (`#C5A059`) nas secções abaixo são **diretriz de produto / evolução opcional** — úteis para alinhar com material gráfico Obra10+ e futuras revisões do design system. **Até haver decisão formal de migração**, novas telas devem seguir o MKDS e o código existente, não substituir silenciosamente por dourado só por este documento.
+
+Fluxo técnico de rotas, guards e pós-login: [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md).
+
+---
+
 Este guia alinha **telas de autenticação** e **shell do produto** à mesma linguagem: **predominância de branco**, texto **charcoal**, **dourado da marca** só onde precisa destacar (CTA, estados ativos, detalhes). Referências de mercado analisadas: estética tipo **Praxio** / **integra.sky** (marketplace, split login, cards) e **ClicVend** (CRM + lista + top bar) — **não copiar cores alheias** (laranja, teal, roxo); traduzir o **padrão** para a paleta Obra10+ abaixo.
 
 ---

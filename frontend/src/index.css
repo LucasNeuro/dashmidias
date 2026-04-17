@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #041627;
+  --color-primary: #0b1622;
   --color-secondary: #515f74;
-  --color-tertiary: #00a572;
+  --color-tertiary: #22c55e;
   --color-surface: #f7f9fb;
   --color-surface-container: #eceef0;
   --color-surface-container-high: #e6e8ea;
@@ -31,4 +31,43 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Sidebar CRM: barra fina, pouco visível (evita scrollbar “crua” do sistema) */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Tabelas em superfície clara: scroll fino vertical/horizontal */
+.hub-table-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+}
+.hub-table-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.hub-table-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hub-table-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.22);
+  border-radius: 9999px;
+}
+.hub-table-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.35);
 }
