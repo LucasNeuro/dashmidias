@@ -263,6 +263,39 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
             />
             <p className="mt-1 text-[11px] text-slate-400">{draft.description?.length ?? 0}/200</p>
           </label>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Convite por link</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                  Quando desligado, quem abrir o endereço do cadastro vê que novos envios não são aceitos — útil para pausar campanhas sem apagar o template.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={draft.inviteLinkEnabled !== false}
+                onClick={() => {
+                  const on = draft.inviteLinkEnabled !== false;
+                  onChangeDraft({ ...draft, inviteLinkEnabled: !on });
+                }}
+                className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                  draft.inviteLinkEnabled !== false ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    draft.inviteLinkEnabled !== false ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            {draft.inviteLinkEnabled === false ? (
+              <p className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                O link continua válido na lista, mas não abre o formulário para novos cadastros até você ativar de novo.
+              </p>
+            ) : null}
+          </div>
           <div>
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tipo de parceiro</span>
             <p className="mb-3 text-xs leading-relaxed text-slate-500">

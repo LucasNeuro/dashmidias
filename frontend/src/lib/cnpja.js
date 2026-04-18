@@ -148,42 +148,80 @@ export function cnpjaZipToFormShape(z) {
 }
 
 /**
- * Aplica dados do office no formulário (só preenche campos vazios).
+ * Escolhe o melhor e-mail da lista (prioriza corporativo, depois o primeiro com endereço válido).
+ * @param {unknown[]} emails
+ */
+function pickEmailAddress(emails) {
+  if (!Array.isArray(emails) || emails.length === 0) return '';
+  const corp = emails.find((e) => e && typeof e === 'object' && e.ownership === 'CORPORATE' && e.address);
+  const withAddr =
+    corp ?? emails.find((e) => e && typeof e === 'object' && e.address && String(e.address).includes('@'));
+  const em = withAddr ?? emails[0];
+  const addr = em?.address;
+  return addr != null ? String(addr).trim() : '';
+}
+
+/**
+ * Escolhe telefone principal (prioriza celular).
+ * @param {unknown[]} phones
+ */
+function pickPhone(phones) {
+  if (!Array.isArray(phones) || phones.length === 0) return '';
+  const mobile = phones.find((p) => p && typeof p === 'object' && p.type === 'MOBILE');
+  const p = mobile ?? phones[0];
+  const area = p?.area != null ? String(p.area) : '';
+  const num = p?.number != null ? String(p.number) : '';
+  return area && num ? `(${area}) ${num}` : num || area;
+}
+
+/**
+ * Snapshot enriquecido para persistência (ex.: `hub_partner_org_signups.cnpja_snapshot`).
+ * @param {Record<string, unknown>} data resposta bruta do GET /office
+ */
+export function cnpjaOfficeToHubSnapshot(data) {
+  if (!data || typeof data !== 'object') return null;
+  return {
+    ...data,
+    _consulta_em: new Date().toISOString(),
+  };
+}
+
+/**
+ * Aplica dados do office no formulário.
  * @param {{ getFieldValue: (name: string) => unknown, setFieldValue: (name: string, value: unknown) => void }} form
  * @param {Record<string, unknown>} data
+ * @param {{ mergeOnly?: boolean }} [opts] mergeOnly=true mantém valores já preenchidos; false sobrescreve com o retorno da API (padrão).
  */
-export function applyCnpjaOfficeToForm(form, data) {
+export function applyCnpjaOfficeToForm(form, data, opts = {}) {
+  const mergeOnly = opts.mergeOnly === true;
   const company = data?.company;
   const addr = data?.address;
-  const name = company?.name != null ? String(company.name) : '';
+  const alias = data?.alias != null ? String(data.alias).trim() : '';
+  const fromCompany = company?.name != null ? String(company.name).trim() : '';
+  const name = fromCompany || alias;
   const phones = Array.isArray(data?.phones) ? data.phones : [];
   const emails = Array.isArray(data?.emails) ? data.emails : [];
 
   const fill = (field, value) => {
     if (value == null || value === '') return;
-    const cur = form.getFieldValue(field);
-    if (cur != null && String(cur).trim() !== '') return;
+    if (mergeOnly) {
+      const cur = form.getFieldValue(field);
+      if (cur != null && String(cur).trim() !== '') return;
+    }
     form.setFieldValue(field, value);
   };
 
   fill('nome_empresa', name);
 
-  if (phones.length > 0) {
-    const p = phones[0];
-    const area = p?.area != null ? String(p.area) : '';
-    const num = p?.number != null ? String(p.number) : '';
-    const tel = area && num ? `(${area}) ${num}` : num || area;
-    fill('telefone', tel);
-  }
+  const tel = pickPhone(phones);
+  fill('telefone', tel);
 
-  if (emails.length > 0) {
-    const em = emails[0]?.address;
-    fill('email', em != null ? String(em) : '');
-  }
+  const em = pickEmailAddress(emails);
+  fill('email', em);
 
   if (addr && typeof addr === 'object') {
-    const zip = addr.zip != null ? onlyDigits(String(addr.zip)).slice(0, 8) : '';
-    fill('cep', zip);
+    const zipRaw = addr.zip != null ? onlyDigits(String(addr.zip)).slice(0, 8) : '';
+    fill('cep', zipRaw);
     fill('logradouro', addr.street != null ? String(addr.street) : '');
     fill('numero', addr.number != null ? String(addr.number) : '');
     fill('complemento', addr.details != null ? String(addr.details) : '');

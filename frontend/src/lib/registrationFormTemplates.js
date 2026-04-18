@@ -39,6 +39,7 @@ export function newFieldId() {
  *   name: string,
  *   description: string,
  *   partnerKind: string,
+ *   inviteLinkEnabled?: boolean,
  *   fields: TemplateField[],
  *   createdAt: string,
  *   updatedAt: string,
@@ -101,6 +102,7 @@ export function normalizeTemplate(t) {
   const rest = { ...t };
   delete rest.targetOrgSlug;
   rest.partnerKind = normalizePartnerKindSlug(rest.partnerKind);
+  rest.inviteLinkEnabled = rest.inviteLinkEnabled === false ? false : true;
   if (Array.isArray(rest.fields)) {
     const cleaned = rest.fields
       .filter((f) => f)
@@ -151,6 +153,7 @@ export function createEmptyTemplate() {
     name: '',
     description: '',
     partnerKind: DEFAULT_HUB_PARTNER_KIND,
+    inviteLinkEnabled: true,
     fields: [],
     createdAt: now,
     updatedAt: now,

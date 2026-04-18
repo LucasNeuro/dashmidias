@@ -104,7 +104,9 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
         return;
       }
       if (!hasCnpjaApiKey()) {
-        setCnpjHint('');
+        setCnpjHint(
+          'Neste ambiente a consulta automática pelo CNPJ não está disponível. Preencha nome, e-mail e telefone manualmente.'
+        );
         return;
       }
       if (lastCnpjLookup.current === n) return;

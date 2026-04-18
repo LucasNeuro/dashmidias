@@ -7,12 +7,13 @@ export function PartnerOrgSignupPage() {
   const [searchParams] = useSearchParams();
   const tplId = searchParams.get('tpl');
   const template = tplId ? getTemplateById(tplId) : null;
+  const inviteBlocked = Boolean(template && template.inviteLinkEnabled === false);
 
   return (
     <AuthSplitLayout
       heroSubtitle="Bem-vindo ao hub de parceiros Obra10+. Ao sair do campo com CNPJ ou CEP válidos, completamos dados da empresa e do endereço automaticamente. As informações servem para criar a sua conta e o contacto comercial."
     >
-      <div className="mx-auto w-full max-w-xl space-y-6">
+      <div className="mx-auto w-full max-w-lg space-y-6">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Cadastro de parceiro</h1>
           <p className="mt-2 text-sm text-slate-600">Preencha os dados da empresa e da sua conta de acesso.</p>
@@ -21,6 +22,10 @@ export function PartnerOrgSignupPage() {
         {tplId && !template ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             Este link não está mais disponível. Peça um novo convite à equipe Obra10+.
+          </div>
+        ) : inviteBlocked ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+            Este cadastro não está aceitando novos envios no momento. Entre em contacto com a equipe Obra10+ se precisar de ajuda.
           </div>
         ) : (
           <PartnerOrgSignupForm

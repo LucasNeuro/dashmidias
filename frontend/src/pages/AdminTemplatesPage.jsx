@@ -68,8 +68,12 @@ export function AdminTemplatesPage() {
     setTemplates((prev) => [copy, ...prev]);
   }, []);
 
-  const copyInviteLink = useCallback((id) => {
-    const url = inviteUrlForTemplate(id);
+  const copyInviteLink = useCallback((row) => {
+    if (row?.inviteLinkEnabled === false) {
+      window.alert('Ative o convite por link na edição do template antes de copiar o endereço.');
+      return;
+    }
+    const url = inviteUrlForTemplate(row.id);
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(url).then(
         () => window.alert('Link copiado para a área de transferência.'),
@@ -84,11 +88,20 @@ export function AdminTemplatesPage() {
     () => [
       colHelper.accessor('name', {
         header: 'Template',
-        cell: (info) => (
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-primary">{info.getValue() || '—'}</p>
-          </div>
-        ),
+        cell: (info) => {
+          const row = info.row.original;
+          const off = row.inviteLinkEnabled === false;
+          return (
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-primary">{info.getValue() || '—'}</p>
+              {off ? (
+                <span className="mt-0.5 inline-block rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+                  Convite pausado
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       }),
       colHelper.accessor('partnerKind', {
         header: 'Perfil',
@@ -134,8 +147,13 @@ export function AdminTemplatesPage() {
             </button>
             <button
               type="button"
-              onClick={() => copyInviteLink(info.row.original.id)}
-              className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-on-surface-variant hover:bg-slate-50"
+              title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite no editor para copiar' : 'Copiar link'}
+              onClick={() => copyInviteLink(info.row.original)}
+              className={`rounded-sm border px-2 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 ${
+                info.row.original.inviteLinkEnabled === false
+                  ? 'border-slate-200 text-slate-400'
+                  : 'border-surface-container-high text-on-surface-variant'
+              }`}
             >
               Link
             </button>
