@@ -1,0 +1,4 @@
+# Variáveis de ambiente na raiz do repo (se existirem)
+.env
+.env.*
+!.env.example
