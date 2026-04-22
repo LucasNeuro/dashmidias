@@ -73,7 +73,7 @@ export function PartnerOrgSignupPage() {
       heroSubtitle="Bem-vindo ao hub de parceiros Obra10+. Ao sair do campo com CNPJ ou CEP válidos, completamos dados da empresa e do endereço automaticamente. As informações servem para criar a sua conta e o contato comercial."
     >
       <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 sm:gap-4">
-        <div className="shrink-0 rounded-none border border-white/20 bg-white/[0.97] p-4 shadow-lg backdrop-blur-sm sm:p-5">
+        <div className="shrink-0 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Homologação</h1>
           {!template && !tplId ? (
             <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
@@ -83,10 +83,10 @@ export function PartnerOrgSignupPage() {
         </div>
 
         {tplId && loadStatus === 'loading' ? (
-          <p className="shrink-0 text-center text-xs text-white/90 sm:text-sm">A carregar formulário de cadastro…</p>
+          <p className="shrink-0 text-center text-xs text-on-surface-variant sm:text-sm">A carregar formulário de cadastro…</p>
         ) : null}
         {tplId && loadStatus === 'ready' && templateQuery.isFetching && template ? (
-          <p className="shrink-0 text-center text-[11px] font-medium text-sky-100 sm:text-xs" role="status">
+          <p className="shrink-0 text-center text-[11px] font-medium text-sky-800 sm:text-xs" role="status">
             A sincronizar a última versão do convite…
           </p>
         ) : null}
@@ -114,10 +114,10 @@ export function PartnerOrgSignupPage() {
           </div>
         ) : null}
 
-        <p className="shrink-0 pt-2 text-center text-sm text-white/90">
+        <p className="shrink-0 pt-2 text-center text-sm text-on-surface-variant">
           <Link
             to="/login"
-            className="font-medium text-tertiary underline underline-offset-2 hover:text-white"
+            className="font-medium text-primary underline underline-offset-2 hover:text-[#0f2840]"
           >
             Voltar ao login
           </Link>

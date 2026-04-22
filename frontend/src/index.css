@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* Evita faixa clara por baixo ao usar scroll/bounce (rotas de auth/cadastro). */
+/* Alinha overscroll com o fundo claro das rotas de formulário (auth/cadastro). */
 html {
-  background-color: var(--color-primary);
+  background-color: #ffffff;
 }
 
 @theme {
