@@ -3,3 +3,6 @@
 
 [functions.send-template-invite]
 verify_jwt = true
+
+[functions.suggest-template-description]
+verify_jwt = true

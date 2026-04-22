@@ -97,6 +97,36 @@ export async function fetchPartnerOrgSignups(supabase) {
 }
 
 /**
+ * Agrega pedidos de cadastro por `template_id` (link de convite).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @returns {Promise<Record<string, { total: number, pendente: number, aprovado: number, rejeitado: number, processado: number }>>}
+ */
+export async function fetchPartnerOrgSignupAggregatesByTemplate(supabase) {
+  const { data, error } = await supabase
+    .from('hub_partner_org_signups')
+    .select('template_id, status')
+    .limit(15000);
+  if (error) throw error;
+
+  /** @type {Record<string, { total: number, pendente: number, aprovado: number, rejeitado: number, processado: number }>} */
+  const out = {};
+  for (const row of data || []) {
+    const tid = String(row.template_id || '').trim() || '__sem_template__';
+    if (!out[tid]) {
+      out[tid] = { total: 0, pendente: 0, aprovado: 0, rejeitado: 0, processado: 0 };
+    }
+    out[tid].total += 1;
+    const st = String(row.status || 'pendente');
+    if (st === 'pendente') out[tid].pendente += 1;
+    else if (st === 'aprovado') out[tid].aprovado += 1;
+    else if (st === 'rejeitado') out[tid].rejeitado += 1;
+    else if (st === 'processado') out[tid].processado += 1;
+    else out[tid].pendente += 1;
+  }
+  return out;
+}
+
+/**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {boolean} loadSolicitacoes
  */

@@ -68,6 +68,32 @@ function parseExtrasMultiselect(raw) {
   }
 }
 
+/**
+ * Valor guardado em `extras` para tipo `file` (upload Supabase Storage).
+ * @param {unknown} raw
+ * @returns {{ path: string, bucket: string, name?: string, contentType?: string } | null}
+ */
+export function parsePartnerSignupFileRef(raw) {
+  if (raw === undefined || raw === null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  try {
+    const j = JSON.parse(s);
+    if (!j || typeof j !== 'object') return null;
+    const path = typeof j.path === 'string' ? j.path.trim() : '';
+    const bucket = typeof j.bucket === 'string' ? j.bucket.trim() : '';
+    if (!path || !bucket) return null;
+    return {
+      path,
+      bucket,
+      name: typeof j.name === 'string' ? j.name : undefined,
+      contentType: typeof j.contentType === 'string' ? j.contentType : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const signupStepEnderecoSchema = z.object({
   cep: orgSignupFieldSchemas.cep,
   logradouro: orgSignupFieldSchemas.logradouro,
@@ -145,6 +171,8 @@ export function buildExtrasSliceSchema(slice) {
         } else if (f.type === 'multiselect') {
           const arr = parseExtrasMultiselect(raw);
           if (arr.length === 0) ctx.addIssue({ code: 'custom', message: 'Selecione ao menos uma opção', path });
+        } else if (f.type === 'file') {
+          if (!parsePartnerSignupFileRef(raw)) ctx.addIssue({ code: 'custom', message: 'Envie o documento', path });
         } else if (raw === undefined || String(raw).trim() === '') {
           ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
         }
@@ -182,6 +210,10 @@ export function buildExtrasSliceSchema(slice) {
           if (opts.length && str && !opts.includes(str)) ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
           break;
         }
+        case 'file': {
+          if (!parsePartnerSignupFileRef(raw)) ctx.addIssue({ code: 'custom', message: 'Referência de ficheiro inválida', path });
+          break;
+        }
         default:
           break;
       }
@@ -200,6 +232,8 @@ function extrasSuperRefine(extraFields, data, ctx) {
       } else if (f.type === 'multiselect') {
         const arr = parseExtrasMultiselect(raw);
         if (arr.length === 0) ctx.addIssue({ code: 'custom', message: 'Selecione ao menos uma opção', path });
+      } else if (f.type === 'file') {
+        if (!parsePartnerSignupFileRef(raw)) ctx.addIssue({ code: 'custom', message: 'Envie o documento', path });
       } else if (raw === undefined || String(raw).trim() === '') {
         ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
       }
@@ -235,6 +269,10 @@ function extrasSuperRefine(extraFields, data, ctx) {
       case 'radio': {
         const opts = f.options || [];
         if (opts.length && str && !opts.includes(str)) ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
+        break;
+      }
+      case 'file': {
+        if (!parsePartnerSignupFileRef(raw)) ctx.addIssue({ code: 'custom', message: 'Referência de ficheiro inválida', path });
         break;
       }
       default:

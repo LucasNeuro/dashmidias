@@ -19,6 +19,7 @@ import {
   listHubRegistrationTemplates,
   upsertRegistrationTemplate,
 } from '../lib/registrationFormTemplatesApi';
+import { fetchPartnerOrgSignupAggregatesByTemplate } from '../lib/governanceQueries';
 
 const colHelper = createColumnHelper();
 
@@ -59,6 +60,16 @@ export function AdminTemplatesPage() {
     enabled: listEnabled,
     retry: 1,
     staleTime: 15_000,
+  });
+
+  const aggQueryKey = ['governance', 'partner-org-signup-aggregates', userId];
+
+  const { data: signupAgg = {} } = useQuery({
+    queryKey: aggQueryKey,
+    queryFn: () => fetchPartnerOrgSignupAggregatesByTemplate(supabase),
+    enabled: listEnabled,
+    retry: 1,
+    staleTime: 20_000,
   });
 
   const openNew = useCallback(() => {
@@ -193,6 +204,25 @@ export function AdminTemplatesPage() {
           );
         },
       }),
+      colHelper.display({
+        id: 'pedidos',
+        header: 'Pedidos',
+        cell: (info) => {
+          const id = info.row.original.id;
+          const a = signupAgg[id];
+          if (!a || a.total === 0) {
+            return <span className="text-xs text-slate-400">0</span>;
+          }
+          const title = `Total ${a.total}: ${a.pendente} pendente(s), ${a.aprovado} aprovado(s), ${a.rejeitado} rejeitado(s), ${a.processado} processado(s)`;
+          return (
+            <span className="text-xs text-on-surface-variant" title={title}>
+              <span className="font-semibold text-primary">{a.total}</span>
+              {a.pendente ? <span className="text-slate-500"> · {a.pendente} pend.</span> : null}
+              {a.aprovado ? <span className="text-emerald-700"> · {a.aprovado} ok</span> : null}
+            </span>
+          );
+        },
+      }),
       colHelper.accessor('updatedAt', {
         header: 'Atualizado',
         cell: (info) => {
@@ -241,7 +271,7 @@ export function AdminTemplatesPage() {
         ),
       }),
     ],
-    [copyInviteLink, openEdit, remove, saving]
+    [copyInviteLink, openEdit, remove, saving, signupAgg]
   );
 
   if (!isSupabaseConfigured() || !supabase) {

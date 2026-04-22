@@ -9,6 +9,7 @@ import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { mergePartnerOrgExtraFields } from '../lib/orgStandardFields';
 import { getTemplateById as getTemplateByIdFromLocal } from '../lib/registrationFormTemplates';
 import { getRegistrationTemplateById } from '../lib/registrationFormTemplatesApi';
+import { submitHubPartnerOrgSignup } from '../lib/submitHubPartnerOrgSignup';
 
 export function PartnerOrgSignupPage() {
   const { toast } = useUiFeedback();
@@ -100,15 +101,31 @@ export function PartnerOrgSignupPage() {
             <PartnerOrgSignupForm
               key={tplId || 'sem-template'}
               signupSettings={template?.signupSettings}
-            extraFields={mergePartnerOrgExtraFields(template?.fields ?? [], {
-              standardFieldsDisabled: template?.standardFieldsDisabled,
-              disabledBuiltinGroups: template?.disabledBuiltinGroups,
-            })}
-              onSubmitSuccess={() => {
-                toast(
-                  'Cadastro validado (demonstração). Em produção, os dados seguem para confirmação e criação da conta.',
-                  { variant: 'success', duration: 6000 }
-                );
+              extraFields={mergePartnerOrgExtraFields(template?.fields ?? [], {
+                standardFieldsDisabled: template?.standardFieldsDisabled,
+                disabledBuiltinGroups: template?.disabledBuiltinGroups,
+              })}
+              onSubmitSuccess={async (value) => {
+                const meta = {
+                  templateId: tplId || null,
+                  partnerKind: template?.partnerKind ?? null,
+                };
+                const r = await submitHubPartnerOrgSignup({ dados: value, meta });
+                if (r.skipped) {
+                  toast(
+                    'Cadastro concluído localmente (servidor não configurado). Os dados não foram guardados na base.',
+                    { variant: 'warning', duration: 6500 }
+                  );
+                  return;
+                }
+                if (!r.ok) {
+                  toast(r.error || 'Não foi possível registar o pedido.', { variant: 'warning', duration: 7000 });
+                  return;
+                }
+                toast('Pedido de cadastro enviado. A equipe Obra10+ irá analisar e entrar em contacto.', {
+                  variant: 'success',
+                  duration: 6500,
+                });
               }}
             />
           </div>

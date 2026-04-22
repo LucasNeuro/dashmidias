@@ -1,5 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
-import { normalizeCnpj14 } from './opencnpj';
+import { normalizeCnpj14, normalizeCpf11 } from './opencnpj';
 
 /**
  * @param {{
@@ -21,17 +21,24 @@ export async function submitHubPartnerOrgSignup(bundle) {
   if (!sb) return { ok: true, skipped: true };
 
   const { dados, meta } = bundle;
-  const cnpjDigits = normalizeCnpj14(String(dados.cnpj ?? ''));
-  const email = String(dados.email ?? '').trim();
+  const raw = { ...dados };
+  delete raw.senha;
+  delete raw.confirmar_senha;
 
-  if (!cnpjDigits || !email) {
-    return { ok: false, error: 'Dados inválidos para envio.' };
+  const cnpjDigits = normalizeCnpj14(String(raw.cnpj ?? ''));
+  const cpfDigits = normalizeCpf11(String(raw.cpf ?? ''));
+  /** Identificador guardado em `cnpj` (coluna legada): 14 dígitos CNPJ ou 11 CPF. */
+  const doc = cnpjDigits || cpfDigits;
+  const email = String(raw.email ?? '').trim();
+
+  if (!doc || !email) {
+    return { ok: false, error: 'E-mail e CNPJ ou CPF são necessários para registar o pedido.' };
   }
 
   const row = {
     email,
-    cnpj: cnpjDigits,
-    dados_formulario: dados,
+    cnpj: doc,
+    dados_formulario: raw,
     cnpja_snapshot: meta?.cnpjSnapshot ?? null,
     consulta_fonte: meta?.consultaFonte ?? null,
     template_id: meta?.templateId ?? null,

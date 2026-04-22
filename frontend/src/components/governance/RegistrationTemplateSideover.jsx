@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { AppSideover } from '../AppSideover';
+import { useAuth } from '../../context/AuthContext';
+import { useUiFeedback } from '../../context/UiFeedbackContext';
 import { getOrgBuiltinPartnerFieldGroups } from '../../lib/orgStandardFields';
 import { HUB_PARTNER_KINDS, normalizePartnerKindSlug, PRESTADORES_SERVICO_KIND } from '../../lib/hubPartnerKinds';
+import { suggestTemplateDescriptionWithMistral } from '../../lib/suggestTemplateDescription';
 import { normalizeSignupOptions } from '../../schemas/partnerOrgSignup';
 import {
   assignStableKeysFromLabels,
@@ -219,9 +222,12 @@ function FieldRow({ field, index, total, onChange, onRemove, onMove }) {
 }
 
 export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDraft, onSave, isNew, isSaving = false }) {
+  const { supabase, session, isAdmin } = useAuth();
+  const { toast } = useUiFeedback();
   const [tab, setTab] = useState('geral');
   /** Secções do separador «Padrão» expandidas (ids de grupo). */
   const [builtinOpenIds, setBuiltinOpenIds] = useState(/** @type {string[]} */ ([]));
+  const [suggestDescBusy, setSuggestDescBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -232,6 +238,40 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
 
   function toggleBuiltinSection(groupId) {
     setBuiltinOpenIds((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]));
+  }
+
+  async function handleSuggestDescription() {
+    if (!supabase || !session) {
+      toast('Inicie sessão para usar a sugestão por IA.', { variant: 'warning', duration: 5000 });
+      return;
+    }
+    if (!isAdmin) {
+      toast('Sem permissão para esta acção.', { variant: 'warning', duration: 5000 });
+      return;
+    }
+    const slug = normalizePartnerKindSlug(draft.partnerKind);
+    const kindMeta = HUB_PARTNER_KINDS.find((k) => k.value === slug);
+    setSuggestDescBusy(true);
+    try {
+      const text = await suggestTemplateDescriptionWithMistral(supabase, {
+        templateName: draft.name.trim(),
+        partnerKind: slug,
+        partnerKindLabel: kindMeta?.label ?? '',
+        partnerKindDescription: kindMeta?.description ?? '',
+        cnpjRequired: normalizeSignupOptions(draft.signupSettings).cnpjRequired,
+        collectCpf: normalizeSignupOptions(draft.signupSettings).collectCpf,
+        inviteLinkEnabled: draft.inviteLinkEnabled !== false,
+      });
+      onChangeDraft({ ...draft, description: text });
+      toast('Descrição sugerida. Revise antes de guardar.', { variant: 'success', duration: 5200 });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Não foi possível gerar a descrição.', {
+        variant: 'warning',
+        duration: 6500,
+      });
+    } finally {
+      setSuggestDescBusy(false);
+    }
   }
 
   function updateField(i, next) {
@@ -285,18 +325,45 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
               placeholder="Ex.: Cadastro de parceiro"
             />
           </label>
-          <label className="block">
+          <div className="block">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Descrição</span>
-            <input
-              type="text"
-              value={draft.description}
-              maxLength={200}
-              onChange={(e) => onChangeDraft({ ...draft, description: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-              placeholder="Opcional"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">{draft.description?.length ?? 0}/200</p>
-          </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={draft.description}
+                maxLength={200}
+                onChange={(e) => onChangeDraft({ ...draft, description: e.target.value })}
+                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-[9.25rem] text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 sm:pr-40"
+                placeholder="Opcional"
+                aria-describedby="template-desc-hint"
+              />
+              <button
+                type="button"
+                disabled={suggestDescBusy || !supabase || !session || !isAdmin}
+                onClick={() => void handleSuggestDescription()}
+                className="absolute right-1 top-1/2 flex h-8 max-w-[calc(100%-0.5rem)] -translate-y-1/2 items-center gap-0.5 overflow-hidden rounded-md border-0 bg-violet-50/95 px-1.5 text-[10px] font-bold uppercase tracking-wide text-violet-900 shadow-none hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-45 sm:gap-1 sm:px-2.5 sm:text-[11px]"
+                title="Gera texto com Mistral (Edge Function). Requer MISTRAL_API_KEY nos Secrets do Supabase."
+              >
+                <span
+                  className={`material-symbols-outlined shrink-0 text-[18px] sm:text-[19px] ${suggestDescBusy ? 'animate-spin' : ''}`}
+                  aria-hidden
+                >
+                  {suggestDescBusy ? 'progress_activity' : 'auto_awesome'}
+                </span>
+                <span className="min-w-0 truncate">
+                  {suggestDescBusy ? 'A gerar…' : (
+                    <>
+                      <span className="sm:hidden">IA</span>
+                      <span className="hidden sm:inline">Sugerir com IA</span>
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
+            <p id="template-desc-hint" className="mt-1 text-[11px] text-slate-400">
+              {draft.description?.length ?? 0}/200 · texto gerado por IA deve ser revisto
+            </p>
+          </div>
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3.5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">

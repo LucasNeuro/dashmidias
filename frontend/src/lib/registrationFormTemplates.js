@@ -124,6 +124,7 @@ export const FIELD_TYPES = [
   { value: 'radio', label: 'Múltipla escolha (uma opção)' },
   { value: 'multiselect', label: 'Múltipla escolha (várias opções)' },
   { value: 'checkbox', label: 'Sim / Não (único)' },
+  { value: 'file', label: 'Documento / ficheiro (envio)' },
 ];
 
 /** Tipos que usam lista de opções definida no template. */

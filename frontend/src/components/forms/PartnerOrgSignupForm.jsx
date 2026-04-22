@@ -16,8 +16,10 @@ import {
   defaultPartnerOrgValues,
   normalizeSignupOptions,
   orgSignupFieldSchemas,
+  parsePartnerSignupFileRef,
   validatePartnerSignupStep,
 } from '../../schemas/partnerOrgSignup';
+import { isSupabaseConfigured, uploadPartnerSignupExtraFile } from '../../lib/partnerSignupStorage';
 
 /** @param {import('zod').ZodType} schema @param {unknown} value */
 function zodFieldMessage(schema, value) {
@@ -85,13 +87,89 @@ function extrasSliceForStep(step, commercial, logistics) {
   return [];
 }
 
+/** Campo extra tipo ficheiro: envia para Storage e guarda JSON em `extras.key`. */
+function FileExtraInput({ id, value, onChange, onBlur, disabled }) {
+  const [busy, setBusy] = useState(false);
+  const [localErr, setLocalErr] = useState('');
+  const ref = useMemo(() => parsePartnerSignupFileRef(value), [value]);
+
+  async function onPick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!isSupabaseConfigured()) {
+      setLocalErr('Envio de ficheiros indisponível: configure o Supabase e o bucket de documentos.');
+      return;
+    }
+    setLocalErr('');
+    setBusy(true);
+    try {
+      const json = await uploadPartnerSignupExtraFile(file);
+      onChange(json);
+    } catch (err) {
+      setLocalErr(err instanceof Error ? err.message : 'Não foi possível enviar o ficheiro.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2 text-sm font-semibold text-primary hover:border-primary">
+          <input
+            id={id}
+            type="file"
+            className="sr-only"
+            accept=".pdf,image/jpeg,image/png,image/webp,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            disabled={disabled || busy}
+            onBlur={onBlur}
+            onChange={onPick}
+          />
+          <span className="material-symbols-outlined text-[20px]">upload_file</span>
+          {busy ? 'A enviar…' : 'Escolher ficheiro'}
+        </label>
+        {ref ? (
+          <button
+            type="button"
+            className="text-xs font-semibold text-red-700 underline-offset-2 hover:underline"
+            disabled={disabled || busy}
+            onClick={() => onChange('')}
+          >
+            Remover
+          </button>
+        ) : null}
+      </div>
+      {ref ? (
+        <p className="text-xs text-on-surface-variant">
+          <span className="font-medium text-primary">{ref.name || ref.path}</span>
+          {ref.contentType ? ` · ${ref.contentType}` : null}
+        </p>
+      ) : (
+        <p className="text-xs text-on-surface-variant">PDF, Word ou imagem até 15 MB. O ficheiro fica ligado ao pedido de cadastro.</p>
+      )}
+      {localErr ? (
+        <p className="text-xs text-red-700" role="alert">
+          {localErr}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function SignupExtraFieldsGrid({ form, slice, stepErrors }) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
       {slice.map((f) => (
         <form.Field key={f.id} name={`extras.${f.key}`}>
           {(field) => (
-            <div className={f.type === 'textarea' || f.type === 'radio' || f.type === 'multiselect' ? 'md:col-span-2 xl:col-span-3' : ''}>
+            <div
+              className={
+                f.type === 'textarea' || f.type === 'radio' || f.type === 'multiselect' || f.type === 'file'
+                  ? 'md:col-span-2 xl:col-span-3'
+                  : ''
+              }
+            >
               <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={`extra-${f.id}`}>
                 {f.label}
                 {f.required ? ' *' : ''}
@@ -193,6 +271,14 @@ function SignupExtraFieldsGrid({ form, slice, stepErrors }) {
                   onBlur={field.handleBlur}
                   className="w-full max-w-[12rem] border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0"
                 />
+              ) : f.type === 'file' ? (
+                <FileExtraInput
+                  id={`extra-${f.id}`}
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  onBlur={field.handleBlur}
+                  disabled={false}
+                />
               ) : (
                 <input
                   id={`extra-${f.id}`}
@@ -284,7 +370,7 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
       onChange: schema,
     },
     onSubmit: async ({ value }) => {
-      onSubmitSuccess?.(value);
+      await onSubmitSuccess?.(value);
     },
   });
 

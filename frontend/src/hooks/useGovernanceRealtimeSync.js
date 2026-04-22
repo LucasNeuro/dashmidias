@@ -11,6 +11,7 @@ function invalidateByTable(queryClient, table) {
       break;
     case 'hub_partner_org_signups':
       void queryClient.invalidateQueries({ queryKey: ['governance', 'partner-org-signups'] });
+      void queryClient.invalidateQueries({ queryKey: ['governance', 'partner-org-signup-aggregates'] });
       break;
     case 'hub_solicitacoes_admin':
     case 'profiles':
