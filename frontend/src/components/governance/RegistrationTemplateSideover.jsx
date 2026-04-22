@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppSideover } from '../AppSideover';
+import { getOrgBuiltinPartnerFieldGroups } from '../../lib/orgStandardFields';
 import { HUB_PARTNER_KINDS, normalizePartnerKindSlug } from '../../lib/hubPartnerKinds';
 import {
   assignStableKeysFromLabels,
@@ -309,6 +310,56 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
               })}
             </div>
           </div>
+        </div>
+      ),
+    },
+    {
+      id: 'padrao',
+      label: 'Padrão',
+      content: (
+        <div className="space-y-6">
+          {getOrgBuiltinPartnerFieldGroups().map((g) => (
+            <div key={g.id}>
+              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.label}</h3>
+              <ul className="space-y-2">
+                {g.fields.map((f) => {
+                  const disabledList = draft.standardFieldsDisabled || [];
+                  const isOn = !disabledList.some((k) => String(k).toLowerCase() === f.key.toLowerCase());
+                  return (
+                    <li
+                      key={f.key}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+                    >
+                      <span className="min-w-0 text-sm text-slate-800">{f.label}</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isOn}
+                        title={isOn ? 'Desativar no formulário' : 'Ativar no formulário'}
+                        onClick={() => {
+                          const next = [...disabledList];
+                          const idx = next.findIndex((k) => String(k).toLowerCase() === f.key.toLowerCase());
+                          if (isOn) {
+                            if (idx < 0) next.push(f.key);
+                          } else if (idx >= 0) next.splice(idx, 1);
+                          onChangeDraft({ ...draft, standardFieldsDisabled: next });
+                        }}
+                        className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                          isOn ? 'bg-emerald-600' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                            isOn ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </div>
       ),
     },

@@ -47,6 +47,7 @@ export function newFieldId() {
  *   partnerKind: string,
  *   inviteLinkEnabled?: boolean,
  *   fields: TemplateField[],
+ *   standardFieldsDisabled?: string[],
  *   createdAt: string,
  *   updatedAt: string,
  * }} RegistrationFormTemplate
@@ -109,6 +110,13 @@ export function normalizeTemplate(t) {
   delete rest.targetOrgSlug;
   rest.partnerKind = normalizePartnerKindSlug(rest.partnerKind);
   rest.inviteLinkEnabled = rest.inviteLinkEnabled === false ? false : true;
+  if (Array.isArray(rest.standardFieldsDisabled)) {
+    rest.standardFieldsDisabled = [
+      ...new Set(rest.standardFieldsDisabled.map((k) => String(k).trim()).filter(Boolean)),
+    ];
+  } else {
+    rest.standardFieldsDisabled = [];
+  }
   if (Array.isArray(rest.fields)) {
     const cleaned = rest.fields
       .filter((f) => f)
@@ -197,6 +205,7 @@ export function createEmptyTemplate() {
     description: '',
     partnerKind: DEFAULT_HUB_PARTNER_KIND,
     inviteLinkEnabled: true,
+    standardFieldsDisabled: [],
     fields: [],
     createdAt: now,
     updatedAt: now,

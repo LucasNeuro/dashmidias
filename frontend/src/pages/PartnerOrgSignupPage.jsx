@@ -5,6 +5,7 @@ import { PartnerOrgSignupForm } from '../components/forms/PartnerOrgSignupForm';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { getHubPartnerKind, normalizePartnerKindSlug } from '../lib/hubPartnerKinds';
+import { mergePartnerOrgExtraFields } from '../lib/orgStandardFields';
 import { getTemplateById as getTemplateByIdFromLocal } from '../lib/registrationFormTemplates';
 import { getRegistrationTemplateById } from '../lib/registrationFormTemplatesApi';
 
@@ -97,7 +98,9 @@ export function PartnerOrgSignupPage() {
         {showForm ? (
           <PartnerOrgSignupForm
             key={tplId || 'sem-template'}
-            extraFields={template?.fields ?? []}
+            extraFields={mergePartnerOrgExtraFields(template?.fields ?? [], {
+              standardFieldsDisabled: template?.standardFieldsDisabled,
+            })}
             onSubmitSuccess={() => {
               toast(
                 'Cadastro validado (demonstração). Em produção, os dados seguem para confirmação e criação da conta.',

@@ -7,6 +7,9 @@
 --   database/fix_hub_admins_rls_recursion.sql
 --
 -- Rode no SQL Editor do Supabase (idempotente: DROP POLICY IF EXISTS + recria).
+--
+-- Coluna `standard_fields_disabled` (ativar/desativar campos padrão por template):
+--   database/registration_form_template_standard_fields_disabled.sql
 -- =============================================================================
 
 ALTER TABLE public.registration_form_template ENABLE ROW LEVEL SECURITY;

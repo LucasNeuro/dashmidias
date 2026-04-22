@@ -13,12 +13,11 @@ const cors: Record<string, string> = {
 
 /** Mensagem apresentável ao utilizador (pt-BR), sem expor o fornecedor. */
 function mensagemFalhaResend(status: number, bodyText: string): string {
-  if (status === 401 || status === 403) {
-    return "Não foi possível concluir o envio. Peça a um administrador para rever as credenciais de e-mail (API).";
-  }
   let raw = bodyText;
+  /** @type {{ message?: string | string[]; name?: string } | null} */
+  let j: { message?: string | string[]; name?: string } | null = null;
   try {
-    const j = JSON.parse(bodyText) as { message?: string | string[]; name?: string };
+    j = JSON.parse(bodyText) as { message?: string | string[]; name?: string };
     if (j?.name === "application_error" || j?.name === "rate_limit") {
       return "Envio em excesso. Aguarde um momento e tente de novo.";
     }
@@ -31,17 +30,27 @@ function mensagemFalhaResend(status: number, bodyText: string): string {
     /* usa raw */
   }
   const m = (raw || "").toLowerCase();
-  if (m.includes("from") || m.includes("domain") || m.includes("sender")) {
-    return "O endereço de remetente não está autorizado. Defina um remetente válido (domínio verificado) no painel de e-mail, ou o endereço de teste do serviço.";
+  /** Modo teste Resend: só permite destinatário = e-mail da conta até haver domínio verificado. */
+  if (
+    m.includes("only send testing") ||
+    (m.includes("only send") && m.includes("your own email"))
+  ) {
+    return "A Resend está em modo de testes: só aceita enviar para o e-mail da própria conta. Para convidar outros endereços, verifique um domínio em resend.com/domains e defina o segredo RESEND_FROM com um remetente @esse-dominio (ex.: convites@seudominio.com).";
+  }
+  if (m.includes("verify a domain") || (m.includes("domain") && m.includes("from"))) {
+    return "É preciso verificar um domínio na Resend e usar RESEND_FROM com esse domínio (não use só onboarding@resend.dev em produção).";
+  }
+  if (m.includes("from") || m.includes("sender")) {
+    return "O remetente (FROM) não está autorizado. Ajuste RESEND_FROM no Supabase (Secrets da função) para um endereço do domínio verificado na Resend.";
   }
   if (m.includes("validat") && (m.includes("to") || m.includes("recipients"))) {
     return "O e-mail de destino não pôde ser usado. Verifique o endereço e tente de novo.";
   }
   if (m.includes("api") && m.includes("key")) {
-    return "A configuração de envio (chave) não é válida ou expirou. Atualize o segredo no painel do projeto, na área de funções (segredos).";
+    return "A chave Resend (RESEND_API_KEY) não é válida ou expirou. Atualize o segredo nas Edge Functions.";
   }
-  if (m.includes("only send") && m.includes("own")) {
-    return "Neste ambiente de teste, só se pode receber o convite no e-mail da conta de envio. Use esse endereço ou conclua a verificação de um domínio.";
+  if (status === 401 || status === 403) {
+    return "Não foi possível concluir o envio. Peça a um administrador para rever a chave Resend, o domínio verificado e o RESEND_FROM.";
   }
   return "Não foi possível concluir o envio. Tente de novo em instantes; se persistir, use o botão “Link” e envie o endereço manualmente.";
 }

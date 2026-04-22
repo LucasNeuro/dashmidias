@@ -12,10 +12,29 @@ const SELECT_TEMPLATE = [
   'partner_kind',
   'invite_link_enabled',
   'fields',
+  'standard_fields_disabled',
   'created_at',
   'updated_at',
   'created_by_user_id',
 ].join(', ');
+
+/**
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+function parseStandardFieldsDisabled(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw.map((k) => String(k).trim()).filter(Boolean);
+  if (typeof raw === 'string') {
+    try {
+      const j = JSON.parse(raw);
+      return Array.isArray(j) ? j.map((k) => String(k).trim()).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 /**
  * @param {unknown} raw
@@ -99,6 +118,7 @@ export function mapRowToClientTemplate(row) {
     description: row.description ?? '',
     partnerKind: row.partner_kind,
     inviteLinkEnabled: row.invite_link_enabled !== false,
+    standardFieldsDisabled: parseStandardFieldsDisabled(row.standard_fields_disabled),
     fields,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -122,6 +142,7 @@ function templateToParentRow(t, userId, o) {
     partner_kind: t.partnerKind,
     invite_link_enabled: t.inviteLinkEnabled !== false,
     fields: fieldsJson,
+    standard_fields_disabled: Array.isArray(t.standardFieldsDisabled) ? t.standardFieldsDisabled : [],
     updated_at: now,
   };
   if (o.isNew) {

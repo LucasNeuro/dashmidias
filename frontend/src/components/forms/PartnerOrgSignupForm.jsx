@@ -721,7 +721,7 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                       {f.type === 'textarea' ? (
                         <textarea
                           id={`extra-${f.id}`}
-                          rows={3}
+                          rows={f.rows != null ? Number(f.rows) : 3}
                           value={String(field.state.value ?? '')}
                           onChange={(e) => field.handleChange(e.target.value)}
                           onBlur={field.handleBlur}

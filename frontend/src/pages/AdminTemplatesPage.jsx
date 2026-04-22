@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +13,7 @@ import {
   normalizeTemplate,
   PARTNER_KIND_OPTIONS,
 } from '../lib/registrationFormTemplates';
+import { ORG_BUILTIN_PARTNER_EXTRA_FIELDS } from '../lib/orgStandardFields';
 import {
   deleteRegistrationTemplate,
   listHubRegistrationTemplates,
@@ -172,6 +173,21 @@ export function AdminTemplatesPage() {
       colHelper.accessor('fields', {
         header: 'Extras',
         cell: (info) => <span className="text-sm text-on-surface-variant">{info.getValue()?.length ?? 0}</span>,
+      }),
+      colHelper.display({
+        id: 'padrao',
+        header: 'Padrão',
+        cell: (info) => {
+          const row = info.row.original;
+          const dis = new Set((row.standardFieldsDisabled || []).map((k) => String(k).toLowerCase()));
+          const on = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter((f) => !dis.has(f.key.toLowerCase())).length;
+          const tot = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.length;
+          return (
+            <span className="whitespace-nowrap font-mono text-xs text-on-surface-variant">
+              {on}/{tot}
+            </span>
+          );
+        },
       }),
       colHelper.accessor('updatedAt', {
         header: 'Atualizado',
