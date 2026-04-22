@@ -193,7 +193,7 @@ function FieldRow({ field, index, total, onChange, onRemove, onMove }) {
   );
 }
 
-export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDraft, onSave, isNew }) {
+export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDraft, onSave, isNew, isSaving = false }) {
   const [tab, setTab] = useState('geral');
 
   useEffect(() => {
@@ -410,11 +410,11 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
             </button>
             <button
               type="button"
-              disabled={!canSave}
-              onClick={() => onSave?.()}
+              disabled={!canSave || isSaving}
+              onClick={() => void onSave?.()}
               className="rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40"
             >
-              {isNew ? 'Criar template' : 'Guardar alterações'}
+              {isSaving ? 'A guardar…' : isNew ? 'Criar template' : 'Guardar alterações'}
             </button>
           </div>
         </div>

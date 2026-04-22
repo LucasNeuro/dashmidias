@@ -1,38 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { RegistrationTemplateSideover } from '../components/governance/RegistrationTemplateSideover';
 import { ShareTemplateSideover } from '../components/governance/ShareTemplateSideover';
+import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   createEmptyTemplate,
   inviteUrlForTemplate,
-  loadTemplates,
   normalizeTemplate,
   PARTNER_KIND_OPTIONS,
-  saveTemplates,
 } from '../lib/registrationFormTemplates';
+import {
+  deleteRegistrationTemplate,
+  listHubRegistrationTemplates,
+  upsertRegistrationTemplate,
+} from '../lib/registrationFormTemplatesApi';
 
 const colHelper = createColumnHelper();
+
+const qk = (userId) => ['registration_form_templates', userId];
 
 export function AdminTemplatesPage() {
   const { session } = useAuth();
   const userId = session?.user?.id;
+  const supabase = useMemo(() => getSupabase(), []);
+  const queryClient = useQueryClient();
   const { toast, alert, confirm } = useUiFeedback();
-  const [templates, setTemplates] = useState(() => loadTemplates(userId));
   const [sideOpen, setSideOpen] = useState(false);
   const [shareRow, setShareRow] = useState(null);
   const [isNew, setIsNew] = useState(true);
   const [draft, setDraft] = useState(() => createEmptyTemplate());
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setTemplates(loadTemplates(userId));
-  }, [userId]);
+  const listEnabled = Boolean(supabase && userId) && isSupabaseConfigured();
 
-  useEffect(() => {
-    saveTemplates(templates, userId);
-  }, [templates, userId]);
+  const { data: templates = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: qk(userId),
+    queryFn: () => listHubRegistrationTemplates(supabase),
+    enabled: listEnabled,
+  });
 
   const openNew = useCallback(() => {
     setIsNew(true);
@@ -46,31 +55,51 @@ export function AdminTemplatesPage() {
     setSideOpen(true);
   }, []);
 
-  const persistDraft = useCallback(() => {
+  const persistDraft = useCallback(async () => {
+    if (!supabase || !userId) {
+      await alert('Sessão inválida. Inicie sessão e tente de novo.', { title: 'Templates' });
+      return;
+    }
     const now = new Date().toISOString();
     const next = normalizeTemplate({
       ...draft,
       updatedAt: now,
       createdAt: draft.createdAt || now,
     });
-    if (isNew) {
-      setTemplates((prev) => [next, ...prev]);
-    } else {
-      setTemplates((prev) => prev.map((t) => (t.id === next.id ? next : t)));
+    setSaving(true);
+    try {
+      await upsertRegistrationTemplate(supabase, next, userId, isNew);
+      await queryClient.invalidateQueries({ queryKey: qk(userId) });
+      toast(isNew ? 'Template criado.' : 'Template atualizado.', { variant: 'success' });
+      setSideOpen(false);
+    } catch (e) {
+      const msg = e?.message || 'Não foi possível guardar.';
+      await alert(msg, { title: 'Erro' });
+    } finally {
+      setSaving(false);
     }
-    setSideOpen(false);
-  }, [draft, isNew]);
+  }, [alert, draft, isNew, queryClient, supabase, toast, userId]);
 
   const remove = useCallback(
     async (id) => {
+      if (!supabase) return;
       const ok = await confirm(
-        'Excluir este template? O link de convite deixará de funcionar quando o cadastro público estiver ligado.',
+        'Excluir este template? O link de convite deixará de funcionar em seguida.',
         { title: 'Excluir template', danger: true }
       );
       if (!ok) return;
-      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      setSaving(true);
+      try {
+        await deleteRegistrationTemplate(supabase, id);
+        await queryClient.invalidateQueries({ queryKey: qk(userId) });
+        toast('Template excluído.', { variant: 'success' });
+      } catch (e) {
+        await alert(e?.message || 'Falha ao excluir.', { title: 'Erro' });
+      } finally {
+        setSaving(false);
+      }
     },
-    [confirm]
+    [confirm, queryClient, supabase, toast, userId]
   );
 
   const copyInviteLink = useCallback(
@@ -148,7 +177,8 @@ export function AdminTemplatesPage() {
             <button
               type="button"
               onClick={() => openEdit(info.row.original)}
-              className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary hover:bg-slate-50"
+              disabled={saving}
+              className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary hover:bg-slate-50 disabled:opacity-50"
             >
               Editar
             </button>
@@ -179,7 +209,8 @@ export function AdminTemplatesPage() {
             <button
               type="button"
               onClick={() => void remove(info.row.original.id)}
-              className="rounded-sm border border-red-200 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-800 hover:bg-red-50"
+              disabled={saving}
+              className="rounded-sm border border-red-200 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-800 hover:bg-red-50 disabled:opacity-50"
             >
               Excluir
             </button>
@@ -187,8 +218,18 @@ export function AdminTemplatesPage() {
         ),
       }),
     ],
-    [copyInviteLink, openEdit, remove]
+    [copyInviteLink, openEdit, remove, saving]
   );
+
+  if (!isSupabaseConfigured() || !supabase) {
+    return (
+      <div className="min-w-0 w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        Defina <code className="rounded-none bg-amber-100/80 px-1">VITE_SUPABASE_URL</code> e{' '}
+        <code className="rounded-none bg-amber-100/80 px-1">VITE_SUPABASE_ANON_KEY</code> (local e Render) para
+        listar e guardar templates no Supabase.
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0 w-full max-w-none">
@@ -196,31 +237,53 @@ export function AdminTemplatesPage() {
         <div className="min-w-0 max-w-2xl">
           <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Templates de cadastro</h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Estes modelos de <strong>formulário de cadastro</strong> ficam no <strong>armazenamento local do navegador</strong>,
-            não nas tabelas <code className="rounded-none bg-slate-100 px-1 text-xs">papel_template</code> (isso é catálogo de
-            <strong> papéis</strong> e permissões) nem noutra tabela ainda — a persistência partilhada no Supabase continua
-            por implementar. Em <strong>produção</strong> o domínio é outro, por isso a lista aí costuma começar vazia.
+            A lista lê e grava na base de dados Supabase (tabelas <code className="rounded-none bg-slate-100 px-1 text-xs">registration_form_template</code> e{' '}
+            <code className="rounded-none bg-slate-100 px-1 text-xs">registration_form_template_field</code>), com RLS. O mesmo
+            projeto e o mesmo e-mail (admin HUB) em <strong>local</strong> e em <strong>produção</strong> (Render) veem os mesmos
+            dados — desde que as variáveis <code className="rounded-none bg-slate-100 px-1">VITE_</code> apontem para o mesmo Supabase
+            e exista a migração SQL aplicada.
           </p>
         </div>
         <button
           type="button"
           onClick={openNew}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-[#0f2840]"
+          disabled={!listEnabled || isLoading}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-[#0f2840] disabled:opacity-50"
         >
           <span className="material-symbols-outlined text-[20px]">add</span>
           Novo template
         </button>
       </div>
 
+      {isError && (
+        <p className="mb-3 text-sm text-red-800">
+          Erro a carregar. {String(error?.message || '')}
+          {String(error?.message || '').toLowerCase().includes('recursion') ? (
+            <> Aplique <code className="rounded-none bg-red-50 px-1 text-xs">database/fix_hub_admins_rls_recursion.sql</code> no Supabase.</>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="ml-2 font-semibold text-primary underline underline-offset-2"
+          >
+            Tentar de novo
+          </button>
+        </p>
+      )}
+
       <div className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="p-4 sm:p-5 lg:p-6">
-          <EntityDataTable
-            data={templates}
-            columns={columns}
-            getRowId={(row) => row.id}
-            searchPlaceholder="Buscar templates…"
-            emptyLabel="Nenhum template. Crie o primeiro para definir campos de cadastro por empresa."
-          />
+          {isLoading && listEnabled ? (
+            <p className="text-sm text-on-surface-variant">A carregar templates…</p>
+          ) : (
+            <EntityDataTable
+              data={templates}
+              columns={columns}
+              getRowId={(row) => row.id}
+              searchPlaceholder="Buscar templates…"
+              emptyLabel="Nenhum template. Crie o primeiro para definir campos de cadastro por empresa."
+            />
+          )}
         </div>
       </div>
 
@@ -231,6 +294,7 @@ export function AdminTemplatesPage() {
         onChangeDraft={setDraft}
         onSave={persistDraft}
         isNew={isNew}
+        isSaving={saving}
       />
       <ShareTemplateSideover open={Boolean(shareRow)} onClose={() => setShareRow(null)} row={shareRow} />
     </div>
