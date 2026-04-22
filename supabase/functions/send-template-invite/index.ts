@@ -30,12 +30,16 @@ function mensagemFalhaResend(status: number, bodyText: string): string {
     /* usa raw */
   }
   const m = (raw || "").toLowerCase();
-  /** Modo teste Resend: só permite destinatário = e-mail da conta até haver domínio verificado. */
-  if (
+  /** Modo teste Resend: só envia para o e-mail da conta até haver domínio verificado + FROM desse domínio. */
+  const isResendTestingLimit =
     m.includes("only send testing") ||
-    (m.includes("only send") && m.includes("your own email"))
-  ) {
-    return "A Resend está em modo de testes: só aceita enviar para o e-mail da própria conta. Para convidar outros endereços, verifique um domínio em resend.com/domains e defina o segredo RESEND_FROM com um remetente @esse-dominio (ex.: convites@seudominio.com).";
+    m.includes("testing emails to your") ||
+    (m.includes("only send") && m.includes("your own email"));
+  if (j?.name === "validation_error" && isResendTestingLimit) {
+    return "A Resend bloqueou: em conta sem domínio verificado só pode receber o e-mail da própria conta Resend. Adicione e verifique o domínio em resend.com/domains, defina RESEND_FROM com um endereço @desse-dominio nos Secrets do Supabase, e volte a publicar a função send-template-invite.";
+  }
+  if (isResendTestingLimit) {
+    return "A Resend bloqueou: modo teste ou domínio ainda não autorizado. Verifique o domínio na Resend, alinhe RESEND_FROM e RESEND_API_KEY nos Secrets, e faça deploy da função send-template-invite.";
   }
   if (m.includes("verify a domain") || (m.includes("domain") && m.includes("from"))) {
     return "É preciso verificar um domínio na Resend e usar RESEND_FROM com esse domínio (não use só onboarding@resend.dev em produção).";

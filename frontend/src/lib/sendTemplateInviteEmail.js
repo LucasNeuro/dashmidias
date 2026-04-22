@@ -53,10 +53,25 @@ export async function sendTemplateInviteEmail({ to, templateName, inviteUrl, kin
   });
 
   if (error) {
+    let detail = '';
+    try {
+      const ctx = /** @type {{ json?: () => Promise<unknown> }} */ (error).context;
+      if (ctx && typeof ctx.json === 'function') {
+        const parsed = await ctx.json();
+        if (parsed && typeof parsed === 'object' && 'mensagem' in parsed && typeof parsed.mensagem === 'string') {
+          detail = parsed.mensagem.trim();
+        }
+      }
+    } catch {
+      /* ignore */
+    }
     return {
       ok: false,
       code: 'invoke',
-      message: 'Não foi possível concluir o envio. Tente de novo em instantes.',
+      message:
+        detail ||
+        (typeof error.message === 'string' && error.message.trim()) ||
+        'Não foi possível contactar a função de envio. Confirme sessão, projeto Supabase e deploy de send-template-invite.',
     };
   }
 
