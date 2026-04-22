@@ -65,6 +65,7 @@ export function ShareTemplateSideover({ open, onClose, row }) {
           onClose();
           return;
         }
+        setSending(false);
         const mailto = buildMailtoInvite({
           to: addr,
           templateName: templateName,
@@ -73,7 +74,7 @@ export function ShareTemplateSideover({ open, onClose, row }) {
           note: note.trim() || undefined,
         });
         const useMailto = await confirm(
-          'O envio automático não pôde ser concluído. Quer abrir o programa de e-mail padrão com o assunto e a mensagem do convite preenchidos?',
+          `${r.message}\n\nQuer abrir o programa de e-mail padrão com o assunto e a mensagem do convite preenchidos?`,
           { title: 'Enviar convite' }
         );
         if (useMailto) window.location.href = mailto;

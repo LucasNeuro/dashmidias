@@ -17,7 +17,8 @@ export async function sendTemplateInviteEmail({ to, templateName, inviteUrl, kin
     return {
       ok: false,
       code: 'supabase',
-      message: 'O envio online não está disponível neste ambiente. Use o botão “Link” e envie o endereço por outro canal.',
+      message:
+        'O envio online não está disponível neste ambiente. Use o botão “Link” e envie o endereço por outro canal.',
     };
   }
   const supabase = getSupabase();
@@ -52,19 +53,31 @@ export async function sendTemplateInviteEmail({ to, templateName, inviteUrl, kin
   });
 
   if (error) {
-    return { ok: false, code: 'invoke', message: 'Não foi possível concluir o envio. Tente de novo em instantes.' };
+    return {
+      ok: false,
+      code: 'invoke',
+      message: 'Não foi possível concluir o envio. Tente de novo em instantes.',
+    };
   }
-  if (data && typeof data === 'object' && 'ok' in data && data.ok === false) {
-    return { ok: false, code: 'resend', message: 'Não foi possível concluir o envio. Tente de novo em instantes.' };
+
+  if (data == null || typeof data !== 'object') {
+    return { ok: false, code: 'resposta', message: 'Resposta do serviço inválida. Tente de novo em instantes.' };
   }
-  if (data && typeof data === 'object' && 'ok' in data && data.ok === true) {
+
+  if (data.ok === true) {
     return { ok: true };
   }
-  if (data && typeof data === 'object' && 'error' in data && data.error) {
+
+  const msgFromServer = typeof data.mensagem === 'string' && data.mensagem.trim() ? data.mensagem.trim() : null;
+  if (msgFromServer) {
+    return { ok: false, code: 'resend', message: msgFromServer };
+  }
+
+  if (data.ok === false) {
     return { ok: false, code: 'resend', message: 'Não foi possível concluir o envio. Tente de novo em instantes.' };
   }
 
-  return { ok: true };
+  return { ok: false, code: 'resend', message: 'Não foi possível concluir o envio. Tente de novo em instantes.' };
 }
 
 /**

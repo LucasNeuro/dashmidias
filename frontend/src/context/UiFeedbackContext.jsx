@@ -94,7 +94,7 @@ export function UiFeedbackProvider({ children }) {
                 onClick={() => alertPayload.resolve()}
                 className="bg-tertiary px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-tertiary/90"
               >
-                OK
+                Entendi
               </button>
             </div>
           </div>
@@ -177,7 +177,7 @@ export function UiFeedbackProvider({ children }) {
 export function useUiFeedback() {
   const ctx = useContext(UiFeedbackContext);
   if (!ctx) {
-    throw new Error('useUiFeedback must be used within UiFeedbackProvider');
+    throw new Error('useUiFeedback tem de ser usado dentro de UiFeedbackProvider');
   }
   return ctx;
 }
