@@ -1,6 +1,6 @@
 /**
- * Envia convite por e-mail (Resend). Chaves: RESEND_API_KEY (e opcional RESEND_FROM) em Edge Functions → Secrets.
- * Não use chave Resend no Render nem em VITE_*.
+ * Envia convite por e-mail (Resend). O front não invoca esta função por agora — mantida para reactivar depois.
+ * Secrets: RESEND_API_KEY, opcional RESEND_FROM. Não use chave Resend em VITE_*.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.0";
 

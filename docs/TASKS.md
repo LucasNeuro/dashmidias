@@ -60,7 +60,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 
 - **2026-04-22** — Templates de cadastro: persistência em `registration_form_template` (+ campos) com RLS; listagem/edição no admin; convite público via `?tpl=`.
 - **2026-04-22** — Backlog e UI de /adm/templates: distinção explícita entre `papel_template` (RBAC) e modelos de formulário de convite (agora em Supabase; `localStorage` só fallback dev).
-- **2026-04-22** — Cadastro público: título/eyebrow com contraste; admin templates: compartilhar convite (Resend via Edge) em vez de duplicar.
+- **2026-04-22** — Admin templates: removido envio de convite por e-mail no UI; mantido copiar link; Edge `send-template-invite` conservada no repositório.
 - **2026-04-22** — Criação do ficheiro; preenchido com o estado conhecido do repositório e do trabalho recente (auth, admin, deploy, gitignore).
 - **2026-04-22** — Registado: painel de campanhas sem skeleton fullscreen; componente de loading dedicado.
 
