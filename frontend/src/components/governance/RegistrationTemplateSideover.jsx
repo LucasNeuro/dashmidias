@@ -11,6 +11,32 @@ import {
   newFieldId,
 } from '../../lib/registrationFormTemplates';
 
+/** Interruptor compacto — evita alternar o acordeão ao clicar no switch. */
+function CompactSwitch({ checked, onToggle, disabled, title }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      title={title}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+        checked ? 'bg-emerald-600' : 'bg-slate-300'
+      } disabled:cursor-not-allowed disabled:opacity-40`}
+    >
+      <span
+        className={`pointer-events-none absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-4' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  );
+}
+
 /** Lista editável opção a opção (dropdown / radio / multiselect). */
 function FieldOptionsEditor({ fieldId, options, onChange }) {
   const raw = Array.isArray(options) ? options : [];
@@ -194,10 +220,19 @@ function FieldRow({ field, index, total, onChange, onRemove, onMove }) {
 
 export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDraft, onSave, isNew, isSaving = false }) {
   const [tab, setTab] = useState('geral');
+  /** Secções do separador «Padrão» expandidas (ids de grupo). */
+  const [builtinOpenIds, setBuiltinOpenIds] = useState(/** @type {string[]} */ ([]));
 
   useEffect(() => {
-    if (open) setTab('geral');
+    if (open) {
+      setTab('geral');
+      setBuiltinOpenIds([]);
+    }
   }, [open]);
+
+  function toggleBuiltinSection(groupId) {
+    setBuiltinOpenIds((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]));
+  }
 
   function updateField(i, next) {
     const fields = [...draft.fields];
@@ -389,18 +424,40 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
           {getOrgBuiltinPartnerFieldGroups().map((g) => {
             const groupOff = new Set((draft.disabledBuiltinGroups || []).map((x) => String(x).toLowerCase()));
             const blockOn = !groupOff.has(String(g.id).toLowerCase());
+            const expanded = builtinOpenIds.includes(g.id);
             return (
-              <div key={g.id}>
-                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.label}</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-600">Bloco no cadastro</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={blockOn}
-                      title={blockOn ? 'Ocultar este bloco no formulário público' : 'Mostrar este bloco'}
-                      onClick={() => {
+              <div key={g.id} className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
+                <div className="flex min-h-[3rem] items-stretch divide-x divide-slate-200/90">
+                  <button
+                    type="button"
+                    onClick={() => toggleBuiltinSection(g.id)}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50/80 sm:gap-3 sm:px-4"
+                  >
+                    <span
+                      className={`material-symbols-outlined shrink-0 text-[22px] text-slate-500 transition-transform duration-200 ${
+                        expanded ? 'rotate-180' : ''
+                      }`}
+                      aria-hidden
+                    >
+                      expand_more
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">{g.label}</h3>
+                      <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+                        {blockOn
+                          ? `${g.fields.length} campo${g.fields.length === 1 ? '' : 's'} · toque para expandir`
+                          : 'Bloco desligado — não entra no convite nem nas etapas'}
+                      </p>
+                    </div>
+                  </button>
+                  <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 bg-slate-50/80 px-2.5 py-2 sm:flex-row sm:gap-2 sm:px-3">
+                    <span className="text-center text-[9px] font-bold uppercase tracking-wide text-slate-500 sm:text-[10px]">
+                      Bloco
+                    </span>
+                    <CompactSwitch
+                      checked={blockOn}
+                      title={blockOn ? 'Ocultar bloco no formulário público' : 'Mostrar bloco no cadastro'}
+                      onToggle={() => {
                         const id = String(g.id).toLowerCase();
                         const cur = [...(draft.disabledBuiltinGroups || [])].map((x) => String(x).toLowerCase());
                         const has = cur.includes(id);
@@ -412,61 +469,47 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
                         const normalized = [...new Set(next)].filter(Boolean);
                         onChangeDraft({ ...draft, disabledBuiltinGroups: normalized });
                       }}
-                      className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
-                        blockOn ? 'bg-emerald-600' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                          blockOn ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                    />
                   </div>
                 </div>
-                {!blockOn ? (
-                  <p className="mb-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                    Bloco desligado — não aparece no convite (nem como etapa extra).
-                  </p>
+                {expanded ? (
+                  <div className="border-t border-slate-200/90 bg-slate-50/40 px-3 py-3 sm:px-4">
+                    {!blockOn ? (
+                      <p className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2.5 text-xs leading-relaxed text-slate-600">
+                        Com o bloco desligado, estes campos deixam de aparecer no convite. Ligue o bloco para afinar campo
+                        a campo.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {g.fields.map((f) => {
+                          const disabledList = draft.standardFieldsDisabled || [];
+                          const isOn = !disabledList.some((k) => String(k).toLowerCase() === f.key.toLowerCase());
+                          return (
+                            <li
+                              key={f.key}
+                              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/90 bg-white px-3 py-2"
+                            >
+                              <span className="min-w-0 text-sm text-slate-800">{f.label}</span>
+                              <CompactSwitch
+                                checked={isOn}
+                                disabled={!blockOn}
+                                title={isOn ? 'Desativar no formulário' : 'Ativar no formulário'}
+                                onToggle={() => {
+                                  const next = [...disabledList];
+                                  const idx = next.findIndex((k) => String(k).toLowerCase() === f.key.toLowerCase());
+                                  if (isOn) {
+                                    if (idx < 0) next.push(f.key);
+                                  } else if (idx >= 0) next.splice(idx, 1);
+                                  onChangeDraft({ ...draft, standardFieldsDisabled: next });
+                                }}
+                              />
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 ) : null}
-                <ul className={`space-y-2 ${!blockOn ? 'pointer-events-none opacity-45' : ''}`}>
-                  {g.fields.map((f) => {
-                    const disabledList = draft.standardFieldsDisabled || [];
-                    const isOn = !disabledList.some((k) => String(k).toLowerCase() === f.key.toLowerCase());
-                    return (
-                      <li
-                        key={f.key}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5"
-                      >
-                        <span className="min-w-0 text-sm text-slate-800">{f.label}</span>
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={isOn}
-                          disabled={!blockOn}
-                          title={isOn ? 'Desativar no formulário' : 'Ativar no formulário'}
-                          onClick={() => {
-                            const next = [...disabledList];
-                            const idx = next.findIndex((k) => String(k).toLowerCase() === f.key.toLowerCase());
-                            if (isOn) {
-                              if (idx < 0) next.push(f.key);
-                            } else if (idx >= 0) next.splice(idx, 1);
-                            onChangeDraft({ ...draft, standardFieldsDisabled: next });
-                          }}
-                          className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
-                            isOn ? 'bg-emerald-600' : 'bg-slate-300'
-                          } disabled:opacity-40`}
-                        >
-                          <span
-                            className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                              isOn ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
               </div>
             );
           })}

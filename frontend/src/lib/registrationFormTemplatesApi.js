@@ -134,16 +134,51 @@ function templateFieldsToJsonb(t) {
 }
 
 /**
+ * @param {unknown} raw
+ * @returns {Record<string, unknown> | null}
+ */
+function parseSignupSettingsObject(raw) {
+  if (raw == null) return null;
+  let o = raw;
+  if (typeof raw === 'string') {
+    try {
+      o = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof o !== 'object' || o === null || Array.isArray(o)) return null;
+  return /** @type {Record<string, unknown>} */ (o);
+}
+
+/**
+ * Garante `disabledBuiltinGroups` no blob para `normalizeTemplate` (PostgREST / cópias antigas em snake_case).
+ * @param {Record<string, unknown>} su
+ */
+function normalizeSignupSettingsKeys(su) {
+  const o = { ...su };
+  const snake = o.disabled_builtin_groups;
+  const camel = o.disabledBuiltinGroups;
+  if (Array.isArray(snake) && camel == null) o.disabledBuiltinGroups = snake;
+  delete o.disabled_builtin_groups;
+  return o;
+}
+
+/**
  * @param {Record<string, unknown>} row
  * @returns {import('./registrationFormTemplates').RegistrationFormTemplate}
  */
 export function mapRowToClientTemplate(row) {
   const fields = parseFieldsFromJsonb(row.fields);
   const kind = normalizePartnerKindSlug(row.partner_kind);
-  const signupFallback =
-    row.signup_settings == null && kind === PRESTADORES_SERVICO_KIND
-      ? { cnpjRequired: false, collectCpf: true }
-      : row.signup_settings;
+  const suParsed = parseSignupSettingsObject(row.signup_settings);
+  let signupSettings = suParsed != null ? normalizeSignupSettingsKeys(suParsed) : null;
+  if (signupSettings == null && kind === PRESTADORES_SERVICO_KIND) {
+    signupSettings = { cnpjRequired: false, collectCpf: true };
+  }
+  if (signupSettings == null) {
+    signupSettings = { cnpjRequired: true, collectCpf: false };
+  }
   return normalizeTemplate({
     id: row.id,
     name: row.name,
@@ -151,7 +186,7 @@ export function mapRowToClientTemplate(row) {
     partnerKind: row.partner_kind,
     inviteLinkEnabled: row.invite_link_enabled !== false,
     standardFieldsDisabled: parseStandardFieldsDisabled(row.standard_fields_disabled),
-    signupSettings: signupFallback,
+    signupSettings,
     fields,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

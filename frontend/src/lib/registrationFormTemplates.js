@@ -175,6 +175,13 @@ export function normalizeTemplate(t) {
     rest.signupSettings && typeof rest.signupSettings === 'object' && !Array.isArray(rest.signupSettings)
       ? { ...rest.signupSettings }
       : {};
+  if (
+    Array.isArray(signupBlob.disabled_builtin_groups) &&
+    signupBlob.disabledBuiltinGroups == null
+  ) {
+    signupBlob.disabledBuiltinGroups = signupBlob.disabled_builtin_groups;
+  }
+  delete signupBlob.disabled_builtin_groups;
   const { disabledBuiltinGroups: dbgFromBlob, ...signupOptsBlob } = signupBlob;
   rest.disabledBuiltinGroups = normalizeDisabledBuiltinGroups(
     rest.disabledBuiltinGroups !== undefined ? rest.disabledBuiltinGroups : dbgFromBlob,
