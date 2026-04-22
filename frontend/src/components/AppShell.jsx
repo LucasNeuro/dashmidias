@@ -1,6 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useStore } from '@tanstack/react-store';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  hydrateDrawerOpen,
+  hydrateExpandedGroups,
+  setDrawerOpen,
+  setMobileOpen,
+  setExpandedGroups,
+  uiShellStore,
+} from '../stores/uiShellStore';
 import { HubBrandMark } from './HubBrandMark';
 
 const LS_DRAWER = 'app-shell-drawer-open';
@@ -322,27 +331,35 @@ function MobileDrawerNav({ navItems, onNavigate, isGroupExpanded, toggleGroup })
  */
 export function AppShell({ navItems = [], title, subtitle, headerActions, children }) {
   const { signOut, session, profile, isAdmin } = useAuth();
+  const userId = session?.user?.id ?? '';
+  const drawerKey = useMemo(() => (userId ? `${LS_DRAWER}__${userId}` : LS_DRAWER), [userId]);
+  const groupKey = useMemo(() => (userId ? `${LS_GROUP_EXPAND}__${userId}` : LS_GROUP_EXPAND), [userId]);
+
   const email = session?.user?.email || '';
   const footerName = profile?.full_name?.trim() || email.split('@')[0] || 'Usuário';
   const footerInitial = (footerName[0] || '?').toUpperCase();
   const footerRole = isAdmin ? 'Administrador' : 'Usuário';
-  const [drawerOpen, setDrawerOpen] = useState(() => {
-    if (typeof window === 'undefined') return true;
+  const drawerOpen = useStore(uiShellStore, (s) => s.drawerOpen);
+  const expandedGroups = useStore(uiShellStore, (s) => s.expandedGroups);
+  const mobileOpen = useStore(uiShellStore, (s) => s.mobileOpen);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
-      return window.localStorage.getItem(LS_DRAWER) !== '0';
+      hydrateDrawerOpen(window.localStorage.getItem(drawerKey) !== '0');
     } catch {
-      return true;
+      hydrateDrawerOpen(true);
     }
-  });
-  const [expandedGroups, setExpandedGroups] = useState(() => {
-    if (typeof window === 'undefined') return {};
+  }, [drawerKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
-      return JSON.parse(window.localStorage.getItem(LS_GROUP_EXPAND) || '{}');
+      hydrateExpandedGroups(JSON.parse(window.localStorage.getItem(groupKey) || '{}'));
     } catch {
-      return {};
+      hydrateExpandedGroups({});
     }
-  });
-  const [mobileOpen, setMobileOpen] = useState(false);
+  }, [groupKey]);
 
   const isGroupExpanded = (label) => expandedGroups[label] !== false;
   const toggleGroup = (label) => {
@@ -354,19 +371,19 @@ export function AppShell({ navItems = [], title, subtitle, headerActions, childr
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(LS_DRAWER, drawerOpen ? '1' : '0');
+      window.localStorage.setItem(drawerKey, drawerOpen ? '1' : '0');
     } catch {
       /* ignore */
     }
-  }, [drawerOpen]);
+  }, [drawerKey, drawerOpen]);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(LS_GROUP_EXPAND, JSON.stringify(expandedGroups));
+      window.localStorage.setItem(groupKey, JSON.stringify(expandedGroups));
     } catch {
       /* ignore */
     }
-  }, [expandedGroups]);
+  }, [groupKey, expandedGroups]);
 
   useEffect(() => {
     if (!mobileOpen) return;

@@ -1,13 +1,12 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { UiFeedbackProvider } from './context/UiFeedbackContext';
+import { queryClient } from './lib/queryClient';
 import { getParticipantHomePath } from './lib/appPortal';
 import { CampaignsDashboardPage } from './modules/campaigns-dashboard';
 import { CrmHomePage } from './modules/crm-core';
-import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminGovernanceLayout } from './pages/AdminGovernanceLayout';
-import { AdminHubPlaceholderPage } from './pages/AdminHubPlaceholderPage';
-import { AdminTemplatesPage } from './pages/AdminTemplatesPage';
-import { AdminUsersPage } from './pages/AdminUsersPage';
 import { EntradaPage } from './pages/EntradaPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { HubPendingApprovalPage } from './pages/HubPendingApprovalPage';
@@ -15,6 +14,11 @@ import { CrmPlaceholderPage } from './pages/CrmPlaceholderPage';
 import { LoginPage } from './pages/LoginPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { PartnerOrgSignupPage } from './pages/PartnerOrgSignupPage';
+import { AdminAuditPage } from './pages/AdminAuditPage';
+import { AdminHubPlaceholderPage } from './pages/AdminHubPlaceholderPage';
+import { AdminTemplatesPage } from './pages/AdminTemplatesPage';
+import { AdminUsersPage } from './pages/AdminUsersPage';
+import { AdminOrganizationsPage } from './pages/AdminOrganizationsPage';
 import { isSupabaseConfigured } from './lib/supabaseClient';
 
 function Protected({ children }) {
@@ -101,6 +105,7 @@ function AppRoutes() {
             <Route path="configuracoes" element={<AdminHubPlaceholderPage title="Configurações" />} />
             <Route path="templates" element={<AdminTemplatesPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
+            <Route path="organizacoes" element={<AdminOrganizationsPage />} />
           </Route>
           <Route path="/app" element={<Navigate to="/" replace />} />
           <Route
@@ -158,10 +163,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <UiFeedbackProvider>
+            <AppRoutes />
+          </UiFeedbackProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

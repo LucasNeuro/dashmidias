@@ -6,6 +6,39 @@ const phoneRe = /^[\d\s().+-]{10,22}$/;
 const ufRe = /^[A-Za-z]{2}$/;
 const urlLooseRe = /^https?:\/\/[^\s]+$/i;
 
+/** Campos base reutilizados na validação por etapas e no schema completo. */
+export const orgSignupFieldSchemas = {
+  nome_empresa: z
+    .string()
+    .trim()
+    .min(2, 'Informe o nome da empresa')
+    .max(200, 'Nome muito longo'),
+  cnpj: z.string().trim().refine((s) => normalizeCnpj14(s) !== null, 'CNPJ inválido — use 14 dígitos'),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Informe o e-mail')
+    .max(320, 'E-mail muito longo')
+    .email('E-mail inválido — verifique o formato (ex.: nome@empresa.com.br)'),
+  telefone: z.string().trim().regex(phoneRe, 'Telefone inválido').max(30),
+  cep: z.string().trim().refine((s) => normalizeCep8(s) !== null, 'CEP inválido — use 8 dígitos'),
+  logradouro: z.string().trim().min(2, 'Informe o logradouro').max(500),
+  numero: z.string().trim().min(1, 'Informe o número').max(30),
+  complemento: z.string().trim().max(200).optional(),
+  bairro: z.string().trim().min(2, 'Informe o bairro').max(200),
+  cidade: z.string().trim().min(2, 'Informe a cidade').max(200),
+  uf: z
+    .string()
+    .trim()
+    .min(2, 'UF')
+    .max(2)
+    .refine((s) => ufRe.test(s), 'UF inválida'),
+  codigo_ibge: z.string().trim().max(10),
+  senha: z.string().min(8, 'Senha: mínimo 8 caracteres').max(128),
+  confirmar_senha: z.string(),
+  extras: z.record(z.string(), z.union([z.string(), z.boolean()])),
+};
+
 function parseExtrasMultiselect(raw) {
   if (raw === undefined || raw === '') return [];
   try {
@@ -16,44 +49,92 @@ function parseExtrasMultiselect(raw) {
   }
 }
 
+const signupStepEmpresaSchema = z.object({
+  cnpj: orgSignupFieldSchemas.cnpj,
+  nome_empresa: orgSignupFieldSchemas.nome_empresa,
+  email: orgSignupFieldSchemas.email,
+  telefone: orgSignupFieldSchemas.telefone,
+});
+
+const signupStepEnderecoSchema = z.object({
+  cep: orgSignupFieldSchemas.cep,
+  logradouro: orgSignupFieldSchemas.logradouro,
+  numero: orgSignupFieldSchemas.numero,
+  complemento: orgSignupFieldSchemas.complemento,
+  bairro: orgSignupFieldSchemas.bairro,
+  cidade: orgSignupFieldSchemas.cidade,
+  uf: orgSignupFieldSchemas.uf,
+  codigo_ibge: orgSignupFieldSchemas.codigo_ibge,
+});
+
+const signupStepSenhaSchema = z
+  .object({
+    senha: orgSignupFieldSchemas.senha,
+    confirmar_senha: orgSignupFieldSchemas.confirmar_senha,
+  })
+  .refine((data) => data.senha === data.confirmar_senha, {
+    message: 'As senhas não coincidem',
+    path: ['confirmar_senha'],
+  });
+
+/**
+ * Valida só os campos da etapa (multipasso). `stepIndex`: 0 empresa, 1 endereço, 2 senha, 3 extras.
+ * @param {number} stepIndex
+ * @param {Record<string, unknown>} value valores completos do formulário
+ * @param {Array<{ key: string, type: string, required: boolean }>} extraFields
+ */
+export function validatePartnerSignupStep(stepIndex, value, extraFields = []) {
+  if (stepIndex === 0) {
+    return signupStepEmpresaSchema.safeParse({
+      cnpj: value.cnpj,
+      nome_empresa: value.nome_empresa,
+      email: value.email,
+      telefone: value.telefone,
+    });
+  }
+  if (stepIndex === 1) {
+    return signupStepEnderecoSchema.safeParse({
+      cep: value.cep,
+      logradouro: value.logradouro,
+      numero: value.numero,
+      complemento: value.complemento,
+      bairro: value.bairro,
+      cidade: value.cidade,
+      uf: value.uf,
+      codigo_ibge: value.codigo_ibge,
+    });
+  }
+  if (stepIndex === 2) {
+    return signupStepSenhaSchema.safeParse({
+      senha: value.senha,
+      confirmar_senha: value.confirmar_senha,
+    });
+  }
+  if (stepIndex === 3 && extraFields.length > 0) {
+    return buildPartnerOrgSignupSchema(extraFields).safeParse(value);
+  }
+  return z.unknown().safeParse(value);
+}
+
 /** @param {Array<{ key: string, type: string, required: boolean }>} extraFields */
 export function buildPartnerOrgSignupSchema(extraFields = []) {
   return z
     .object({
-      nome_empresa: z
-        .string()
-        .trim()
-        .min(2, 'Informe o nome da empresa')
-        .max(200, 'Nome muito longo'),
-      cnpj: z
-        .string()
-        .trim()
-        .refine((s) => normalizeCnpj14(s) !== null, 'CNPJ inválido — use 14 dígitos'),
-      email: z.string().trim().email('E-mail inválido').max(320),
-      telefone: z
-        .string()
-        .trim()
-        .regex(phoneRe, 'Telefone inválido')
-        .max(30),
-      cep: z
-        .string()
-        .trim()
-        .refine((s) => normalizeCep8(s) !== null, 'CEP inválido — use 8 dígitos'),
-      logradouro: z.string().trim().min(2, 'Informe o logradouro').max(500),
-      numero: z.string().trim().min(1, 'Informe o número').max(30),
-      complemento: z.string().trim().max(200).optional(),
-      bairro: z.string().trim().min(2, 'Informe o bairro').max(200),
-      cidade: z.string().trim().min(2, 'Informe a cidade').max(200),
-      uf: z
-        .string()
-        .trim()
-        .min(2, 'UF')
-        .max(2)
-        .refine((s) => ufRe.test(s), 'UF inválida'),
-      codigo_ibge: z.string().trim().max(10),
-      senha: z.string().min(8, 'Senha: mínimo 8 caracteres').max(128),
-      confirmar_senha: z.string(),
-      extras: z.record(z.string(), z.union([z.string(), z.boolean()])),
+      nome_empresa: orgSignupFieldSchemas.nome_empresa,
+      cnpj: orgSignupFieldSchemas.cnpj,
+      email: orgSignupFieldSchemas.email,
+      telefone: orgSignupFieldSchemas.telefone,
+      cep: orgSignupFieldSchemas.cep,
+      logradouro: orgSignupFieldSchemas.logradouro,
+      numero: orgSignupFieldSchemas.numero,
+      complemento: orgSignupFieldSchemas.complemento,
+      bairro: orgSignupFieldSchemas.bairro,
+      cidade: orgSignupFieldSchemas.cidade,
+      uf: orgSignupFieldSchemas.uf,
+      codigo_ibge: orgSignupFieldSchemas.codigo_ibge,
+      senha: orgSignupFieldSchemas.senha,
+      confirmar_senha: orgSignupFieldSchemas.confirmar_senha,
+      extras: orgSignupFieldSchemas.extras,
     })
     .refine((data) => data.senha === data.confirmar_senha, {
       message: 'As senhas não coincidem',

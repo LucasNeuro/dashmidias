@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createColumnHelper } from '@tanstack/react-table';
+import { useAuth } from '../context/AuthContext';
+import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { RegistrationTemplateSideover } from '../components/governance/RegistrationTemplateSideover';
 import {
@@ -15,14 +17,21 @@ import {
 const colHelper = createColumnHelper();
 
 export function AdminTemplatesPage() {
-  const [templates, setTemplates] = useState(() => loadTemplates());
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const { toast, alert, confirm } = useUiFeedback();
+  const [templates, setTemplates] = useState(() => loadTemplates(userId));
   const [sideOpen, setSideOpen] = useState(false);
   const [isNew, setIsNew] = useState(true);
   const [draft, setDraft] = useState(() => createEmptyTemplate());
 
   useEffect(() => {
-    saveTemplates(templates);
-  }, [templates]);
+    setTemplates(loadTemplates(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    saveTemplates(templates, userId);
+  }, [templates, userId]);
 
   const openNew = useCallback(() => {
     setIsNew(true);
@@ -51,10 +60,17 @@ export function AdminTemplatesPage() {
     setSideOpen(false);
   }, [draft, isNew]);
 
-  const remove = useCallback((id) => {
-    if (!window.confirm('Excluir este template? O link de convite deixará de funcionar quando o cadastro público estiver ligado.')) return;
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const remove = useCallback(
+    async (id) => {
+      const ok = await confirm(
+        'Excluir este template? O link de convite deixará de funcionar quando o cadastro público estiver ligado.',
+        { title: 'Excluir template', danger: true }
+      );
+      if (!ok) return;
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+    },
+    [confirm]
+  );
 
   const duplicate = useCallback((row) => {
     const now = new Date().toISOString();
@@ -68,21 +84,30 @@ export function AdminTemplatesPage() {
     setTemplates((prev) => [copy, ...prev]);
   }, []);
 
-  const copyInviteLink = useCallback((row) => {
-    if (row?.inviteLinkEnabled === false) {
-      window.alert('Ative o convite por link na edição do template antes de copiar o endereço.');
-      return;
-    }
-    const url = inviteUrlForTemplate(row.id);
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(url).then(
-        () => window.alert('Link copiado para a área de transferência.'),
-        () => window.prompt('Copie o link:', url)
-      );
-    } else {
-      window.prompt('Copie o link:', url);
-    }
-  }, []);
+  const copyInviteLink = useCallback(
+    async (row) => {
+      if (row?.inviteLinkEnabled === false) {
+        await alert('Ative o convite por link na edição do template antes de copiar o endereço.', {
+          title: 'Convite pausado',
+        });
+        return;
+      }
+      const url = inviteUrlForTemplate(row.id);
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(url);
+          toast('Link copiado para a área de transferência.', { variant: 'success' });
+        } catch {
+          await alert(`Não foi possível copiar automaticamente. Copie manualmente:\n\n${url}`, {
+            title: 'Copiar link',
+          });
+        }
+      } else {
+        await alert(`Copie o endereço:\n\n${url}`, { title: 'Link do convite' });
+      }
+    },
+    [alert, toast]
+  );
 
   const columns = useMemo(
     () => [
@@ -159,7 +184,7 @@ export function AdminTemplatesPage() {
             </button>
             <button
               type="button"
-              onClick={() => remove(info.row.original.id)}
+              onClick={() => void remove(info.row.original.id)}
               className="rounded-sm border border-red-200 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-800 hover:bg-red-50"
             >
               Excluir

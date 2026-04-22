@@ -3,6 +3,12 @@ import { DEFAULT_HUB_PARTNER_KIND, hubPartnerKindSelectOptions, normalizePartner
 
 const LS_KEY = 'hub_registration_form_templates_v1';
 
+/** Chave localStorage por utilizador (admin); convites públicos leem `loadTemplatesMerged`. */
+export function templatesStorageKey(userId) {
+  if (!userId) return LS_KEY;
+  return `${LS_KEY}__${userId}`;
+}
+
 function safeParse(json, fallback) {
   try {
     const v = JSON.parse(json);
@@ -126,10 +132,26 @@ export function slugKeyFromLabel(label) {
     .slice(0, 64) || 'campo';
 }
 
-export function loadTemplates() {
+/**
+ * Lista de templates do utilizador atual (admin).
+ * @param {string | null | undefined} userId id Supabase auth.users
+ */
+export function loadTemplates(userId) {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(LS_KEY);
+    const key = templatesStorageKey(userId);
+    let raw = window.localStorage.getItem(key);
+    if (!raw && userId && key !== LS_KEY) {
+      const legacy = window.localStorage.getItem(LS_KEY);
+      if (legacy) {
+        try {
+          window.localStorage.setItem(key, legacy);
+        } catch {
+          /* ignore */
+        }
+        raw = legacy;
+      }
+    }
     const list = safeParse(raw, []);
     return list.map((t) => normalizeTemplate(t));
   } catch {
@@ -137,12 +159,33 @@ export function loadTemplates() {
   }
 }
 
-export function saveTemplates(/** @type {RegistrationFormTemplate[]} */ list) {
+export function saveTemplates(/** @type {RegistrationFormTemplate[]} */ list, userId) {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(LS_KEY, JSON.stringify(list));
+    window.localStorage.setItem(templatesStorageKey(userId), JSON.stringify(list));
   } catch {
     /* ignore */
+  }
+}
+
+/** Agrega todas as chaves `hub_registration_form_templates_v1*` (convite público encontra o template). */
+export function loadTemplatesMerged() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const byId = new Map();
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (!k || (k !== LS_KEY && !k.startsWith(`${LS_KEY}__`))) continue;
+      const raw = window.localStorage.getItem(k);
+      const list = safeParse(raw, []);
+      for (const t of list) {
+        const n = normalizeTemplate(t);
+        if (n?.id) byId.set(n.id, n);
+      }
+    }
+    return [...byId.values()];
+  } catch {
+    return [];
   }
 }
 
@@ -169,5 +212,5 @@ export function inviteUrlForTemplate(templateId) {
 
 export function getTemplateById(id) {
   if (!id) return null;
-  return loadTemplates().find((t) => t.id === id) ?? null;
+  return loadTemplatesMerged().find((t) => t.id === id) ?? null;
 }

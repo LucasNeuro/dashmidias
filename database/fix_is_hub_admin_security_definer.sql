@@ -6,12 +6,15 @@
 --
 -- Rode no SQL Editor do Supabase após revisão.
 
+-- Preferir o script consolidado: fix_hub_admins_rls_recursion.sql (inclui SET row_security = off).
+
 create or replace function public.is_hub_admin()
 returns boolean
 language sql
 stable
 security definer
 set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1
@@ -21,6 +24,6 @@ as $$
   );
 $$;
 
-comment on function public.is_hub_admin() is 'True se auth.uid() é admin ativo da plataforma (hub_admins). SECURITY DEFINER evita recursão RLS.';
+comment on function public.is_hub_admin() is 'True se auth.uid() é admin ativo da plataforma (hub_admins). SECURITY DEFINER + row_security off evita recursão RLS.';
 
 grant execute on function public.is_hub_admin() to authenticated;

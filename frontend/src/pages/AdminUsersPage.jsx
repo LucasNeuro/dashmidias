@@ -1,18 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { AppSideover } from '../components/AppSideover';
+import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
+import { fetchAdminUsersBundle } from '../lib/governanceQueries';
 import { getHubOwnerEmail } from '../lib/hubOwner';
 
 export function AdminUsersPage() {
   const { supabase, session, isHubOwner } = useAuth();
-  const [profiles, setProfiles] = useState([]);
-  const [solicitacoes, setSolicitacoes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState(null);
-  const [solicErr, setSolicErr] = useState(null);
+  const queryClient = useQueryClient();
   const [busySolicId, setBusySolicId] = useState(null);
   const [panel, setPanel] = useState({ open: false, kind: null, row: null });
 
@@ -22,47 +21,22 @@ export function AdminUsersPage() {
     [ownerEmailConfigured, isHubOwner]
   );
 
-  const loadSolicitacoes = useCallback(async () => {
-    if (!supabase || !showFilaHub) return;
-    setSolicErr(null);
-    const { data, error } = await supabase
-      .from('hub_solicitacoes_admin')
-      .select('id, email, nome, telefone, cpf, user_id, mensagem, status, criado_em, resolvido_em')
-      .order('criado_em', { ascending: false })
-      .limit(200);
-    if (error) setSolicErr(error.message);
-    else setSolicitacoes(data || []);
-  }, [supabase, showFilaHub]);
+  const usersQuery = useQuery({
+    queryKey: ['governance', 'users-page', showFilaHub],
+    queryFn: () => fetchAdminUsersBundle(supabase, showFilaHub),
+    enabled: Boolean(supabase),
+  });
 
-  useEffect(() => {
-    if (!supabase) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, email, full_name, role, can_access_audit, updated_at')
-          .order('updated_at', { ascending: false });
-        if (error) throw error;
-        if (!cancelled) setProfiles(data || []);
-        if (!cancelled && showFilaHub) await loadSolicitacoes();
-      } catch (e) {
-        if (!cancelled) setErr(e.message || 'Erro ao carregar');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase, showFilaHub, loadSolicitacoes]);
+  const profiles = usersQuery.data?.profiles ?? [];
+  const solicitacoes = usersQuery.data?.solicitacoes ?? [];
+  const loading = usersQuery.isPending && usersQuery.data === undefined;
+  const err = usersQuery.isError ? String(usersQuery.error?.message ?? usersQuery.error) : null;
+  const [solicActionErr, setSolicActionErr] = useState(null);
 
   async function resolverSolicitacao(id, status) {
     if (!supabase || !session?.user?.id) return;
     setBusySolicId(id);
-    setSolicErr(null);
+    setSolicActionErr(null);
     try {
       const { error } = await supabase
         .from('hub_solicitacoes_admin')
@@ -73,14 +47,14 @@ export function AdminUsersPage() {
         })
         .eq('id', id);
       if (error) throw error;
-      await loadSolicitacoes();
+      await queryClient.invalidateQueries({ queryKey: ['governance', 'users-page'] });
       setPanel((p) =>
         p.open && p.kind === 'solic' && p.row?.id === id
           ? { ...p, row: { ...p.row, status, resolvido_em: new Date().toISOString() } }
           : p
       );
     } catch (e) {
-      setSolicErr(e.message || 'Erro ao atualizar');
+      setSolicActionErr(e?.message || 'Erro ao atualizar');
     } finally {
       setBusySolicId(null);
     }
@@ -214,57 +188,94 @@ export function AdminUsersPage() {
 
   return (
     <>
-      <div className="w-full space-y-6 min-w-0">
-        {loading && <p className="text-[10px] font-black uppercase text-on-surface-variant">Carregando…</p>}
-        {err && <p className="text-sm text-red-600 font-semibold">{err}</p>}
+      <div className="w-full min-w-0 space-y-6">
+        {(err || solicActionErr) && (
+          <p className="text-sm font-semibold text-red-600" role="alert">
+            {err || solicActionErr}
+          </p>
+        )}
+        {loading ? <p className="text-sm text-on-surface-variant">Carregando dados de usuários…</p> : null}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-sm border border-surface-container-high bg-gradient-to-br from-primary to-[#152a3d] p-4 text-white shadow-md">
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/75">Perfis</p>
-            <p className="mt-1 text-2xl font-black tabular-nums">{profiles.length}</p>
+        {!loading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <DashboardMetricCard
+              label="Perfis"
+              value={profiles.length}
+              surface="whiteMedia"
+              footer={
+                <>
+                  <span className="material-symbols-outlined text-sm">groups</span>
+                  Utilizadores no HUB
+                </>
+              }
+            />
+            <DashboardMetricCard
+              label="Com audit"
+              value={profiles.filter((p) => p.can_access_audit).length}
+              surface="whiteMedia"
+              valueClassName="text-3xl sm:text-4xl font-black text-tertiary tracking-tighter tabular-nums mb-2"
+              footer={
+                <>
+                  <span className="material-symbols-outlined text-sm">verified</span>
+                  Painel de auditoria
+                </>
+              }
+            />
+            <DashboardMetricCard
+              label="Pendentes (fila)"
+              value={solicitacoes.filter((s) => s.status === 'pendente').length}
+              surface="whiteAccentAmber"
+              valueClassName="text-3xl sm:text-4xl font-black tabular-nums text-amber-950 mb-2"
+              footer={
+                <>
+                  <span className="material-symbols-outlined text-sm text-amber-800">hourglass_top</span>
+                  Solicitações administrativas
+                </>
+              }
+            />
           </div>
-          <div className="rounded-sm border border-tertiary/40 bg-gradient-to-br from-tertiary/90 to-[#16a34a] p-4 text-primary shadow-md">
-            <p className="text-[10px] font-black uppercase tracking-widest text-primary/90">Com audit</p>
-            <p className="mt-1 text-2xl font-black tabular-nums">{profiles.filter((p) => p.can_access_audit).length}</p>
-          </div>
-          <div className="rounded-sm border border-amber-200/80 bg-amber-50 p-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest text-amber-900/80">Pendentes (fila)</p>
-            <p className="mt-1 text-2xl font-black tabular-nums text-amber-950">{solicitacoes.filter((s) => s.status === 'pendente').length}</p>
-          </div>
-        </div>
+        ) : null}
 
         {showFilaHub && (
           <section className="overflow-hidden rounded-sm border border-surface-container-high bg-white shadow-sm">
-            <div className="border-b border-surface-container-high bg-gradient-to-r from-primary via-[#1a3050] to-[#24364a] px-4 py-3 sm:px-5">
-              <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">Solicitações — acesso administrativo HUB</h2>
+            <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5 sm:py-3.5">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">
+                Solicitações — acesso administrativo HUB
+              </h2>
+              {usersQuery.isFetching && !loading ? (
+                <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">A atualizar…</p>
+              ) : null}
             </div>
-            {solicErr && <p className="px-4 py-2 text-sm text-red-600 sm:px-5">{solicErr}</p>}
             <div className="p-4 sm:p-5">
-              <EntityDataTable
-                data={solicitacoes}
-                columns={solicColumns}
-                getRowId={(r) => r.id}
-                searchPlaceholder="Buscar solicitações…"
-                pageSize={8}
-                emptyLabel="Nenhuma solicitação."
-              />
+              {!loading ? (
+                <EntityDataTable
+                  data={solicitacoes}
+                  columns={solicColumns}
+                  getRowId={(r) => r.id}
+                  searchPlaceholder="Buscar solicitações…"
+                  pageSize={8}
+                  emptyLabel="Nenhuma solicitação."
+                />
+              ) : null}
             </div>
           </section>
         )}
 
         <section className="overflow-hidden rounded-sm border border-surface-container-high bg-white shadow-sm">
-          <div className="border-b border-surface-container-high bg-gradient-to-r from-slate-600 to-slate-700 px-4 py-3 sm:px-5">
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">Usuários (profiles)</h2>
+          <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5 sm:py-3.5">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Usuários (profiles)</h2>
           </div>
           <div className="p-4 sm:p-5">
-            <EntityDataTable
-              data={profiles}
-              columns={profileColumns}
-              getRowId={(r) => r.id}
-              searchPlaceholder="Buscar usuários…"
-              pageSize={10}
-              emptyLabel="Nenhum usuário."
-            />
+            {!loading ? (
+              <EntityDataTable
+                data={profiles}
+                columns={profileColumns}
+                getRowId={(r) => r.id}
+                searchPlaceholder="Buscar usuários…"
+                pageSize={10}
+                emptyLabel="Nenhum usuário."
+              />
+            ) : null}
           </div>
         </section>
       </div>

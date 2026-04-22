@@ -75,6 +75,15 @@ export function AdminGovernanceLayout() {
             </span>
             Controle de usuários
           </NavLink>
+          <NavLink
+            to="/adm/organizacoes"
+            className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
+          >
+            <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
+              domain
+            </span>
+            Organizações
+          </NavLink>
         </nav>
         <Outlet />
       </div>

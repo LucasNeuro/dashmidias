@@ -1,10 +1,28 @@
-import { useForm } from '@tanstack/react-form';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { applyCnpjaOfficeToForm, fetchCnpjaOffice, hasCnpjaApiKey } from '../../lib/cnpja';
+import { useForm, useStore } from '@tanstack/react-form';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { applyBrasilApiCnpjToForm, fetchBrasilApiCnpj } from '../../lib/brasil_public_cnpj';
+import {
+  applyCnpjaOfficeToForm,
+  extractCnpjaOfficeHints,
+  fetchCnpjaOffice,
+  hasCnpjaApiKey,
+} from '../../lib/cnpja';
 import { ORG_STANDARD_META } from '../../lib/orgStandardFields';
 import { normalizeCnpj14 } from '../../lib/opencnpj';
 import { fetchViaCepJson, formatCepMask, normalizeCep8, onlyDigits } from '../../lib/viacep';
-import { buildPartnerOrgSignupSchema, defaultPartnerOrgValues } from '../../schemas/partnerOrgSignup';
+import {
+  buildPartnerOrgSignupSchema,
+  defaultPartnerOrgValues,
+  orgSignupFieldSchemas,
+  validatePartnerSignupStep,
+} from '../../schemas/partnerOrgSignup';
+
+/** @param {import('zod').ZodType} schema @param {unknown} value */
+function zodFieldMessage(schema, value) {
+  const r = schema.safeParse(value);
+  return r.success ? undefined : r.error.issues[0]?.message;
+}
 
 function errorToText(err) {
   if (err == null) return '';
@@ -23,6 +41,27 @@ function FieldError({ errors }) {
   );
 }
 
+/** @param {import('zod').ZodIssue[] | undefined} issues */
+function zodIssuesToStepErrors(issues) {
+  if (!issues?.length) return {};
+  /** @type {Record<string, string>} */
+  const o = {};
+  for (const iss of issues) {
+    const p = iss.path;
+    if (!p?.length) continue;
+    const key = p[0] === 'extras' && p[1] != null ? `extras.${p[1]}` : String(p[0]);
+    o[key] = iss.message;
+  }
+  return o;
+}
+
+function mergeStepErrors(metaErrors, stepErrorsRecord, key) {
+  const extra = stepErrorsRecord[key];
+  const base = Array.isArray(metaErrors) ? [...metaErrors] : [];
+  if (extra) base.push({ message: extra });
+  return base;
+}
+
 function parseExtrasMultiJson(raw) {
   try {
     const j = JSON.parse(String(raw ?? '[]'));
@@ -33,6 +72,7 @@ function parseExtrasMultiJson(raw) {
 }
 
 export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
+  const queryClient = useQueryClient();
   const schema = useMemo(() => buildPartnerOrgSignupSchema(extraFields), [extraFields]);
   const defaultValues = useMemo(() => defaultPartnerOrgValues(extraFields), [extraFields]);
 
@@ -40,8 +80,30 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
   const [cepHint, setCepHint] = useState('');
   const lastCepLookup = useRef('');
   const [cnpjHint, setCnpjHint] = useState('');
+  /** Resumo da consulta CNPJA (atividade, situação) — só quando a API comercial responde. */
+  const [cnpjDetailHints, setCnpjDetailHints] = useState(
+    /** @type {{ mainActivity: string, status: string, nature: string }} */ ({
+      mainActivity: '',
+      status: '',
+      nature: '',
+    })
+  );
   const [cnpjBusy, setCnpjBusy] = useState(false);
   const lastCnpjLookup = useRef('');
+  const [step, setStep] = useState(0);
+  /** @type {Record<string, string>} */
+  const [stepErrors, setStepErrors] = useState({});
+  const wizardCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+
+  const hasExtras = extraFields.length > 0;
+  const lastStepIndex = hasExtras ? 3 : 2;
+  const stepLabels = useMemo(
+    () =>
+      hasExtras
+        ? ['Empresa', 'Endereço', 'Acesso', 'Informações adicionais']
+        : ['Empresa', 'Endereço', 'Acesso'],
+    [hasExtras]
+  );
 
   const form = useForm({
     defaultValues,
@@ -101,555 +163,728 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
       const n = normalizeCnpj14(cnpjRaw);
       if (!n) {
         setCnpjHint('');
-        return;
-      }
-      if (!hasCnpjaApiKey()) {
-        setCnpjHint(
-          'Neste ambiente a consulta automática pelo CNPJ não está disponível. Preencha nome, e-mail e telefone manualmente.'
-        );
+        setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
         return;
       }
       if (lastCnpjLookup.current === n) return;
       lastCnpjLookup.current = n;
       setCnpjBusy(true);
       setCnpjHint('Consultando dados da empresa…');
+      setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
+      const staleCnpj = 24 * 60 * 60 * 1000;
       try {
-        const data = await fetchCnpjaOffice(cnpjRaw);
-        applyCnpjaOfficeToForm(form, data);
-        setCnpjHint('Dados preenchidos automaticamente. Revise antes de enviar.');
+        if (hasCnpjaApiKey()) {
+          try {
+            const data = await queryClient.fetchQuery({
+              queryKey: ['cnpja', 'office', n],
+              queryFn: () => fetchCnpjaOffice(cnpjRaw),
+              staleTime: staleCnpj,
+            });
+            applyCnpjaOfficeToForm(form, data);
+            setCnpjDetailHints(extractCnpjaOfficeHints(data));
+            const emailEmpty = !String(form.getFieldValue('email') || '').trim();
+            const phoneEmpty = !String(form.getFieldValue('telefone') || '').trim();
+            if (emailEmpty || phoneEmpty) {
+              try {
+                const br = await queryClient.fetchQuery({
+                  queryKey: ['brasilapi', 'cnpj', n],
+                  queryFn: () => fetchBrasilApiCnpj(n),
+                  staleTime: staleCnpj,
+                });
+                applyBrasilApiCnpjToForm(form, br, { mergeOnly: true });
+              } catch {
+                /* só CNPJA */
+              }
+            }
+            setCnpjHint('Dados preenchidos automaticamente. Avance para revisar o endereço e a senha.');
+          } catch {
+            setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
+            const data = await queryClient.fetchQuery({
+              queryKey: ['brasilapi', 'cnpj', n],
+              queryFn: () => fetchBrasilApiCnpj(n),
+              staleTime: staleCnpj,
+            });
+            applyBrasilApiCnpjToForm(form, data);
+            setCnpjHint('Dados obtidos da base pública. Confira nome, contatos e endereço antes de continuar.');
+          }
+        } else {
+          const data = await queryClient.fetchQuery({
+            queryKey: ['brasilapi', 'cnpj', n],
+            queryFn: () => fetchBrasilApiCnpj(n),
+            staleTime: staleCnpj,
+          });
+          applyBrasilApiCnpjToForm(form, data);
+          setCnpjHint(
+            'Dados obtidos da base pública (sem chave comercial). Confira nome, contatos e endereço antes de continuar.'
+          );
+        }
       } catch (e) {
         lastCnpjLookup.current = '';
+        setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
         setCnpjHint(e instanceof Error ? e.message : 'Não foi possível consultar o CNPJ');
       } finally {
         setCnpjBusy(false);
       }
     },
-    [form]
+    [form, queryClient]
   );
+
+  const values = useStore(form.store, (s) => s.values);
+
+  useEffect(() => {
+    wizardCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [step]);
+
+  const handleWizardPrimary = useCallback(() => {
+    const v = values;
+    if (step < lastStepIndex) {
+      const r = validatePartnerSignupStep(step, v, extraFields);
+      if (!r.success) {
+        setStepErrors(zodIssuesToStepErrors(r.error?.issues));
+        return;
+      }
+      setStepErrors({});
+      setStep((x) => x + 1);
+      return;
+    }
+    const rFinal = hasExtras
+      ? validatePartnerSignupStep(3, v, extraFields)
+      : validatePartnerSignupStep(2, v, extraFields);
+    if (!rFinal.success) {
+      setStepErrors(zodIssuesToStepErrors(rFinal.error?.issues));
+      return;
+    }
+    setStepErrors({});
+    void form.handleSubmit();
+  }, [values, step, lastStepIndex, extraFields, hasExtras, form]);
 
   return (
     <form
-      className="space-y-6"
+      className="w-full max-w-none"
       onSubmit={(e) => {
         e.preventDefault();
-        e.stopPropagation();
-        void form.handleSubmit();
       }}
     >
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dados da empresa</h2>
-
-        <form.Field name="cnpj">
-          {(field) => (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                {ORG_STANDARD_META.cnpj.label} *
-              </label>
-              <input
-                id={field.name}
-                name={field.name}
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="00.000.000/0000-00"
-                disabled={cnpjBusy}
-                value={field.state.value}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const cur = normalizeCnpj14(v);
-                  if (!cur || cur.length < 14) lastCnpjLookup.current = '';
-                  field.handleChange(v);
-                }}
-                onBlur={async (e) => {
-                  field.handleBlur();
-                  await runCnpjLookup(e.target.value);
-                }}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
-              />
-              {cnpjHint ? (
-                <p className={`mt-1 text-xs ${cnpjHint.includes('…') || cnpjHint.includes('preenchidos') || cnpjHint.includes('automaticamente') ? 'text-slate-600' : 'text-amber-800'}`} role="status">
-                  {cnpjHint}
-                </p>
-              ) : null}
-              <FieldError errors={field.state.meta.errors} />
-            </div>
-          )}
-        </form.Field>
-
-        <form.Field name="nome_empresa">
-          {(field) => (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                {ORG_STANDARD_META.nome_empresa.label} *
-              </label>
-              {ORG_STANDARD_META.nome_empresa.hint ? (
-                <p className="mb-1 text-xs text-slate-500">{ORG_STANDARD_META.nome_empresa.hint}</p>
-              ) : null}
-              <input
-                id={field.name}
-                name={field.name}
-                type="text"
-                autoComplete="organization"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
-              <FieldError errors={field.state.meta.errors} />
-            </div>
-          )}
-        </form.Field>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <form.Field name="email">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.email.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="email"
-                  autoComplete="email"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="telefone">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.telefone.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="tel"
-                  autoComplete="tel"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-        </div>
-
-        <div className="border-t border-slate-100 pt-4">
-          <h3 className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Senha de acesso</h3>
-          <p className="mb-3 text-xs text-slate-500">Use o mesmo e-mail acima para entrar depois do cadastro.</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <form.Field name="senha">
-              {(field) => (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                    Senha *
-                  </label>
-                  <input
-                    id={field.name}
-                    name={field.name}
-                    type="password"
-                    autoComplete="new-password"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="confirmar_senha">
-              {(field) => (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                    Confirmar senha *
-                  </label>
-                  <input
-                    id={field.name}
-                    name={field.name}
-                    type="password"
-                    autoComplete="new-password"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
-                  <FieldError errors={field.state.meta.errors} />
-                </div>
-              )}
-            </form.Field>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Endereço</h2>
-
-        <form.Field name="cep">
-          {(field) => (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                {ORG_STANDARD_META.cep.label} *
-              </label>
-              {ORG_STANDARD_META.cep.hint ? (
-                <p className="mb-1 text-xs text-slate-500">{ORG_STANDARD_META.cep.hint}</p>
-              ) : null}
-              <input
-                id={field.name}
-                name={field.name}
-                type="text"
-                inputMode="numeric"
-                autoComplete="postal-code"
-                placeholder="00000-000"
-                maxLength={9}
-                disabled={cepBusy}
-                value={formatCepMask(field.state.value)}
-                onChange={(e) => {
-                  const d = onlyDigits(e.target.value).slice(0, 8);
-                  if (d.length !== 8) lastCepLookup.current = '';
-                  field.handleChange(d);
-                  setCepHint('');
-                  if (d.length === 8) void runCepLookup(d);
-                }}
-                onBlur={(e) => {
-                  field.handleBlur();
-                  const d = onlyDigits(e.target.value);
-                  if (d.length === 8) void runCepLookup(d);
-                }}
-                className="w-full max-w-[11rem] rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
-              />
-              {cepHint ? (
-                <p
-                  className={`mt-1 text-xs ${cepHint.includes('encontrado') || cepHint.includes('Buscando') ? 'text-slate-600' : 'text-amber-800'}`}
-                  role="status"
-                >
-                  {cepHint}
-                </p>
-              ) : null}
-              <FieldError errors={field.state.meta.errors} />
-            </div>
-          )}
-        </form.Field>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <form.Field name="logradouro">
-            {(field) => (
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.logradouro.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  autoComplete="street-address"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="numero">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.numero.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  autoComplete="off"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="complemento">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.complemento.label}
-                </label>
-                {ORG_STANDARD_META.complemento.hint ? (
-                  <p className="mb-1 text-xs text-slate-500">{ORG_STANDARD_META.complemento.hint}</p>
-                ) : null}
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  autoComplete="off"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="bairro">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.bairro.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="cidade">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.cidade.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  autoComplete="address-level2"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="uf">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.uf.label} *
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  maxLength={2}
-                  autoComplete="address-level1"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value.toUpperCase().replace(/[^A-Za-z]/g, '').slice(0, 2))}
-                  onBlur={field.handleBlur}
-                  className="w-full max-w-[5rem] rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-sm uppercase text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <FieldError errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Field name="codigo_ibge">
-            {(field) => (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-primary" htmlFor={field.name}>
-                  {ORG_STANDARD_META.codigo_ibge.label}
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type="text"
-                  inputMode="numeric"
-                  readOnly
-                  tabIndex={-1}
-                  value={field.state.value}
-                  className="w-full max-w-[9rem] rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 font-mono text-sm text-slate-700"
-                />
-                <p className="mt-0.5 text-[11px] text-slate-500">Preenchido automaticamente com o CEP.</p>
-              </div>
-            )}
-          </form.Field>
-        </div>
-      </section>
-
-      {extraFields.length > 0 ? (
-        <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Informações adicionais</h2>
-          {extraFields.map((f) => (
-            <form.Field key={f.id} name={`extras.${f.key}`}>
-              {(field) => (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-primary" htmlFor={`extra-${f.id}`}>
-                    {f.label}
-                    {f.required ? ' *' : ''}
-                  </label>
-                  {f.type === 'textarea' ? (
-                    <textarea
-                      id={`extra-${f.id}`}
-                      rows={3}
-                      value={String(field.state.value ?? '')}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-                  ) : f.type === 'checkbox' ? (
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={field.state.value === true}
-                        onChange={(e) => field.handleChange(e.target.checked)}
-                        onBlur={field.handleBlur}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      <span className="text-sm text-primary">Sim</span>
-                    </label>
-                  ) : f.type === 'select' ? (
-                    <select
-                      id={`extra-${f.id}`}
-                      value={String(field.state.value ?? '')}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    >
-                      <option value="">Selecione…</option>
-                      {(f.options || []).map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : f.type === 'radio' ? (
-                    <div className="space-y-2.5">
-                      {(f.options || []).length === 0 ? (
-                        <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
-                      ) : (
-                        (f.options || []).map((opt) => (
-                          <label
-                            key={opt}
-                            className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 transition-colors hover:border-primary/30 hover:bg-white"
-                          >
-                            <input
-                              type="radio"
-                              name={`extra-radio-${f.key}`}
-                              value={opt}
-                              checked={String(field.state.value ?? '') === opt}
-                              onChange={() => field.handleChange(opt)}
-                              onBlur={field.handleBlur}
-                              className="mt-0.5 h-4 w-4 border-slate-300 text-primary"
-                            />
-                            <span className="text-sm text-primary">{opt}</span>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  ) : f.type === 'multiselect' ? (
-                    <div className="space-y-2.5">
-                      {(f.options || []).length === 0 ? (
-                        <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
-                      ) : (
-                        (f.options || []).map((opt) => {
-                          const selected = parseExtrasMultiJson(field.state.value);
-                          const on = selected.includes(opt);
-                          return (
-                            <label
-                              key={opt}
-                              className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 transition-colors hover:border-primary/30 hover:bg-white"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={on}
-                                onChange={() => {
-                                  const next = on ? selected.filter((x) => x !== opt) : [...selected, opt];
-                                  field.handleChange(JSON.stringify(next));
-                                }}
-                                onBlur={field.handleBlur}
-                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary"
-                              />
-                              <span className="text-sm text-primary">{opt}</span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  ) : f.type === 'date' ? (
-                    <input
-                      id={`extra-${f.id}`}
-                      type="date"
-                      value={String(field.state.value ?? '')}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full max-w-[12rem] rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-                  ) : (
-                    <input
-                      id={`extra-${f.id}`}
-                      type={
-                        f.type === 'number'
-                          ? 'number'
-                          : f.type === 'email'
-                            ? 'email'
-                            : f.type === 'url'
-                              ? 'url'
-                              : f.type === 'tel'
-                                ? 'tel'
-                                : 'text'
-                      }
-                      placeholder={f.type === 'url' ? 'https://' : undefined}
-                      value={String(field.state.value ?? '')}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-                  )}
-                  <FieldError errors={field.state.meta.errors} />
-                </div>
-              )}
-            </form.Field>
-          ))}
-        </section>
-      ) : null}
-
-      <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting, s.errorMap]}>
-        {([canSubmit, isSubmitting, errorMap]) => (
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              aria-disabled={!canSubmit}
-              className="rounded-lg bg-primary px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-[#0f2840] disabled:opacity-50"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Enviando…' : 'Enviar cadastro'}
-            </button>
-            {errorMap?.onSubmit ? (
-              <span className="text-sm text-red-700" role="alert">
-                {String(errorMap.onSubmit)}
+      <div
+        ref={wizardCardRef}
+        className="overflow-hidden border-2 border-primary bg-white shadow-xl"
+      >
+        <header className="border-b border-outline-variant bg-white px-5 py-4 sm:px-8">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
+            Passo {step + 1} de {stepLabels.length}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {stepLabels.map((label, i) => (
+              <span
+                key={label}
+                className={`inline-flex items-center gap-1.5 border px-2 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                  i === step
+                    ? 'border-primary bg-primary text-white'
+                    : i < step
+                      ? 'border-tertiary/50 bg-tertiary/10 text-primary'
+                      : 'border-outline-variant bg-white text-on-surface-variant'
+                }`}
+              >
+                <span className="font-mono tabular-nums">{i + 1}</span>
+                {label}
               </span>
+            ))}
+          </div>
+          <h2 className="mt-4 text-2xl font-black tracking-tight text-primary">{stepLabels[step]}</h2>
+        </header>
+
+        <div className="space-y-6 p-5 sm:p-8">
+          {step === 0 ? (
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
+              <form.Field name="cnpj">
+                {(field) => (
+                  <div className="lg:col-span-12">
+                    <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                      {ORG_STANDARD_META.cnpj.label} *
+                    </label>
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="00.000.000/0000-00"
+                      disabled={cnpjBusy}
+                      value={field.state.value}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const cur = normalizeCnpj14(v);
+                        if (!cur || cur.length < 14) {
+                          lastCnpjLookup.current = '';
+                          setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
+                        }
+                        field.handleChange(v);
+                      }}
+                      onBlur={async (e) => {
+                        field.handleBlur();
+                        await runCnpjLookup(e.target.value);
+                      }}
+                      className="w-full border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0 disabled:opacity-60"
+                    />
+                    {cnpjHint ? (
+                      <p
+                        className={`mt-1 text-xs ${
+                          cnpjHint.includes('…') ||
+                          cnpjHint.includes('preenchidos') ||
+                          cnpjHint.includes('automaticamente') ||
+                          cnpjHint.includes('base pública')
+                            ? 'text-slate-600'
+                            : 'text-amber-800'
+                        }`}
+                        role="status"
+                      >
+                        {cnpjHint}
+                      </p>
+                    ) : null}
+                    {cnpjDetailHints.status || cnpjDetailHints.nature || cnpjDetailHints.mainActivity ? (
+                      <ul className="mt-2 list-inside list-disc space-y-0.5 text-[11px] leading-snug text-slate-600" role="note">
+                        {cnpjDetailHints.status ? <li>Situação cadastral: {cnpjDetailHints.status}</li> : null}
+                        {cnpjDetailHints.nature ? <li>Natureza jurídica: {cnpjDetailHints.nature}</li> : null}
+                        {cnpjDetailHints.mainActivity ? <li>Atividade principal (CNAE): {cnpjDetailHints.mainActivity}</li> : null}
+                      </ul>
+                    ) : null}
+                    <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'cnpj')} />
+                  </div>
+                )}
+              </form.Field>
+
+              <form.Field name="nome_empresa">
+                {(field) => (
+                  <div className="lg:col-span-12">
+                    <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                      {ORG_STANDARD_META.nome_empresa.label} *
+                    </label>
+                    {ORG_STANDARD_META.nome_empresa.hint ? (
+                      <p className="mb-1 text-xs text-slate-500">{ORG_STANDARD_META.nome_empresa.hint}</p>
+                    ) : null}
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type="text"
+                      autoComplete="organization"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                    />
+                    <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'nome_empresa')} />
+                  </div>
+                )}
+              </form.Field>
+
+              <form.Field
+                name="email"
+                validators={{
+                  onBlur: ({ value }) => zodFieldMessage(orgSignupFieldSchemas.email, value),
+                }}
+              >
+                {(field) => (
+                  <div className="lg:col-span-6 xl:col-span-4">
+                    <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                      {ORG_STANDARD_META.email.label} *
+                    </label>
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type="email"
+                      autoComplete="email"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={(e) => {
+                        field.handleBlur();
+                        if (orgSignupFieldSchemas.email.safeParse(e.target.value).success) {
+                          setStepErrors((p) => {
+                            if (!p.email) return p;
+                            const next = { ...p };
+                            delete next.email;
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                    />
+                    <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'email')} />
+                  </div>
+                )}
+              </form.Field>
+
+              <form.Field
+                name="telefone"
+                validators={{
+                  onBlur: ({ value }) => zodFieldMessage(orgSignupFieldSchemas.telefone, value),
+                }}
+              >
+                {(field) => (
+                  <div className="lg:col-span-6 xl:col-span-4">
+                    <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                      {ORG_STANDARD_META.telefone.label} *
+                    </label>
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type="tel"
+                      autoComplete="tel"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={(e) => {
+                        field.handleBlur();
+                        if (orgSignupFieldSchemas.telefone.safeParse(e.target.value).success) {
+                          setStepErrors((p) => {
+                            if (!p.telefone) return p;
+                            const next = { ...p };
+                            delete next.telefone;
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                    />
+                    <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'telefone')} />
+                  </div>
+                )}
+              </form.Field>
+            </div>
+          ) : null}
+
+          {step === 1 ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start">
+                <form.Field name="cep">
+                  {(field) => (
+                    <div className="w-full max-w-full sm:max-w-[20rem] lg:col-span-5 xl:col-span-4">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.cep.label} *
+                      </label>
+                      {ORG_STANDARD_META.cep.hint ? (
+                        <p className="mb-1 text-xs text-slate-500">{ORG_STANDARD_META.cep.hint}</p>
+                      ) : null}
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
+                        placeholder="00000-000"
+                        maxLength={9}
+                        disabled={cepBusy}
+                        value={formatCepMask(field.state.value)}
+                        onChange={(e) => {
+                          const d = onlyDigits(e.target.value).slice(0, 8);
+                          if (d.length !== 8) lastCepLookup.current = '';
+                          field.handleChange(d);
+                          setCepHint('');
+                          if (d.length === 8) void runCepLookup(d);
+                        }}
+                        onBlur={(e) => {
+                          field.handleBlur();
+                          const d = onlyDigits(e.target.value);
+                          if (d.length === 8) void runCepLookup(d);
+                        }}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 font-mono text-base tracking-wide text-primary outline-none focus:border-primary focus:ring-0 disabled:opacity-60"
+                      />
+                      {cepHint ? (
+                        <p
+                          className={`mt-1 text-xs ${cepHint.includes('encontrado') || cepHint.includes('Buscando') ? 'text-slate-600' : 'text-amber-800'}`}
+                          role="status"
+                        >
+                          {cepHint}
+                        </p>
+                      ) : null}
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'cep')} />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <form.Field name="logradouro">
+                  {(field) => (
+                    <div className="w-full">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.logradouro.label} *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        autoComplete="street-address"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'logradouro')} />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-12 sm:gap-x-4 sm:gap-y-4">
+                <form.Field name="numero">
+                  {(field) => (
+                    <div className="sm:col-span-12 md:col-span-4 lg:col-span-2">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.numero.label} *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        autoComplete="off"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'numero')} />
+                    </div>
+                  )}
+                </form.Field>
+
+                <form.Field name="complemento">
+                  {(field) => (
+                    <div className="sm:col-span-12 md:col-span-8 lg:col-span-5">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.complemento.label}
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        autoComplete="off"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'complemento')} />
+                    </div>
+                  )}
+                </form.Field>
+
+                <form.Field name="bairro">
+                  {(field) => (
+                    <div className="sm:col-span-12 lg:col-span-5">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.bairro.label} *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'bairro')} />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-12 sm:gap-x-4 sm:gap-y-4 lg:items-start">
+                <form.Field name="cidade">
+                  {(field) => (
+                    <div className="sm:col-span-12 md:col-span-5 lg:col-span-6">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.cidade.label} *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        autoComplete="address-level2"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'cidade')} />
+                    </div>
+                  )}
+                </form.Field>
+
+                <form.Field name="uf">
+                  {(field) => (
+                    <div className="w-full sm:col-span-12 md:col-span-2 lg:col-span-2 lg:max-w-[5.5rem]">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.uf.label} *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        maxLength={2}
+                        autoComplete="address-level1"
+                        value={field.state.value}
+                        onChange={(e) =>
+                          field.handleChange(e.target.value.toUpperCase().replace(/[^A-Za-z]/g, '').slice(0, 2))
+                        }
+                        onBlur={field.handleBlur}
+                        className="w-full min-h-[2.75rem] border border-outline-variant px-3 py-2.5 text-center font-mono text-sm uppercase text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'uf')} />
+                    </div>
+                  )}
+                </form.Field>
+
+                <form.Field name="codigo_ibge">
+                  {(field) => (
+                    <div className="sm:col-span-12 md:col-span-5 lg:col-span-4">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.codigo_ibge.label}
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        inputMode="numeric"
+                        readOnly
+                        tabIndex={-1}
+                        value={field.state.value}
+                        className="w-full min-h-[2.75rem] border border-outline-variant bg-surface-container-low px-3 py-2.5 font-mono text-sm text-on-surface-variant"
+                      />
+                      <p className="mt-0.5 text-[11px] text-slate-500">Preenchido automaticamente com o CEP.</p>
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="space-y-4">
+              <p className="text-sm text-on-surface-variant">
+                Use o mesmo e-mail da etapa &quot;Empresa&quot; para entrar depois do cadastro.
+              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <form.Field name="senha">
+                  {(field) => (
+                    <div>
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        Senha *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="password"
+                        autoComplete="new-password"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'senha')} />
+                    </div>
+                  )}
+                </form.Field>
+                <form.Field name="confirmar_senha">
+                  {(field) => (
+                    <div>
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        Confirmar senha *
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="password"
+                        autoComplete="new-password"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'confirmar_senha')} />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+            </div>
+          ) : null}
+
+          {step === 3 && hasExtras ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {extraFields.map((f) => (
+                <form.Field key={f.id} name={`extras.${f.key}`}>
+                  {(field) => (
+                    <div className={f.type === 'textarea' || f.type === 'radio' || f.type === 'multiselect' ? 'md:col-span-2 xl:col-span-3' : ''}>
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={`extra-${f.id}`}>
+                        {f.label}
+                        {f.required ? ' *' : ''}
+                      </label>
+                      {f.type === 'textarea' ? (
+                        <textarea
+                          id={`extra-${f.id}`}
+                          rows={3}
+                          value={String(field.state.value ?? '')}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                        />
+                      ) : f.type === 'checkbox' ? (
+                        <label className="flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={field.state.value === true}
+                            onChange={(e) => field.handleChange(e.target.checked)}
+                            onBlur={field.handleBlur}
+                            className="h-4 w-4 rounded-none border-outline-variant accent-tertiary"
+                          />
+                          <span className="text-sm text-primary">Sim</span>
+                        </label>
+                      ) : f.type === 'select' ? (
+                        <select
+                          id={`extra-${f.id}`}
+                          value={String(field.state.value ?? '')}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full border border-outline-variant bg-white px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                        >
+                          <option value="">Selecione…</option>
+                          {(f.options || []).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      ) : f.type === 'radio' ? (
+                        <div className="space-y-2.5">
+                          {(f.options || []).length === 0 ? (
+                            <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
+                          ) : (
+                            (f.options || []).map((opt) => (
+                              <label
+                                key={opt}
+                                className="flex cursor-pointer items-start gap-3 border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
+                              >
+                                <input
+                                  type="radio"
+                                  name={`extra-radio-${f.key}`}
+                                  value={opt}
+                                  checked={String(field.state.value ?? '') === opt}
+                                  onChange={() => field.handleChange(opt)}
+                                  onBlur={field.handleBlur}
+                                  className="mt-0.5 h-4 w-4 border-slate-300 text-primary"
+                                />
+                                <span className="text-sm text-primary">{opt}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      ) : f.type === 'multiselect' ? (
+                        <div className="space-y-2.5">
+                          {(f.options || []).length === 0 ? (
+                            <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
+                          ) : (
+                            (f.options || []).map((opt) => {
+                              const selected = parseExtrasMultiJson(field.state.value);
+                              const on = selected.includes(opt);
+                              return (
+                                <label
+                                  key={opt}
+                                  className="flex cursor-pointer items-start gap-3 border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    onChange={() => {
+                                      const next = on ? selected.filter((x) => x !== opt) : [...selected, opt];
+                                      field.handleChange(JSON.stringify(next));
+                                    }}
+                                    onBlur={field.handleBlur}
+                                    className="mt-0.5 h-4 w-4 rounded-none border-outline-variant accent-tertiary text-primary"
+                                  />
+                                  <span className="text-sm text-primary">{opt}</span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      ) : f.type === 'date' ? (
+                        <input
+                          id={`extra-${f.id}`}
+                          type="date"
+                          value={String(field.state.value ?? '')}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full max-w-[12rem] border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                        />
+                      ) : (
+                        <input
+                          id={`extra-${f.id}`}
+                          type={
+                            f.type === 'number'
+                              ? 'number'
+                              : f.type === 'email'
+                                ? 'email'
+                                : f.type === 'url'
+                                  ? 'url'
+                                  : f.type === 'tel'
+                                    ? 'tel'
+                                    : 'text'
+                          }
+                          placeholder={f.type === 'url' ? 'https://' : undefined}
+                          value={String(field.state.value ?? '')}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                        />
+                      )}
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, `extras.${f.key}`)} />
+                    </div>
+                  )}
+                </form.Field>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <footer className="flex flex-col gap-4 border-t border-outline-variant bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <div className="flex flex-wrap gap-2">
+            {step > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setStepErrors({});
+                  setStep((s) => Math.max(0, s - 1));
+                }}
+                className="border border-outline-variant bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-on-surface-variant hover:bg-surface-container-low"
+              >
+                Voltar
+              </button>
             ) : null}
           </div>
-        )}
-      </form.Subscribe>
+          <form.Subscribe selector={(s) => [s.isSubmitting, s.errorMap]}>
+            {([isSubmitting, errorMap]) => (
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleWizardPrimary()}
+                  className="bg-tertiary px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? 'Enviando…'
+                    : step < lastStepIndex
+                      ? 'Continuar'
+                      : 'Enviar cadastro'}
+                </button>
+                {errorMap?.onSubmit ? (
+                  <span className="text-sm text-red-700" role="alert">
+                    {String(errorMap.onSubmit)}
+                  </span>
+                ) : null}
+              </div>
+            )}
+          </form.Subscribe>
+        </footer>
+      </div>
     </form>
   );
 }

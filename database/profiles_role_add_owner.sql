@@ -29,7 +29,8 @@ returns boolean
 language sql
 stable
 security definer
-set search_path to public
+set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1 from public.profiles p

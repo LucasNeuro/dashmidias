@@ -51,10 +51,11 @@ export function AuthProvider({ children }) {
         setHubSolicitacaoPendente(false);
         return { merged: null, hubAdminFlag: false, isAdmin: false, hubSolicitacaoPendente: false };
       }
-      const [legacyProfileRes, perfisRes, hubAdminRes, solicRes] = await Promise.all([
+      const [legacyProfileRes, perfisRes, hubRpcRes, solicRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
         supabase.from('perfis').select('*').eq('user_id', userId).maybeSingle(),
-        supabase.from('hub_admins').select('user_id, ativo').eq('user_id', userId).maybeSingle(),
+        /** RPC evita SELECT direto em hub_admins (RLS) e alinha-se a is_hub_admin() no Postgres. */
+        supabase.rpc('is_hub_admin'),
         supabase
           .from('hub_solicitacoes_admin')
           .select('id')
@@ -64,8 +65,30 @@ export function AuthProvider({ children }) {
       ]);
       if (legacyProfileRes.error) console.warn('[profiles]', legacyProfileRes.error.message);
       if (perfisRes.error) console.warn('[perfis]', perfisRes.error.message);
-      if (hubAdminRes.error) console.warn('[hub_admins]', hubAdminRes.error.message);
+      if (hubRpcRes.error) console.warn('[is_hub_admin rpc]', hubRpcRes.error.message);
       if (solicRes.error) console.warn('[hub_solicitacoes_admin]', solicRes.error.message);
+
+      let byTable = false;
+      if (!hubRpcRes.error && hubRpcRes.data !== null && hubRpcRes.data !== undefined) {
+        byTable = Boolean(hubRpcRes.data);
+      } else {
+        const hubAdminRes = await supabase
+          .from('hub_admins')
+          .select('user_id, ativo')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (hubAdminRes.error) {
+          const msg = hubAdminRes.error.message || '';
+          if (msg.toLowerCase().includes('recursion')) {
+            console.warn(
+              '[hub_admins] Recursão nas políticas RLS — execute no Supabase: database/fix_hub_admins_rls_recursion.sql'
+            );
+          } else {
+            console.warn('[hub_admins]', msg);
+          }
+        }
+        byTable = hubAdminRes.data?.ativo === true;
+      }
 
       const merged = {
         ...(legacyProfileRes.data ?? {}),
@@ -74,7 +97,6 @@ export function AuthProvider({ children }) {
         full_name: legacyProfileRes.data?.full_name ?? perfisRes.data?.nome_exibicao ?? null,
         can_access_audit: legacyProfileRes.data?.can_access_audit ?? false,
       };
-      const byTable = hubAdminRes.data?.ativo === true;
       const byPerfil = perfisRes.data?.administrador_hub === true;
       const legacyElevated =
         legacyProfileRes.data?.role === 'admin' ||

@@ -148,30 +148,63 @@ export function cnpjaZipToFormShape(z) {
 }
 
 /**
- * Escolhe o melhor e-mail da lista (prioriza corporativo, depois o primeiro com endereço válido).
+ * Escolhe o melhor e-mail da lista (prioriza corporativo, depois qualquer endereço válido).
  * @param {unknown[]} emails
  */
 function pickEmailAddress(emails) {
   if (!Array.isArray(emails) || emails.length === 0) return '';
-  const corp = emails.find((e) => e && typeof e === 'object' && e.ownership === 'CORPORATE' && e.address);
-  const withAddr =
-    corp ?? emails.find((e) => e && typeof e === 'object' && e.address && String(e.address).includes('@'));
-  const em = withAddr ?? emails[0];
+  const valid = (e) =>
+    e &&
+    typeof e === 'object' &&
+    e.address != null &&
+    String(e.address).trim().includes('@') &&
+    !String(e.address).includes('***');
+  const corp = emails.find((e) => valid(e) && e.ownership === 'CORPORATE');
+  const partner = emails.find((e) => valid(e) && e.ownership === 'PARTNER');
+  const any = emails.find((e) => valid(e));
+  const em = corp ?? partner ?? any ?? emails.find((e) => e && typeof e === 'object' && e.address);
   const addr = em?.address;
   return addr != null ? String(addr).trim() : '';
 }
 
 /**
- * Escolhe telefone principal (prioriza celular).
+ * Formata um item de `phones[]` da CNPJA (área + número, só dígitos).
+ * @param {unknown} p
+ */
+function formatPhoneFromCnpja(p) {
+  if (!p || typeof p !== 'object') return '';
+  const area = p.area != null ? onlyDigits(String(p.area)).slice(0, 3) : '';
+  let num = p.number != null ? onlyDigits(String(p.number)) : '';
+  if (area && num.length >= 10 && num.startsWith(area)) {
+    num = num.slice(area.length);
+  }
+  if (area && num) return `(${area}) ${num}`;
+  return num || (area ? `(${area})` : '');
+}
+
+const PHONE_TYPE_ORDER = /** @type {const} */ ({
+  MOBILE: 0,
+  LANDLINE: 1,
+  FIXED: 2,
+  FAX: 3,
+});
+
+/**
+ * Escolhe telefone principal (prioriza celular, depois fixo, depois qualquer número válido).
  * @param {unknown[]} phones
  */
 function pickPhone(phones) {
   if (!Array.isArray(phones) || phones.length === 0) return '';
-  const mobile = phones.find((p) => p && typeof p === 'object' && p.type === 'MOBILE');
-  const p = mobile ?? phones[0];
-  const area = p?.area != null ? String(p.area) : '';
-  const num = p?.number != null ? String(p.number) : '';
-  return area && num ? `(${area}) ${num}` : num || area;
+  const rank = (t) => {
+    const k = String(t || '');
+    return k in PHONE_TYPE_ORDER ? PHONE_TYPE_ORDER[k] : 9;
+  };
+  const sorted = [...phones].sort((a, b) => rank(a?.type) - rank(b?.type));
+  for (const p of sorted) {
+    const s = formatPhoneFromCnpja(p);
+    if (s.replace(/\D/g, '').length >= 10) return s;
+  }
+  return formatPhoneFromCnpja(sorted[0]);
 }
 
 /**
@@ -198,7 +231,11 @@ export function applyCnpjaOfficeToForm(form, data, opts = {}) {
   const addr = data?.address;
   const alias = data?.alias != null ? String(data.alias).trim() : '';
   const fromCompany = company?.name != null ? String(company.name).trim() : '';
-  const name = fromCompany || alias;
+  /** Nome de exibição: razão social; filiais mostram o apelido entre parênteses quando não é matriz. */
+  let name = fromCompany || alias;
+  if (fromCompany && alias && data?.head === false) {
+    name = `${fromCompany} (${alias})`;
+  }
   const phones = Array.isArray(data?.phones) ? data.phones : [];
   const emails = Array.isArray(data?.emails) ? data.emails : [];
 
@@ -230,6 +267,24 @@ export function applyCnpjaOfficeToForm(form, data, opts = {}) {
     fill('uf', addr.state != null ? String(addr.state).toUpperCase().slice(0, 2) : '');
     if (addr.municipality != null) fill('codigo_ibge', String(addr.municipality));
   }
+}
+
+/**
+ * Textos úteis para UI (atividade, situação cadastral) — não são campos obrigatórios do formulário.
+ * @param {Record<string, unknown>} data resposta GET /office
+ */
+export function extractCnpjaOfficeHints(data) {
+  if (!data || typeof data !== 'object') {
+    return { mainActivity: '', status: '', nature: '' };
+  }
+  const main = data.mainActivity && typeof data.mainActivity === 'object' ? data.mainActivity.text : null;
+  const st = data.status && typeof data.status === 'object' ? data.status.text : null;
+  const nat = data.company?.nature && typeof data.company.nature === 'object' ? data.company.nature.text : null;
+  return {
+    mainActivity: main != null ? String(main) : '',
+    status: st != null ? String(st) : '',
+    nature: nat != null ? String(nat) : '',
+  };
 }
 
 /**

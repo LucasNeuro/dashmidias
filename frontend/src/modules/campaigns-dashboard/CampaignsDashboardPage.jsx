@@ -1,6 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
+import { CampaignsDashboardSkeleton } from '../../components/GovernanceDataSkeleton';
+import { DashboardMetricCard } from '../../components/DashboardMetricCard';
 import { DataPolicyModal, hasAcceptedDataPolicy } from '../../components/DataPolicyModal';
 import { useAuth } from '../../context/AuthContext';
 import { money, intFmt } from '../../lib/format';
@@ -550,57 +552,77 @@ export function CampaignsDashboardPage() {
               <div className="w-1.5 h-6 bg-tertiary" />
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Sumário Executivo</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              <div className="bg-white p-8 border-l-4 border-l-primary border-y border-r border-surface-container-high shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Investimento Total</p>
-                <div className="text-4xl font-black text-primary tracking-tighter mb-2">{money(executiveDynamic.investment)}</div>
-                <div className="flex items-center gap-2 text-tertiary font-bold text-[11px]">
-                  <span className="material-symbols-outlined text-sm">trending_up</span>
-                  Baseado no filtro aplicado
-                </div>
-              </div>
-              <div className="bg-primary p-8 border-l-4 border-l-tertiary shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-4">Retorno (ROAS Médio)</p>
-                <div className="text-5xl font-black text-tertiary tracking-tighter mb-2">{executiveDynamic.roas.toFixed(2)}x</div>
-                <div className="flex items-center gap-2 text-white font-bold text-[11px] uppercase tracking-widest">
-                  <span className="material-symbols-outlined text-sm">verified</span>
-                  Métrica dinâmica por campanhas
-                </div>
-              </div>
-              <div className="bg-white p-8 border border-surface-container-high shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Custo por Conversão</p>
-                <div className="text-4xl font-black text-primary tracking-tighter mb-2">{money(executiveDynamic.cpa)}</div>
-                <div className="flex items-center gap-2 text-tertiary font-bold text-[11px]">
-                  <span className="material-symbols-outlined text-sm">trending_down</span>
-                  Investimento dividido por conversões
-                </div>
-              </div>
-              <div className="bg-white p-8 border border-surface-container-high shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Conversões Totais</p>
-                <div className="text-4xl font-black text-primary tracking-tighter mb-2">{intFmt(executiveDynamic.conversions)}</div>
-                <div className="flex items-center gap-2 text-on-surface-variant font-bold text-[11px]">
-                  <span className="material-symbols-outlined text-sm">check_circle</span>
-                  Volume no período selecionado
-                </div>
-              </div>
-              <div className="bg-white p-8 border border-surface-container-high shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Campanhas Ativas</p>
-                <div className="text-4xl font-black text-primary tracking-tighter mb-2">{intFmt(executiveDynamic.active)}</div>
-                <div className="flex items-center gap-2 text-on-surface-variant font-bold text-[11px]">
-                  <span className="material-symbols-outlined text-sm">bolt</span>
-                  Exclui status pausada
-                </div>
-              </div>
-              <div className="bg-white p-8 border border-surface-container-high shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Prioridade Alta / Insights</p>
-                <div className="text-4xl font-black text-primary tracking-tighter mb-2">
-                  {intFmt(executiveDynamic.highPriority)} / {intFmt(executiveDynamic.insights)}
-                </div>
-                <div className="flex items-center gap-2 text-on-surface-variant font-bold text-[11px]">
-                  <span className="material-symbols-outlined text-sm">insights</span>
-                  Pronto para ação comercial
-                </div>
-              </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <DashboardMetricCard
+                label="Investimento Total"
+                value={money(executiveDynamic.investment)}
+                surface="whiteMedia"
+                footer={
+                  <>
+                    <span className="material-symbols-outlined text-sm">trending_up</span>
+                    Baseado no filtro aplicado
+                  </>
+                }
+              />
+              <DashboardMetricCard
+                label="Retorno (ROAS Médio)"
+                value={`${executiveDynamic.roas.toFixed(2)}x`}
+                surface="highlight"
+                footer={
+                  <>
+                    <span className="material-symbols-outlined text-sm">verified</span>
+                    Métrica dinâmica por campanhas
+                  </>
+                }
+              />
+              <DashboardMetricCard
+                label="Custo por Conversão"
+                value={money(executiveDynamic.cpa)}
+                surface="white"
+                footer={
+                  <span className="flex items-center gap-2 text-tertiary">
+                    <span className="material-symbols-outlined text-sm">trending_down</span>
+                    Investimento dividido por conversões
+                  </span>
+                }
+              />
+              <DashboardMetricCard
+                label="Conversões Totais"
+                value={intFmt(executiveDynamic.conversions)}
+                surface="white"
+                footer={
+                  <span className="flex items-center gap-2 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    Volume no período selecionado
+                  </span>
+                }
+              />
+              <DashboardMetricCard
+                label="Campanhas Ativas"
+                value={intFmt(executiveDynamic.active)}
+                surface="white"
+                footer={
+                  <span className="flex items-center gap-2 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-sm">bolt</span>
+                    Exclui status pausada
+                  </span>
+                }
+              />
+              <DashboardMetricCard
+                label="Prioridade Alta / Insights"
+                value={
+                  <>
+                    {intFmt(executiveDynamic.highPriority)} / {intFmt(executiveDynamic.insights)}
+                  </>
+                }
+                surface="white"
+                footer={
+                  <span className="flex items-center gap-2 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-sm">insights</span>
+                    Pronto para ação comercial
+                  </span>
+                }
+              />
             </div>
           </section>
         </Panel>
@@ -1110,8 +1132,8 @@ export function CampaignsDashboardPage() {
       <DataPolicyModal mode="info" open={policyInfoOpen} onClose={() => setPolicyInfoOpen(false)} />
 
       {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-primary text-white text-[10px] font-black uppercase tracking-widest">
-          Carregando dados…
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-surface-container-low/95 backdrop-blur-[1px]">
+          <CampaignsDashboardSkeleton />
         </div>
       )}
       {banner && (

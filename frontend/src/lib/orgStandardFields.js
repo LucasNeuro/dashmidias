@@ -28,7 +28,7 @@ export const ORG_STANDARD_META = {
   cep: { label: 'CEP', hint: '8 dígitos' },
   logradouro: { label: 'Logradouro' },
   numero: { label: 'Número' },
-  complemento: { label: 'Complemento', hint: 'Opcional' },
+  complemento: { label: 'Complemento' },
   bairro: { label: 'Bairro' },
   cidade: { label: 'Cidade' },
   uf: { label: 'UF' },

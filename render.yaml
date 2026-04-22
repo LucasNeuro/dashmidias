@@ -1,17 +1,29 @@
 # Render Blueprint – SPA React/Vite (dashmidias)
 # https://render.com/docs/blueprint-spec
 #
-# Após conectar o repositório: defina no painel (Environment) os build-time vars:
-#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_REPORT_SLUG
-# O Vite só incorpora VITE_* no bundle durante `npm run build`.
+# As variáveis abaixo (sync: false) têm de ser preenchidas no painel do serviço
+# (Settings → Environment) ANTES de confiar no build: o Vite embute VITE_* em `npm run build`.
+# Supabase: no dashboard Auth → URL Configuration, inclua a URL pública do Render
+# (ex.: https://dashmidias-web.onrender.com) em Site URL e Redirect URLs.
 
 services:
   - type: web
     name: dashmidias-web
     runtime: static
-    buildCommand: cd frontend && npm install && npm run build
+    buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_REPORT_SLUG
+        sync: false
+      - key: VITE_HUB_OWNER_EMAIL
+        sync: false
+      - key: VITE_CNPJA_API_KEY
+        sync: false
