@@ -1,27 +1,52 @@
 import { normalizeTemplate } from './registrationFormTemplates';
 
-const SELECT_TEMPLATE_WITH_FIELDS = `
-  id,
-  organization_id,
-  slug,
-  name,
-  description,
-  partner_kind,
-  invite_link_enabled,
-  created_at,
-  updated_at,
-  created_by_user_id,
-  registration_form_template_field (
-    id,
-    sort_order,
-    field_key,
-    label,
-    field_type,
-    required,
-    options,
-    lookup_cnpj
-  )
-`;
+/** Colunas do template (sem embed — o PostgREST exige FK explícita no catálogo; evitamos embutir relação). */
+const SELECT_TEMPLATE = [
+  'id',
+  'organization_id',
+  'slug',
+  'name',
+  'description',
+  'partner_kind',
+  'invite_link_enabled',
+  'created_at',
+  'updated_at',
+  'created_by_user_id',
+].join(', ');
+
+const SELECT_FIELD = [
+  'id',
+  'template_id',
+  'sort_order',
+  'field_key',
+  'label',
+  'field_type',
+  'required',
+  'options',
+  'lookup_cnpj',
+].join(', ');
+
+/**
+ * @param {string[]} templateIds
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @returns {Promise<Map<string, Record<string, unknown>[]>>}
+ */
+async function loadFieldsByTemplateId(supabase, templateIds) {
+  const map = new Map();
+  if (!templateIds.length) return map;
+  const { data, error } = await supabase
+    .from('registration_form_template_field')
+    .select(SELECT_FIELD)
+    .in('template_id', templateIds);
+  if (error) throw error;
+  for (const f of data || []) {
+    const id = f.template_id;
+    if (!id) continue;
+    if (!map.has(id)) map.set(id, []);
+    map.get(id).push(f);
+  }
+  return map;
+}
 
 /**
  * @param {unknown} raw
@@ -120,13 +145,21 @@ function templateFieldsToRows(t) {
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate[]>}
  */
 export async function listHubRegistrationTemplates(supabase) {
-  const { data, error } = await supabase
+  const { data: parents, error } = await supabase
     .from('registration_form_template')
-    .select(SELECT_TEMPLATE_WITH_FIELDS)
+    .select(SELECT_TEMPLATE)
     .is('organization_id', null)
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  return (data || []).map((row) => mapRowToClientTemplate(row));
+  const list = parents || [];
+  const ids = list.map((r) => r.id);
+  const fieldsByTmpl = await loadFieldsByTemplateId(supabase, ids);
+  return list.map((row) =>
+    mapRowToClientTemplate({
+      ...row,
+      registration_form_template_field: fieldsByTmpl.get(row.id) || [],
+    })
+  );
 }
 
 /**
@@ -139,7 +172,7 @@ export async function getRegistrationTemplateById(supabase, id) {
   if (!id) return null;
   const { data, error } = await supabase
     .from('registration_form_template')
-    .select(SELECT_TEMPLATE_WITH_FIELDS)
+    .select(SELECT_TEMPLATE)
     .eq('id', id)
     .maybeSingle();
   if (error) {
@@ -147,7 +180,11 @@ export async function getRegistrationTemplateById(supabase, id) {
     throw error;
   }
   if (!data) return null;
-  return mapRowToClientTemplate(data);
+  const fieldsByTmpl = await loadFieldsByTemplateId(supabase, [id]);
+  return mapRowToClientTemplate({
+    ...data,
+    registration_form_template_field: fieldsByTmpl.get(id) || [],
+  });
 }
 
 /**

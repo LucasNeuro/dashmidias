@@ -23,6 +23,19 @@ const colHelper = createColumnHelper();
 
 const qk = (userId) => ['registration_form_templates', userId];
 
+/** Erro vindo do PostgREST / Supabase — mensagem legível, sem jargão de implementação. */
+function friendlyDataError(err) {
+  const m = String(err?.message || err || '');
+  const low = m.toLowerCase();
+  if (low.includes('recursion') && low.includes('hub')) {
+    return 'Não foi possível concluir a operação: falha de permissões na base (admin HUB). Peça a um administrador a rever as regras de acesso na consola e tentar de novo.';
+  }
+  if (low.includes('relationship') && low.includes('schema')) {
+    return 'A base de dados ainda não tem a mesma versão do sistema. Peça a um administrador a aplicar as actualizações de estrutura e a tentar de novo.';
+  }
+  return m.length > 200 ? `${m.slice(0, 200)}…` : m;
+}
+
 export function AdminTemplatesPage() {
   const { session } = useAuth();
   const userId = session?.user?.id;
@@ -73,8 +86,7 @@ export function AdminTemplatesPage() {
       toast(isNew ? 'Template criado.' : 'Template atualizado.', { variant: 'success' });
       setSideOpen(false);
     } catch (e) {
-      const msg = e?.message || 'Não foi possível guardar.';
-      await alert(msg, { title: 'Erro' });
+      await alert(friendlyDataError(e) || 'Não foi possível guardar.', { title: 'Erro' });
     } finally {
       setSaving(false);
     }
@@ -94,7 +106,7 @@ export function AdminTemplatesPage() {
         await queryClient.invalidateQueries({ queryKey: qk(userId) });
         toast('Template excluído.', { variant: 'success' });
       } catch (e) {
-        await alert(e?.message || 'Falha ao excluir.', { title: 'Erro' });
+        await alert(friendlyDataError(e) || 'Falha ao excluir.', { title: 'Erro' });
       } finally {
         setSaving(false);
       }
@@ -224,9 +236,8 @@ export function AdminTemplatesPage() {
   if (!isSupabaseConfigured() || !supabase) {
     return (
       <div className="min-w-0 w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        Defina <code className="rounded-none bg-amber-100/80 px-1">VITE_SUPABASE_URL</code> e{' '}
-        <code className="rounded-none bg-amber-100/80 px-1">VITE_SUPABASE_ANON_KEY</code> (local e Render) para
-        listar e guardar templates no Supabase.
+        A ligação ao servidor de dados não está ativa, por isso não é possível ver nem criar modelos de cadastro. Peça a um administrador
+        para rever a configuração do ambiente (desenvolvimento e produção).
       </div>
     );
   }
@@ -237,11 +248,8 @@ export function AdminTemplatesPage() {
         <div className="min-w-0 max-w-2xl">
           <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Templates de cadastro</h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            A lista lê e grava na base de dados Supabase (tabelas <code className="rounded-none bg-slate-100 px-1 text-xs">registration_form_template</code> e{' '}
-            <code className="rounded-none bg-slate-100 px-1 text-xs">registration_form_template_field</code>), com RLS. O mesmo
-            projeto e o mesmo e-mail (admin HUB) em <strong>local</strong> e em <strong>produção</strong> (Render) veem os mesmos
-            dados — desde que as variáveis <code className="rounded-none bg-slate-100 px-1">VITE_</code> apontem para o mesmo Supabase
-            e exista a migração SQL aplicada.
+            Defina quais informações o parceiro preenche no cadastro (por tipo de parceiro) e partilhe o link de convite. Os modelos
+            guardados aqui são os que aparecem no formulário público de criação de organizações.
           </p>
         </div>
         <button
@@ -257,10 +265,7 @@ export function AdminTemplatesPage() {
 
       {isError && (
         <p className="mb-3 text-sm text-red-800">
-          Erro a carregar. {String(error?.message || '')}
-          {String(error?.message || '').toLowerCase().includes('recursion') ? (
-            <> Aplique <code className="rounded-none bg-red-50 px-1 text-xs">database/fix_hub_admins_rls_recursion.sql</code> no Supabase.</>
-          ) : null}
+          {friendlyDataError(error)}
           <button
             type="button"
             onClick={() => void refetch()}

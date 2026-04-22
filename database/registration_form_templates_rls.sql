@@ -1,5 +1,9 @@
 -- =============================================================================
--- Modelos de formulário de cadastro (convites parceiros) — tabelas + RLS
+-- Modelos de formulário de cadastro — variante GREENFIELD (slug + tabela filha)
+--
+-- O projeto em produção usa `fields jsonb` na própria `registration_form_template`
+-- (sem `slug`, sem `registration_form_template_field`). Para esse schema, use:
+--   database/registration_form_template_rls_production.sql
 --
 -- ANTES, se tiver 500 / recursão em hub_admins ou is_hub_admin, rode:
 --   database/fix_hub_admins_rls_recursion.sql

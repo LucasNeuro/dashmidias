@@ -70,9 +70,8 @@ export function PartnerOrgSignupPage() {
           <h1 className="mt-1.5 text-2xl font-black tracking-tight text-primary">{titleMain}</h1>
           {!template && !tplId ? (
             <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-              Para vincular o cadastro a um perfil concreto (ex.: <strong>imobiliárias</strong>, arquitetos), abra o link de convite
-              enviado pela equipe — ele inclui o parâmetro <code className="rounded-none bg-slate-100 px-1.5 py-0.5 text-xs">tpl=</code> do
-              template.
+              Para associar o cadastro a um perfil concreto (ex.: <strong>imobiliárias</strong> ou arquitetos), use o link de convite
+              completo que a equipe lhe enviar — o formulário ajusta-se a esse convite.
             </p>
           ) : null}
         </div>
