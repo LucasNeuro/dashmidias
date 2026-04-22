@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { RegistrationTemplateSideover } from '../components/governance/RegistrationTemplateSideover';
+import { ShareTemplateSideover } from '../components/governance/ShareTemplateSideover';
 import {
   createEmptyTemplate,
   inviteUrlForTemplate,
   loadTemplates,
-  newId,
   normalizeTemplate,
   PARTNER_KIND_OPTIONS,
   saveTemplates,
@@ -22,6 +22,7 @@ export function AdminTemplatesPage() {
   const { toast, alert, confirm } = useUiFeedback();
   const [templates, setTemplates] = useState(() => loadTemplates(userId));
   const [sideOpen, setSideOpen] = useState(false);
+  const [shareRow, setShareRow] = useState(null);
   const [isNew, setIsNew] = useState(true);
   const [draft, setDraft] = useState(() => createEmptyTemplate());
 
@@ -71,18 +72,6 @@ export function AdminTemplatesPage() {
     },
     [confirm]
   );
-
-  const duplicate = useCallback((row) => {
-    const now = new Date().toISOString();
-    const copy = normalizeTemplate({
-      ...JSON.parse(JSON.stringify(row)),
-      id: newId(),
-      name: `${row.name} (cópia)`,
-      createdAt: now,
-      updatedAt: now,
-    });
-    setTemplates((prev) => [copy, ...prev]);
-  }, []);
 
   const copyInviteLink = useCallback(
     async (row) => {
@@ -165,10 +154,15 @@ export function AdminTemplatesPage() {
             </button>
             <button
               type="button"
-              onClick={() => duplicate(info.row.original)}
-              className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-on-surface-variant hover:bg-slate-50"
+              title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite no editor' : 'Enviar convite por e-mail'}
+              onClick={() => setShareRow(info.row.original)}
+              className={`rounded-sm border px-2 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 ${
+                info.row.original.inviteLinkEnabled === false
+                  ? 'border-slate-200 text-slate-400'
+                  : 'border-surface-container-high text-on-surface-variant'
+              }`}
             >
-              Duplicar
+              Compartilhar
             </button>
             <button
               type="button"
@@ -193,7 +187,7 @@ export function AdminTemplatesPage() {
         ),
       }),
     ],
-    [copyInviteLink, duplicate, openEdit, remove]
+    [copyInviteLink, openEdit, remove]
   );
 
   return (
@@ -232,6 +226,7 @@ export function AdminTemplatesPage() {
         onSave={persistDraft}
         isNew={isNew}
       />
+      <ShareTemplateSideover open={Boolean(shareRow)} onClose={() => setShareRow(null)} row={shareRow} />
     </div>
   );
 }

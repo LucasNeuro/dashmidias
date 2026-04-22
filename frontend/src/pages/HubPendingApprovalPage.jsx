@@ -21,7 +21,7 @@ export function HubPendingApprovalPage() {
     );
   }
 
-  if (!session) return <Navigate to="/entrada" replace />;
+  if (!session) return <Navigate to="/login" replace />;
   if (isAdmin) return <Navigate to="/adm/auditoria" replace />;
   if (!hubSolicitacaoPendente) return <Navigate to={getParticipantHomePath(portal)} replace />;
 
@@ -48,8 +48,8 @@ export function HubPendingApprovalPage() {
           >
             Sair
           </button>
-          <Link to="/entrada" className="text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary">
-            Voltar à entrada
+          <Link to="/login" className="text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary">
+            Voltar ao login
           </Link>
         </div>
       </div>

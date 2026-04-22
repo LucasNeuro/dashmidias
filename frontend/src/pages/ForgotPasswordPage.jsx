@@ -1,14 +1,10 @@
 import { useId, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { useAuth } from '../context/AuthContext';
-import { isValidPortal, loginPathForPortal, PORTAL_HUB } from '../lib/appPortal';
 
 export function ForgotPasswordPage() {
-  const [searchParams] = useSearchParams();
-  const portalParam = searchParams.get('portal');
-  const portal = isValidPortal(portalParam) ? portalParam : PORTAL_HUB;
-  const loginBack = loginPathForPortal(portal);
+  const loginBack = '/login';
   const { resetPasswordForEmail } = useAuth();
   const emailFieldId = useId();
   const [email, setEmail] = useState('');

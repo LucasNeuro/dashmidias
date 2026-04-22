@@ -260,14 +260,14 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
 
   return (
     <form
-      className="w-full max-w-none"
+      className="w-full max-w-none [&_button]:rounded-none [&_input]:rounded-none [&_select]:rounded-none [&_textarea]:rounded-none"
       onSubmit={(e) => {
         e.preventDefault();
       }}
     >
       <div
         ref={wizardCardRef}
-        className="overflow-hidden border-2 border-primary bg-white shadow-xl"
+        className="overflow-hidden rounded-none border-2 border-primary bg-white shadow-xl"
       >
         <header className="border-b border-outline-variant bg-white px-5 py-4 sm:px-8">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
@@ -277,7 +277,7 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
             {stepLabels.map((label, i) => (
               <span
                 key={label}
-                className={`inline-flex items-center gap-1.5 border px-2 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-none border px-2 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
                   i === step
                     ? 'border-primary bg-primary text-white'
                     : i < step
@@ -761,7 +761,7 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                             (f.options || []).map((opt) => (
                               <label
                                 key={opt}
-                                className="flex cursor-pointer items-start gap-3 border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
+                                className="flex cursor-pointer items-start gap-3 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
                               >
                                 <input
                                   type="radio"
@@ -788,7 +788,7 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                               return (
                                 <label
                                   key={opt}
-                                  className="flex cursor-pointer items-start gap-3 border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
+                                  className="flex cursor-pointer items-start gap-3 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
                                 >
                                   <input
                                     type="checkbox"
@@ -854,7 +854,7 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                   setStepErrors({});
                   setStep((s) => Math.max(0, s - 1));
                 }}
-                className="border border-outline-variant bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-on-surface-variant hover:bg-surface-container-low"
+                className="rounded-none border border-outline-variant bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-on-surface-variant hover:bg-surface-container-low"
               >
                 Voltar
               </button>
@@ -866,7 +866,7 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                 <button
                   type="button"
                   onClick={() => void handleWizardPrimary()}
-                  className="bg-tertiary px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-none bg-tertiary px-6 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isSubmitting}
                 >
                   {isSubmitting

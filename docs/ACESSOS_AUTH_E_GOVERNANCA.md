@@ -19,13 +19,13 @@ Referência para **desenvolvedores e PO**: rotas, guards, identidade pós-login 
 
 | Rota | Componente | Função |
 |------|------------|--------|
-| `/entrada` | `EntradaPage` | Escolha de portal (Hub vs Imóveis) antes do login (`/login/:portal`). |
-| `/login` | — | `Navigate` para `/entrada`. |
-| `/login/:portal` | `LoginPage` | Login e-mail/senha; links para recuperar senha e fluxos de governança conforme UI. |
+| `/entrada` | `EntradaPage` | Compatibilidade: `?tpl=` → cadastro de organização; caso contrário redireciona para `/login`. |
+| `/login` | `LoginPage` | Login único (e-mail/senha). Destino após entrar: [postLoginPath.js](../frontend/src/lib/postLoginPath.js) (admin HUB → `/adm/...`, pendente → `/acesso/pendente-hub`, participante → home do portal). |
+| `/login/:portal` | `LoginPage` | Mesmo ecrã; `hub` ou `imoveis` grava o portal em `localStorage` (home de participante é a mesma URL em ambos, hoje). |
 | `/login/recuperar-senha` | `ForgotPasswordPage` | Pedido de e-mail de recuperação (`resetPasswordForEmail`). |
 | `/login/redefinir` | `ResetPasswordPage` | Nova senha após redirect do Supabase (`updatePassword`). |
-| `/acesso/governanca-hub` | — | `Navigate` para `/entrada` (URL legada; fluxo de solicitação pode evoluir na UI de entrada/login). |
-| `/acesso/governance-hub` | — | `Navigate` para `/entrada` (alias EN; mesmo destino que `/acesso/governanca-hub`). |
+| `/acesso/governanca-hub` | — | `Navigate` para `/login` (URL legada). |
+| `/acesso/governance-hub` | — | `Navigate` para `/login` (alias EN). |
 
 Layout: [AuthSplitLayout](../frontend/src/components/AuthSplitLayout.jsx) (split hero + formulário; em desktop a coluna do formulário é a zona com scroll).
 
@@ -44,8 +44,8 @@ Layout: [AuthSplitLayout](../frontend/src/components/AuthSplitLayout.jsx) (split
 | `/adm` | `AdminOnly` (`isAdmin`) | Auditoria + fila de aprovação (`AdminAuditPage`; visão **owner** filtrada por `VITE_HUB_OWNER_EMAIL` no cliente). |
 | `/adm/configuracoes`, `/adm/templates`, `/adm/usuarios` | `AdminOnly` | Placeholders de governança. |
 
-`Protected`: sem sessão → `/entrada`; pendência de governança (não admin) → `/acesso/pendente-hub`.  
-`AdminOnly`: sem sessão → `/entrada`; sem `isAdmin` → `getParticipantHomePath(portal)` (ou pendência → `/acesso/pendente-hub`).
+`Protected`: sem sessão → `/login`; pendência de governança (não admin) → `/acesso/pendente-hub`.  
+`AdminOnly`: sem sessão → `/login`; sem `isAdmin` → `getParticipantHomePath(portal)` (ou pendência → `/acesso/pendente-hub`).
 
 ---
 
@@ -114,16 +114,16 @@ Se `isSupabaseConfigured()` for falso, `App.jsx` pode renderizar apenas o painel
 ```mermaid
 flowchart LR
   subgraph public [Rotas publicas]
-    Entrada["/entrada"]
-    LoginPortal["/login/:portal"]
+    Entrada["/entrada legado"]
+    Login["/login"]
   end
   subgraph after [Apos signIn]
     Load["loadProfileForUser"]
     Path{"isAdmin?"}
     Pend{"Solicitacao pendente?"}
   end
-  Entrada --> LoginPortal
-  LoginPortal -->|"signIn"| Load
+  Entrada -->|redirect| Login
+  Login -->|signIn| Load
   Load --> Path
   Path -->|sim| Adm["/adm"]
   Path -->|nao| Pend

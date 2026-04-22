@@ -31,7 +31,7 @@ function Protected({ children }) {
       </div>
     );
   }
-  if (!session) return <Navigate to="/entrada" replace />;
+  if (!session) return <Navigate to="/login" replace />;
   if (hubSolicitacaoPendente && !isAdmin && location.pathname !== '/acesso/pendente-hub') {
     return <Navigate to="/acesso/pendente-hub" replace />;
   }
@@ -47,7 +47,7 @@ function AdminOnly({ children }) {
       </div>
     );
   }
-  if (!session) return <Navigate to="/entrada" replace />;
+  if (!session) return <Navigate to="/login" replace />;
   if (!isAdmin) {
     if (hubSolicitacaoPendente) return <Navigate to="/acesso/pendente-hub" replace />;
     return <Navigate to={getParticipantHomePath(portal)} replace />;
@@ -75,12 +75,12 @@ function AppRoutes() {
       {/* Rotas públicas: convites, tpl=, recuperação — sempre registadas (links diretos isolados do painel). */}
       <Route path="/entrada" element={<EntradaPage />} />
       <Route path="/cadastro/organizacao" element={<PartnerOrgSignupPage />} />
-      <Route path="/login" element={<Navigate to="/entrada" replace />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/login/recuperar-senha" element={<ForgotPasswordPage />} />
       <Route path="/login/redefinir" element={<ResetPasswordPage />} />
       <Route path="/login/:portal" element={<LoginPage />} />
-      <Route path="/acesso/governanca-hub" element={<Navigate to="/entrada" replace />} />
-      <Route path="/acesso/governance-hub" element={<Navigate to="/entrada" replace />} />
+      <Route path="/acesso/governanca-hub" element={<Navigate to="/login" replace />} />
+      <Route path="/acesso/governance-hub" element={<Navigate to="/login" replace />} />
 
       {sb ? (
         <>
@@ -154,7 +154,7 @@ function AppRoutes() {
         <>
           <Route path="/painel/campanhas" element={<CampaignsDashboardPage />} />
           <Route path="/" element={<CampaignsDashboardPage />} />
-          <Route path="*" element={<Navigate to="/entrada" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </>
       )}
     </Routes>

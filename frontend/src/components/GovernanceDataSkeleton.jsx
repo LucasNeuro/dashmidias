@@ -50,34 +50,3 @@ export function GovernanceTableBlockSkeleton({ rows = 6 }) {
   );
 }
 
-/** Skeleton do painel de campanhas: 6 cartões no mesmo grid do sumário executivo. */
-export function CampaignsDashboardSkeleton() {
-  return (
-    <div
-      className="mx-auto min-h-[50vh] w-full max-w-[1800px] space-y-8 px-4 py-8 lg:px-6"
-      aria-hidden
-    >
-      <div className="animate-pulse border-b-2 border-slate-200 pb-8">
-        <div className="mb-4 flex flex-wrap gap-2">
-          <div className="h-6 w-24 rounded bg-slate-300" />
-          <div className="h-6 w-40 rounded bg-slate-200" />
-        </div>
-        <div className="mb-3 h-10 max-w-lg rounded bg-slate-200" />
-        <div className="h-5 max-w-xl rounded bg-slate-100" />
-      </div>
-      <div className="flex animate-pulse gap-2 border-b border-slate-200">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-12 w-28 shrink-0 rounded-t bg-slate-100" />
-        ))}
-      </div>
-      <div className="animate-pulse">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="h-6 w-1.5 bg-slate-200" />
-          <div className="h-3 w-48 rounded bg-slate-200" />
-        </div>
-        <GovernanceMetricCardsSkeleton count={6} gridClassName="grid-cols-1 md:grid-cols-2 xl:grid-cols-3" />
-      </div>
-      <div className="h-40 animate-pulse rounded border border-slate-200 bg-white" />
-    </div>
-  );
-}

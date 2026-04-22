@@ -279,7 +279,7 @@ export function HubAdminSolicitacaoPage() {
 
         <p className="text-[10px] text-on-surface-variant leading-relaxed">
           Já tem conta?{' '}
-          <Link to="/entrada" className="font-black uppercase tracking-widest text-primary">
+          <Link to="/login" className="font-black uppercase tracking-widest text-primary">
             Login
           </Link>
         </p>

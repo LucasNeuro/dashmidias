@@ -1,0 +1,5 @@
+# Configuração do Supabase CLI: https://supabase.com/docs/guides/cli
+# Ajuste [project] ao ligar a um projecto (supabase link).
+
+[functions.send-template-invite]
+verify_jwt = true

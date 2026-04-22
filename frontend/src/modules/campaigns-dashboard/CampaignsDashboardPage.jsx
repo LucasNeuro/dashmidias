@@ -1,7 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../../components/AppShell';
-import { CampaignsDashboardSkeleton } from '../../components/GovernanceDataSkeleton';
 import { DashboardMetricCard } from '../../components/DashboardMetricCard';
 import { DataPolicyModal, hasAcceptedDataPolicy } from '../../components/DataPolicyModal';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +8,7 @@ import { money, intFmt } from '../../lib/format';
 import { logPanelAccess } from '../../lib/panelAccessLog';
 import { getAppNavItems } from '../../lib/appNavItems';
 import { isSupabaseConfigured } from '../../lib/supabaseClient';
+import { CampaignsDashboardLoading } from './components/CampaignsDashboardLoading';
 import { Panel } from './components/Panel';
 import { useCampaignsDashboardData } from './hooks/useCampaignsDashboardData';
 
@@ -396,9 +396,11 @@ export function CampaignsDashboardPage() {
 
   const usePlatformShell = isSupabaseConfigured();
   const showAsPlatformOwner = isHubOwner || isPlatformOwner;
-  const shellSubtitle = showAsPlatformOwner
-    ? 'Visão consolidada — gestão global de campanhas (dono da plataforma ou e-mail owner). Obras, imóveis e projetos · Meta e Google.'
-    : 'Visão consolidada na rota da plataforma — gestão geral de campanhas e insights. Obras, imóveis e projetos · Meta e Google.';
+  const shellSubtitle = loading
+    ? 'A carregar indicadores e campanhas…'
+    : showAsPlatformOwner
+      ? 'Visão consolidada — gestão global de campanhas (dono da plataforma ou e-mail owner). Obras, imóveis e projetos · Meta e Google.'
+      : 'Visão consolidada na rota da plataforma — gestão geral de campanhas e insights. Obras, imóveis e projetos · Meta e Google.';
 
   const headerActions = (
     <Link
@@ -409,9 +411,9 @@ export function CampaignsDashboardPage() {
     </Link>
   );
 
-  const dashboardInner = (
+  const dashboardContent = (
       <div className={`w-full max-w-[1800px] mx-auto px-4 py-8 lg:px-6 space-y-8 min-w-0 ${banner ? 'pt-16' : ''}`}>
-        <header className="flex flex-col md:flex-row justify-between items-end gap-6 pb-8 border-b-2 border-primary">
+        <header className="flex flex-col md:flex-row justify-between items-end gap-6 pb-8 border-b border-slate-200/90">
           <div className="space-y-3">
             <div className="flex items-center gap-3 mb-2 flex-wrap">
               <span className="bg-primary text-white text-[10px] font-black px-2 py-1 tracking-[0.2em] uppercase">
@@ -468,7 +470,7 @@ export function CampaignsDashboardPage() {
         </header>
 
         <nav
-          className="flex border-b border-outline-variant overflow-x-auto no-scrollbar"
+          className="flex gap-0.5 border-b border-slate-200/80 overflow-x-auto no-scrollbar rounded-t-xl bg-slate-50/50 p-1"
           role="tablist"
           aria-label="Seções do painel"
         >
@@ -481,10 +483,10 @@ export function CampaignsDashboardPage() {
                 role="tab"
                 aria-selected={on}
                 onClick={() => setTab(t.id)}
-                className={`px-8 py-4 text-[11px] font-black uppercase tracking-[0.2em] shrink-0 transition-colors ${
+                className={`px-6 py-3.5 text-[11px] font-black uppercase tracking-[0.2em] shrink-0 transition-all rounded-lg ${
                   on
-                    ? 'text-primary border-b-[3px] border-primary'
-                    : 'text-on-surface-variant hover:bg-surface-container border-b-2 border-transparent'
+                    ? 'text-primary bg-white shadow-sm ring-1 ring-slate-200/80'
+                    : 'text-on-surface-variant hover:bg-white/80 hover:text-primary'
                 }`}
               >
                 {t.label}
@@ -493,7 +495,7 @@ export function CampaignsDashboardPage() {
           })}
         </nav>
 
-        <section className="bg-white border border-surface-container-high p-4 md:p-5">
+        <section className="bg-white/95 border border-slate-200/90 shadow-sm rounded-xl p-4 md:p-5">
           <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
             <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">Filtros de análise</h3>
             <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
@@ -634,8 +636,8 @@ export function CampaignsDashboardPage() {
               <div className="w-1.5 h-6 bg-tertiary" />
               <h2 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Comparativo por Canal &amp; Eficiência</h2>
             </div>
-            <div className="bg-white border border-surface-container-high overflow-hidden">
-              <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-surface-container-high">
+            <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+              <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-200/80">
                 {channelCardsDynamic.map((ch) => (
                   <button
                     key={ch.slug}
@@ -741,10 +743,10 @@ export function CampaignsDashboardPage() {
               </div>
               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{google_focus}</span>
             </div>
-            <div className="bg-white border border-surface-container-high overflow-hidden">
+            <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-surface-container-low text-[9px] font-black uppercase tracking-widest text-on-surface-variant border-b border-surface-container-high">
+                  <tr className="bg-slate-50 text-[9px] font-black uppercase tracking-widest text-on-surface-variant border-b border-slate-200/80">
                     <th className="px-6 py-4">Rede</th>
                     <th className="px-6 py-4">Investimento</th>
                     <th className="px-6 py-4 text-right">Conv.</th>
@@ -966,7 +968,7 @@ export function CampaignsDashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Alta Performance</span>
               </div>
             </div>
-            <div id="campaigns-table-top" className="bg-white border border-surface-container-high shadow-sm overflow-hidden scroll-mt-24">
+            <div id="campaigns-table-top" className="scroll-mt-24 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
               <div className="overflow-auto max-h-[650px]">
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 z-10">
@@ -1071,7 +1073,7 @@ export function CampaignsDashboardPage() {
           </section>
         </Panel>
 
-        <footer className="pt-12 pb-12 border-t-2 border-primary flex flex-col md:flex-row justify-between items-center gap-8">
+        <footer className="pt-12 pb-12 border-t border-slate-200/90 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <span className="text-primary font-black text-xs uppercase tracking-[0.3em]">Arqui System</span>
@@ -1121,6 +1123,8 @@ export function CampaignsDashboardPage() {
       </div>
   );
 
+  const mainContent = loading ? <CampaignsDashboardLoading /> : dashboardContent;
+
   return (
     <>
       <DataPolicyModal
@@ -1131,11 +1135,6 @@ export function CampaignsDashboardPage() {
       />
       <DataPolicyModal mode="info" open={policyInfoOpen} onClose={() => setPolicyInfoOpen(false)} />
 
-      {loading && (
-        <div className="fixed inset-0 z-[60] overflow-y-auto bg-surface-container-low/95 backdrop-blur-[1px]">
-          <CampaignsDashboardSkeleton />
-        </div>
-      )}
       {banner && (
         <div className="fixed top-0 inset-x-0 z-50 bg-red-700 text-white text-center text-[11px] font-semibold py-2 px-4">
           {banner}
@@ -1149,10 +1148,10 @@ export function CampaignsDashboardPage() {
           navItems={navItems}
           headerActions={headerActions}
         >
-          {dashboardInner}
+          {mainContent}
         </AppShell>
       ) : (
-        dashboardInner
+        mainContent
       )}
     </>
   );

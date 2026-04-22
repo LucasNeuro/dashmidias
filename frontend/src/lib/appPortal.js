@@ -36,6 +36,6 @@ export function getParticipantHomePath(_portal) {
 
 /** Rota de login com slug de ambiente. */
 export function loginPathForPortal(portal) {
-  if (!isValidPortal(portal)) return '/entrada';
+  if (!isValidPortal(portal)) return '/login';
   return `/login/${portal}`;
 }

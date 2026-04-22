@@ -31,6 +31,7 @@ description: Antes de implementar ou alterar o projeto dashmidias, orienta a ler
 | [MODULOS_PERMISSOES_E_HUB.md](../../../docs/MODULOS_PERMISSOES_E_HUB.md) | Módulos, permissões |
 | `docs/CRM_*.md` | CRM, mapa comercial, templates Hub (abrir o ficheiro concreto no repo) |
 | [FLUXO_INICIO_DESENVOLVIMENTO.md](../../../docs/FLUXO_INICIO_DESENVOLVIMENTO.md) | Arranque de dev |
+| [TASKS.md](../../../docs/TASKS.md) | Registo de tarefas concluídas, em curso e backlog (atualizar com a skill `projeto-tasks-dashmidias`) |
 
 Se a tarefa for **só governança HUB** (`/adm`, filas admin), usar em conjunto com a skill `hub-governanca-obra10`.
 

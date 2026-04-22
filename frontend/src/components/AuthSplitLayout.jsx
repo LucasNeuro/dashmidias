@@ -44,8 +44,17 @@ export function AuthSplitLayout({
           </div>
         </aside>
 
-        <section className="lg:min-h-0 lg:h-full lg:overflow-y-auto overscroll-y-contain">
-          <div className="w-full flex flex-col items-center px-4 py-10 lg:py-12 pb-16">
+        <section className="relative min-h-[60vh] lg:min-h-0 lg:h-full lg:overflow-y-auto overscroll-y-contain">
+          <div
+            className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: "url('/images/login-hero-bg.svg')" }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/25 via-slate-900/20 to-slate-950/40"
+            aria-hidden
+          />
+          <div className="relative z-10 flex w-full min-h-full flex-col items-center px-4 py-10 lg:py-12 pb-16">
             {children}
           </div>
         </section>

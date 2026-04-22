@@ -69,10 +69,10 @@ export function ResetPasswordPage() {
           <div className="space-y-4">
             <p className="text-sm text-tertiary font-semibold">Senha atualizada. Você já pode entrar com a nova senha.</p>
             <Link
-              to="/entrada"
+              to="/login"
               className="inline-block w-full text-center py-3 bg-tertiary text-white text-[10px] font-black uppercase tracking-[0.2em]"
             >
-              Ir à entrada
+              Ir ao login
             </Link>
           </div>
         ) : invalidLink ? (
@@ -143,8 +143,8 @@ export function ResetPasswordPage() {
           </form>
         )}
 
-        <Link to="/entrada" className="block text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary">
-          Voltar à entrada
+        <Link to="/login" className="block text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary">
+          Voltar ao login
         </Link>
       </div>
     </AuthSplitLayout>

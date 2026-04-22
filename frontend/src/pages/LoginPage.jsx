@@ -1,13 +1,8 @@
 import { useEffect, useId, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { useAuth } from '../context/AuthContext';
-import { isValidPortal, PORTAL_HUB, PORTAL_IMOVEIS } from '../lib/appPortal';
-
-const eyebrowByPortal = {
-  [PORTAL_HUB]: 'Ambiente Hub',
-  [PORTAL_IMOVEIS]: 'Ambiente Imóveis',
-};
+import { isValidPortal, PORTAL_HUB } from '../lib/appPortal';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -20,10 +15,11 @@ export function LoginPage() {
   const [error, setError] = useState(null);
   const passwordFieldId = useId();
 
-  const portal = isValidPortal(portalParam) ? portalParam : null;
+  /** Um único login: default Hub; `/login/imoveis` mantém compatibilidade e grava o portal em localStorage. */
+  const portal = isValidPortal(portalParam) ? portalParam : PORTAL_HUB;
 
   useEffect(() => {
-    if (portal) setPortal(portal);
+    setPortal(portal);
   }, [portal, setPortal]);
 
   useEffect(() => {
@@ -46,10 +42,6 @@ export function LoginPage() {
     }
   }
 
-  if (!portal) {
-    return <Navigate to="/entrada" replace />;
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface-container-low text-primary text-[10px] font-black uppercase tracking-widest">
@@ -58,14 +50,18 @@ export function LoginPage() {
     );
   }
 
-  const recuperar = `/login/recuperar-senha?portal=${portal}`;
+  const recuperar = '/login/recuperar-senha';
 
   return (
     <AuthSplitLayout heroTitle="Obra10+">
-      <div className="w-full max-w-md mx-auto bg-white border-2 border-primary shadow-xl p-8 space-y-6">
+      <div className="w-full max-w-md mx-auto border-2 border-primary bg-white/95 shadow-xl backdrop-blur-sm p-8 space-y-6">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-tertiary mb-1">{eyebrowByPortal[portal]}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 mb-1">Plataforma Obra10+</p>
           <h2 className="text-2xl font-black text-primary tracking-tight">Acesso ao painel</h2>
+          <p className="mt-2 text-sm text-on-surface-variant leading-snug">
+            Utilize o seu e-mail e senha. O destino após entrar (HUB, participante ou pendente de aprovação) é
+            definido automaticamente conforme o seu perfil.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -122,18 +118,12 @@ export function LoginPage() {
           </button>
         </form>
 
-        <div className="flex flex-col gap-3 pt-2 border-t border-surface-container-high">
+        <div className="pt-2 border-t border-surface-container-high">
           <Link
             to={recuperar}
-            className="text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary"
+            className="block text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary"
           >
             Esqueci minha senha
-          </Link>
-          <Link
-            to="/entrada"
-            className="text-center text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary"
-          >
-            Trocar ambiente (Imóveis / Hub)
           </Link>
         </div>
       </div>
