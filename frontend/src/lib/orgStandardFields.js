@@ -64,6 +64,54 @@ export const ORG_BUILTIN_PARTNER_EXTRA_FIELDS = [
     placeholder: 'Link (drive, site ou PDF) com a lista de produtos',
   },
   {
+    id: 'builtin-ramo_atuacao_principal',
+    key: 'ramo_atuacao_principal',
+    group: 'atuacao_servicos',
+    label: 'Ramo de atuação principal',
+    type: 'text',
+    required: false,
+    placeholder: 'Ex.: marmorista, gesseiro, designer de interiores, pedreiro de acabamento',
+  },
+  {
+    id: 'builtin-servicos_realizados',
+    key: 'servicos_realizados',
+    group: 'atuacao_servicos',
+    label: 'Serviços realizados',
+    type: 'textarea',
+    required: false,
+    placeholder:
+      'Sub-especialidades — ex.: instalação de cubas esculpidas, assentamento de grandes formatos, pintura técnica',
+    rows: 4,
+  },
+  {
+    id: 'builtin-registro_profissional',
+    key: 'registro_profissional',
+    group: 'atuacao_servicos',
+    label: 'Registro profissional',
+    type: 'text',
+    required: false,
+    placeholder: 'Ex.: CAU (arquitetos), CREA (engenheiros ou técnicos)',
+  },
+  {
+    id: 'builtin-portfolio_obras_midia',
+    key: 'portfolio_obras_midia',
+    group: 'atuacao_servicos',
+    label: 'Portfólio / fotos de obras',
+    type: 'url',
+    required: false,
+    placeholder: 'Instagram, site, pasta em nuvem (Drive, etc.)',
+  },
+  {
+    id: 'builtin-equipamentos_proprios',
+    key: 'equipamentos_proprios',
+    group: 'atuacao_servicos',
+    label: 'Equipamentos próprios',
+    type: 'textarea',
+    required: false,
+    placeholder: 'Ex.: andaimes, laser, máquinas de corte — o que dispõem para execução',
+    rows: 3,
+  },
+  {
     id: 'builtin-modalidade_frete_padrao',
     key: 'modalidade_frete_padrao',
     group: 'logistica',
@@ -158,6 +206,7 @@ export const ORG_BUILTIN_PARTNER_EXTRA_KEYS = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.m
 export function getOrgBuiltinPartnerFieldGroups() {
   const order = [
     ['produto_servico', 'Produto / serviço'],
+    ['atuacao_servicos', 'Atuação e serviços (obra / decoração)'],
     ['logistica', 'Logística e doca'],
   ];
   return order.map(([id, label]) => ({

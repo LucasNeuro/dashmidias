@@ -8,6 +8,9 @@ import {
   PRESTADORES_SERVICO_KIND,
 } from './hubPartnerKinds';
 
+const PARCEIROS_PRODUTOS_KIND = 'parceiros_produtos';
+const IMOBILIARIOS_KIND = 'imobiliarios';
+
 const LS_KEY = 'hub_registration_form_templates_v1';
 
 /** Chave localStorage por utilizador (admin); convites públicos leem `loadTemplatesMerged`. */
@@ -63,17 +66,23 @@ export function newFieldId() {
  */
 
 /** Grupos de campos built-in configuráveis (ver `orgStandardFields.js`). */
-export const BUILTIN_TEMPLATE_GROUPS = /** @type {const} */ (['produto_servico', 'logistica']);
+export const BUILTIN_TEMPLATE_GROUPS = /** @type {const} */ ([
+  'produto_servico',
+  'atuacao_servicos',
+  'logistica',
+]);
 
 /**
- * Por defeito, prestadores e arquitetos não mostram bloco de frete/doca.
+ * Por defeito: prestadores/arquitetos sem logística; parceiros de produto/imobiliário sem bloco de atuação em obra.
  * @param {unknown} partnerKindRaw
  * @returns {string[]}
  */
 export function defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw) {
   const k = normalizePartnerKindSlug(partnerKindRaw);
-  if (k === PRESTADORES_SERVICO_KIND || k === ARQUITETOS_KIND) return ['logistica'];
-  return [];
+  const out = [];
+  if (k === PRESTADORES_SERVICO_KIND || k === ARQUITETOS_KIND) out.push('logistica');
+  if (k === PARCEIROS_PRODUTOS_KIND || k === IMOBILIARIOS_KIND) out.push('atuacao_servicos');
+  return out;
 }
 
 /**
@@ -91,7 +100,7 @@ export function normalizeDisabledBuiltinGroups(raw, partnerKindRaw) {
     ...new Set(
       raw
         .map((g) => String(g).trim().toLowerCase())
-        .filter((g) => allowed.has(/** @type {'produto_servico' | 'logistica'} */ (g)))
+        .filter((g) => allowed.has(g))
     ),
   ];
   return out;

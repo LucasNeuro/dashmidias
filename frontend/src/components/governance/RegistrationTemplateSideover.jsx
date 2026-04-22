@@ -383,7 +383,7 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
       content: (
         <div className="space-y-6">
           <p className="text-xs leading-relaxed text-slate-600">
-            Ligue ou desligue <strong>blocos inteiros</strong> (ex.: prestadores e arquitetos costumam não precisar de frete/doca).
+            Ligue ou desligue <strong>blocos inteiros</strong> (ex.: logística para prestadores; atuação em obra para fornecedores de produto).
             Depois pode refinar campo a campo dentro de cada bloco activo.
           </p>
           {getOrgBuiltinPartnerFieldGroups().map((g) => {
