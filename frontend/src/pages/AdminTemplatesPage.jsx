@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { RegistrationTemplateSideover } from '../components/governance/RegistrationTemplateSideover';
-import { ShareTemplateSideover } from '../components/governance/ShareTemplateSideover';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   createEmptyTemplate,
@@ -47,7 +46,6 @@ export function AdminTemplatesPage() {
   const queryClient = useQueryClient();
   const { toast, alert, confirm } = useUiFeedback();
   const [sideOpen, setSideOpen] = useState(false);
-  const [shareRow, setShareRow] = useState(null);
   const [isNew, setIsNew] = useState(true);
   const [draft, setDraft] = useState(() => createEmptyTemplate());
   const [saving, setSaving] = useState(false);
@@ -215,18 +213,6 @@ export function AdminTemplatesPage() {
             </button>
             <button
               type="button"
-              title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite no editor' : 'Enviar convite por e-mail'}
-              onClick={() => setShareRow(info.row.original)}
-              className={`rounded-sm border px-2 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 ${
-                info.row.original.inviteLinkEnabled === false
-                  ? 'border-slate-200 text-slate-400'
-                  : 'border-surface-container-high text-on-surface-variant'
-              }`}
-            >
-              Compartilhar
-            </button>
-            <button
-              type="button"
               title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite no editor para copiar' : 'Copiar link'}
               onClick={() => copyInviteLink(info.row.original)}
               className={`rounded-sm border px-2 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 ${
@@ -315,7 +301,6 @@ export function AdminTemplatesPage() {
         isNew={isNew}
         isSaving={saving}
       />
-      <ShareTemplateSideover open={Boolean(shareRow)} onClose={() => setShareRow(null)} row={shareRow} />
     </div>
   );
 }

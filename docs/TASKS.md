@@ -24,7 +24,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 | Data | Área | Nota |
 |------|------|------|
 | 2026-04-22 | Supabase / templates | API alinhada a `registration_form_template.fields` (jsonb); RLS: `registration_form_template_rls_production.sql`; recursão hub: `fix_hub_admins_rls_recursion.sql`. |
-| 2026-04-22 | Cadastro público + Admin templates | Título de `/cadastro/organizacao` legível (cartão claro) e dinâmico (`tpl=`, perfil HUB); em `/adm` templates, removido “Duplicar”, adicionado “Compartilhar” (sideover) + função `send-template-invite` (Resend no servidor) e `sendTemplateInviteEmail.js`. |
+| 2026-04-22 | Cadastro público + Admin templates | Título de `/cadastro/organizacao` legível (cartão claro) e dinâmico (`tpl=`, perfil HUB); em `/adm` templates, convite por link (copiar URL); envio por e-mail (Resend / `send-template-invite`) em pausa até reactivar no front. |
 | 2026-04-22 | Governança /admin | Removido code-split `lazy` das páginas admin; `AdminGovernanceLayout` sem `Suspense` com `GovernancePageSkeleton`. |
 | 2026-04-22 | Governança UI | Páginas `AdminAuditPage`, `AdminUsersPage`, `AdminOrganizationsPage`: estado de carregamento em texto, sem skeleton animado. |
 | 2026-04-22 | Deploy | `render.yaml` ajustado: Static Site, `npm ci`, `staticPublishPath` `frontend/dist`, `envVars` com `sync: false` para Vite. |
