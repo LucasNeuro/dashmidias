@@ -67,6 +67,15 @@ export function AdminGovernanceLayout() {
             Templates
           </NavLink>
           <NavLink
+            to="/adm/catalogo-padrao"
+            className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
+          >
+            <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
+              category
+            </span>
+            Catálogo de campos padrão
+          </NavLink>
+          <NavLink
             to="/adm/usuarios"
             className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
           >

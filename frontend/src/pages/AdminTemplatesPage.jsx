@@ -12,8 +12,9 @@ import {
   normalizeTemplate,
   PARTNER_KIND_OPTIONS,
 } from '../lib/registrationFormTemplates';
-import { ORG_BUILTIN_PARTNER_EXTRA_FIELDS } from '../lib/orgStandardFields';
-import { registrationTemplatesListQueryKey } from '../lib/queryKeys';
+import { fetchHubStandardCatalogAdmin } from '../lib/hubStandardCatalogApi';
+import { getOrgBuiltinPartnerFieldGroups } from '../lib/orgStandardFields';
+import { hubStandardCatalogQueryKey, registrationTemplatesListQueryKey } from '../lib/queryKeys';
 import {
   deleteRegistrationTemplate,
   listHubRegistrationTemplates,
@@ -70,6 +71,14 @@ export function AdminTemplatesPage() {
     enabled: listEnabled,
     retry: 1,
     staleTime: 20_000,
+  });
+
+  const { data: standardCatalog = null } = useQuery({
+    queryKey: hubStandardCatalogQueryKey('admin', userId),
+    queryFn: () => fetchHubStandardCatalogAdmin(supabase),
+    enabled: listEnabled,
+    retry: 1,
+    staleTime: 15_000,
   });
 
   const openNew = useCallback(() => {
@@ -195,8 +204,17 @@ export function AdminTemplatesPage() {
         cell: (info) => {
           const row = info.row.original;
           const dis = new Set((row.standardFieldsDisabled || []).map((k) => String(k).toLowerCase()));
-          const on = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter((f) => !dis.has(f.key.toLowerCase())).length;
-          const tot = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.length;
+          const groupOff = new Set((row.disabledBuiltinGroups || []).map((x) => String(x).toLowerCase()));
+          const groups = getOrgBuiltinPartnerFieldGroups(standardCatalog);
+          let tot = 0;
+          let on = 0;
+          for (const g of groups) {
+            if (groupOff.has(String(g.id).toLowerCase())) continue;
+            for (const f of g.fields) {
+              tot += 1;
+              if (!dis.has(f.key.toLowerCase())) on += 1;
+            }
+          }
           return (
             <span className="whitespace-nowrap font-mono text-xs text-on-surface-variant">
               {on}/{tot}
@@ -271,7 +289,7 @@ export function AdminTemplatesPage() {
         ),
       }),
     ],
-    [copyInviteLink, openEdit, remove, saving, signupAgg]
+    [copyInviteLink, openEdit, remove, saving, signupAgg, standardCatalog]
   );
 
   if (!isSupabaseConfigured() || !supabase) {
@@ -331,6 +349,7 @@ export function AdminTemplatesPage() {
         onSave={persistDraft}
         isNew={isNew}
         isSaving={saving}
+        standardCatalog={standardCatalog}
       />
     </div>
   );

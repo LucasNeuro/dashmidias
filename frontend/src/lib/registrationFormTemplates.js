@@ -130,31 +130,62 @@ export const FIELD_TYPES = [
 /** Tipos que usam lista de opções definida no template. */
 export const FIELD_TYPES_WITH_OPTIONS = /** @type {const} */ (['select', 'radio', 'multiselect']);
 
-/** Evita colisão com chaves reservadas do cadastro base. */
-export function ensureExtraFieldKey(key) {
+/**
+ * Evita colisão com chaves reservadas do cadastro base.
+ * @param {string} key
+ * @param {{ sections?: unknown[], fields?: unknown[] } | null} [catalog]
+ */
+export function ensureExtraFieldKey(key, catalog = null) {
   let k = String(key || '').trim() || 'campo_extra';
   if (k === 'extras') k = 'extras_campo';
-  return isReservedOrgFieldKey(k) ? `${k}_extra` : k;
+  return isReservedOrgFieldKey(k, catalog) ? `${k}_extra` : k;
 }
 
 /**
  * Gera `key` a partir do rótulo, garantindo unicidade no array (campo_2, campo_3…).
  * Não exige edição manual — o utilizador só define o rótulo.
  * @param {TemplateField[]} fields
+ * @param {{ sections?: unknown[], fields?: unknown[] } | null} [catalog]
  */
-export function assignStableKeysFromLabels(fields) {
+export function assignStableKeysFromLabels(fields, catalog = null) {
   const used = new Set();
   return fields.map((f) => {
-    let base = ensureExtraFieldKey(slugKeyFromLabel(f.label));
+    let base = ensureExtraFieldKey(slugKeyFromLabel(f.label), catalog);
     let k = base;
     let n = 2;
     while (used.has(k)) {
-      k = ensureExtraFieldKey(`${base}_${n}`);
+      k = ensureExtraFieldKey(`${base}_${n}`, catalog);
       n += 1;
     }
     used.add(k);
     return { ...f, key: k };
   });
+}
+
+/**
+ * `field_key` para um novo `hub_standard_field`: mesma regra que campos extras (slug do rótulo, chaves reservadas, único na secção).
+ * @param {string} label
+ * @param {string} sectionId
+ * @param {{ sections?: unknown[], fields?: unknown[] } | null} [catalog]
+ * @param {string | null} [excludeFieldId] em edições futuras — ignorar o próprio registo
+ */
+export function standardCatalogFieldKeyFromLabel(label, sectionId, catalog = null, excludeFieldId = null) {
+  const sid = String(sectionId || '');
+  const allFields = Array.isArray(catalog?.fields) ? catalog.fields : [];
+  const used = new Set(
+    allFields
+      .filter((f) => f && String(f.section_id) === sid && (!excludeFieldId || f.id !== excludeFieldId))
+      .map((f) => String(f.field_key || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+  let base = ensureExtraFieldKey(slugKeyFromLabel(label), catalog);
+  let k = base;
+  let n = 2;
+  while (used.has(k)) {
+    k = ensureExtraFieldKey(`${base}_${n}`, catalog);
+    n += 1;
+  }
+  return k.slice(0, 80);
 }
 
 /** Remove campos legados; filtra chaves que pertencem ao bloco fixo de empresa. */

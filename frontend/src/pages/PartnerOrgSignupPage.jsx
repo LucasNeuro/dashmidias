@@ -4,7 +4,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { PartnerOrgSignupForm } from '../components/forms/PartnerOrgSignupForm';
 import { useUiFeedback } from '../context/UiFeedbackContext';
-import { registrationTemplateDetailQueryKey } from '../lib/queryKeys';
+import { fetchHubStandardCatalog } from '../lib/hubStandardCatalogApi';
+import { hubStandardCatalogQueryKey, registrationTemplateDetailQueryKey } from '../lib/queryKeys';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { mergePartnerOrgExtraFields } from '../lib/orgStandardFields';
 import { getTemplateById as getTemplateByIdFromLocal } from '../lib/registrationFormTemplates';
@@ -32,7 +33,20 @@ export function PartnerOrgSignupPage() {
     retry: 1,
   });
 
+  const catalogQuery = useQuery({
+    queryKey: hubStandardCatalogQueryKey('invite', null),
+    queryFn: async () => {
+      const sb = getSupabase();
+      if (!sb) return null;
+      return fetchHubStandardCatalog(sb);
+    },
+    enabled: isSupabaseConfigured(),
+    staleTime: 60_000,
+    retry: 0,
+  });
+
   const template = templateQuery.data ?? null;
+  const standardCatalog = catalogQuery.data ?? null;
   const loadStatus = !tplId ? 'ready' : templateQuery.isPending ? 'loading' : 'ready';
 
   useEffect(() => {
@@ -101,10 +115,14 @@ export function PartnerOrgSignupPage() {
             <PartnerOrgSignupForm
               key={tplId || 'sem-template'}
               signupSettings={template?.signupSettings}
-              extraFields={mergePartnerOrgExtraFields(template?.fields ?? [], {
-                standardFieldsDisabled: template?.standardFieldsDisabled,
-                disabledBuiltinGroups: template?.disabledBuiltinGroups,
-              })}
+              extraFields={mergePartnerOrgExtraFields(
+                template?.fields ?? [],
+                {
+                  standardFieldsDisabled: template?.standardFieldsDisabled,
+                  disabledBuiltinGroups: template?.disabledBuiltinGroups,
+                },
+                standardCatalog
+              )}
               onSubmitSuccess={async (value) => {
                 const meta = {
                   templateId: tplId || null,

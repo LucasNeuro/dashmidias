@@ -2,7 +2,27 @@
  * Campos fixos de cadastro de organização (empresa / parceiro).
  * Não entram no editor de template — o template só define campos extras.
  * Endereço: CEP + preenchimento automático + número/complemento manual.
+ *
+ * Catálogo configurável: tabelas hub_standard_field_section + hub_standard_field
+ * (ver hubStandardCatalogApi.js). Quando há campos na BD, substituem ORG_BUILTIN_PARTNER_EXTRA_FIELDS.
  */
+
+import { FALLBACK_SIGNUP_WIZARD_STEPS, hubStandardCatalogHasData } from './hubStandardCatalogApi';
+
+/**
+ * Mapeia o slug da secção (hub_standard_field_section.wizard_step) para o bucket do wizard actual.
+ * @param {string | undefined | null} sectionWizardSlug
+ * @param {Array<{ slug?: string, partition_bucket?: string }> | undefined} wizardSteps
+ */
+export function resolveBuiltinFieldWizardStep(sectionWizardSlug, wizardSteps) {
+  const list =
+    Array.isArray(wizardSteps) && wizardSteps.length ? wizardSteps : [...FALLBACK_SIGNUP_WIZARD_STEPS];
+  const slug = String(sectionWizardSlug ?? 'commercial').trim().toLowerCase();
+  if (slug === 'logistica') return 'logistics';
+  const row = list.find((w) => String(w.slug ?? '').toLowerCase() === slug);
+  if (row?.partition_bucket === 'logistics') return 'logistics';
+  return 'commercial';
+}
 
 export const ORG_STANDARD_KEYS = /** @type {const} */ ([
   'nome_empresa',
@@ -202,8 +222,16 @@ export const ORG_BUILTIN_PARTNER_EXTRA_FIELDS = [
 /** @type {readonly string[]} */
 export const ORG_BUILTIN_PARTNER_EXTRA_KEYS = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.map((f) => f.key);
 
-/** Grupos para o editor admin (ordem fixa). */
-export function getOrgBuiltinPartnerFieldGroups() {
+/** @param {typeof ORG_BUILTIN_PARTNER_EXTRA_FIELDS[number]} f */
+function withWizardStep(f) {
+  return {
+    ...f,
+    wizardStep: f.group === 'logistica' ? 'logistics' : 'commercial',
+  };
+}
+
+/** Grupos em código (fallback quando a BD está vazia ou indisponível). */
+function legacyBuiltinGroups() {
   const order = [
     ['produto_servico', 'Produto / serviço'],
     ['atuacao_servicos', 'Atuação e serviços (obra / decoração)'],
@@ -212,23 +240,69 @@ export function getOrgBuiltinPartnerFieldGroups() {
   return order.map(([id, label]) => ({
     id,
     label,
-    fields: ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter((f) => f.group === id),
+    fields: ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter((f) => f.group === id).map(withWizardStep),
   }));
 }
 
 /**
- * @param {Array<{ id?: string, key: string, label?: string, type?: string, required?: boolean, options?: string[] }>} templateFields
- * @param {{ standardFieldsDisabled?: string[], disabledBuiltinGroups?: string[] }} [opts]
+ * Secções e campos padrão para o editor de template (separador Padrão).
+ * @param {{ sections: Array<Record<string, unknown>>, fields: Array<Record<string, unknown>> } | null} [catalog]
  */
-export function mergePartnerOrgExtraFields(templateFields = [], opts = {}) {
+export function getOrgBuiltinPartnerFieldGroups(catalog = null) {
+  if (!hubStandardCatalogHasData(catalog)) {
+    return legacyBuiltinGroups();
+  }
+  const sections = [...catalog.sections]
+    .filter((s) => s.is_active !== false)
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  const fields = [...catalog.fields]
+    .filter((f) => f.is_active !== false)
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  return sections.map((s) => ({
+    id: String(s.slug),
+    label: String(s.title ?? s.slug),
+    fields: fields
+      .filter((f) => f.section_id === s.id)
+      .map((f) => ({
+        id: `std-${f.id}`,
+        key: String(f.field_key),
+        group: String(s.slug),
+        wizardStep: resolveBuiltinFieldWizardStep(s.wizard_step, catalog?.wizardSteps),
+        label: String(f.label ?? ''),
+        type: String(f.field_type ?? 'text'),
+        required: f.required === true,
+        options: Array.isArray(f.options) ? f.options.map((x) => String(x)) : [],
+        placeholder: f.placeholder != null ? String(f.placeholder) : '',
+        rows: f.rows != null ? Number(f.rows) : undefined,
+      })),
+  }));
+}
+
+/** Lista plana de chaves reservadas (extras do template não podem repetir). */
+export function listReservedBuiltinPartnerKeys(catalog = null) {
+  if (hubStandardCatalogHasData(catalog)) {
+    return catalog.fields.map((f) => String(f.field_key).toLowerCase());
+  }
+  return ORG_BUILTIN_PARTNER_EXTRA_KEYS.map((k) => k.toLowerCase());
+}
+
+/**
+ * @param {Array<{ id?: string, key: string, label?: string, type?: string, required?: boolean, options?: string[], group?: string, wizardStep?: string }>} templateFields
+ * @param {{ standardFieldsDisabled?: string[], disabledBuiltinGroups?: string[] }} [opts]
+ * @param {{ sections: unknown[], fields: unknown[] } | null} [catalog]
+ */
+export function mergePartnerOrgExtraFields(templateFields = [], opts = {}, catalog = null) {
   const disabled = new Set((opts.standardFieldsDisabled || []).map((k) => String(k).toLowerCase()));
   const disabledGroups = new Set((opts.disabledBuiltinGroups || []).map((g) => String(g).toLowerCase()));
-  const builtins = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter(
+  const builtinsSource = hubStandardCatalogHasData(catalog)
+    ? getOrgBuiltinPartnerFieldGroups(catalog).flatMap((g) => g.fields)
+    : ORG_BUILTIN_PARTNER_EXTRA_FIELDS.map(withWizardStep);
+  const builtins = builtinsSource.filter(
     (f) =>
       !disabled.has(String(f.key).toLowerCase()) &&
       !disabledGroups.has(String(f.group || '').toLowerCase())
   );
-  const reserved = new Set(ORG_BUILTIN_PARTNER_EXTRA_KEYS.map((k) => k.toLowerCase()));
+  const reserved = new Set(listReservedBuiltinPartnerKeys(catalog));
   const rest = (templateFields || []).filter((f) => f?.key && !reserved.has(String(f.key).toLowerCase()));
   return [...builtins, ...rest];
 }
@@ -243,7 +317,10 @@ export function partitionPartnerOrgExtraFields(mergedFields = []) {
   /** @type {typeof mergedFields} */
   const logistics = [];
   for (const f of mergedFields) {
-    if (f.group === 'logistica') logistics.push(f);
+    const ws = /** @type {{ wizardStep?: string, group?: string }} */ (f).wizardStep;
+    const isLog =
+      ws === 'logistics' || String(/** @type {{ group?: string }} */ (f).group || '').toLowerCase() === 'logistica';
+    if (isLog) logistics.push(f);
     else commercial.push(f);
   }
   return { commercial, logistics };
@@ -266,10 +343,14 @@ export const ORG_STANDARD_META = {
   codigo_ibge: { label: 'Código do município' },
 };
 
-export function isReservedOrgFieldKey(key) {
+/**
+ * @param {string} key
+ * @param {{ sections?: unknown[], fields?: unknown[] } | null} [catalog]
+ */
+export function isReservedOrgFieldKey(key, catalog = null) {
   const k = String(key || '')
     .trim()
     .toLowerCase();
   if (ORG_STANDARD_KEYS.includes(k)) return true;
-  return ORG_BUILTIN_PARTNER_EXTRA_KEYS.some((x) => x.toLowerCase() === k);
+  return listReservedBuiltinPartnerKeys(catalog).some((x) => x === k);
 }

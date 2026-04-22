@@ -17,6 +17,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { PartnerOrgSignupPage } from './pages/PartnerOrgSignupPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminHubPlaceholderPage } from './pages/AdminHubPlaceholderPage';
+import { AdminStandardCatalogPage } from './pages/AdminStandardCatalogPage';
 import { AdminTemplatesPage } from './pages/AdminTemplatesPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminOrganizationsPage } from './pages/AdminOrganizationsPage';
@@ -105,6 +106,7 @@ function AppRoutes() {
             <Route path="auditoria" element={<AdminAuditPage />} />
             <Route path="configuracoes" element={<AdminHubPlaceholderPage title="Configurações" />} />
             <Route path="templates" element={<AdminTemplatesPage />} />
+            <Route path="catalogo-padrao" element={<AdminStandardCatalogPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
             <Route path="organizacoes" element={<AdminOrganizationsPage />} />
           </Route>

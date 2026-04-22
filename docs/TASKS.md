@@ -35,6 +35,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 | 2026-04-22 | Cadastro / métricas por convite | Wizard público chama `submitHubPartnerOrgSignup` com `template_id` e `partner_kind`; CNPJ ou CPF; senhas não persistidas em `dados_formulario`. Admin templates: coluna «Pedidos» (agregados por estado). SQL opcional: `database/hub_partner_org_signups_template_id_index.sql`. |
 | 2026-04-22 | Governança / IA | Edge Function `suggest-template-description` (Mistral via secrets); botão «Sugerir com IA» no sideover de template (`RegistrationTemplateSideover`). |
 | 2026-04-22 | Templates / campos | Revert do modelo «Padrão+» (`asStandard` / etapa em extras): extras simples de novo; catálogo fixo só no separador Padrão (sem badges de âmbito nem coluna `+N`). Próximo passo de produto: tabela dedicada a campos padrão + seed + aba/UI opcional e IA (ver Backlog). |
+| 2026-04-22 | Governança / catálogo padrão | Tabelas `hub_standard_field_section` + `hub_standard_field` (`database/hub_standard_catalog.sql` + seed); página `/adm/catalogo-padrao` (secções, etapa comercial/logística, CRUD de campos); convite público e templates leem da BD com fallback a `orgStandardFields.js` se a BD estiver vazia ou indisponível. |
 
 ---
 
@@ -56,7 +57,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 | `[ ]` CNPJÁ em produção | `VITE_CNPJA_API_KEY` no Render; considerar proxy servidor no futuro (segredo fora do bundle). |
 | `[ ]` CRM / pipeline | Marcos M5–M7 em [PLANEJAMENTO.md](./PLANEJAMENTO.md). |
 | `[ ]` RLS checklist | [FLUXO_INICIO_DESENVOLVIMENTO.md](./FLUXO_INICIO_DESENVOLVIMENTO.md) Fase A. |
-| `[ ]` **Catálogo Supabase — só campos padrão** | Tabela dedicada (ex. chave + grupo/categoria + label + tipo + opções jsonb + ordem); **seed** igual ao catálogo actual em `orgStandardFields.js`; wizard/admin leem da BD (fallback código até migração). **UI:** nova aba no sideover (ou página) para CRUD com JSON simples. **IA:** Edge Function a partir de um rótulo/campo novo → sugerir tipo, opções, campos relacionados e categoria. Extras do template continuam só em `fields` jsonb, sem `asStandard`. |
+| `[ ]` **IA — sugestão ao editar catálogo padrão** | Edge Function a partir de rótulo/chave → sugerir tipo, opções, secção e campos relacionados (complementa `/adm/catalogo-padrao`). |
 | `[ ]` **Secções e campos de cadastro — modelo robusto (anti-“chumbado”)** | **Estado actual:** blocos «padrão» vêm do catálogo em código (`frontend/src/lib/orgStandardFields.js`: grupos `produto_servico`, `atuacao_servicos`, `logistica`); activação por `signup_settings.disabledBuiltinGroups` + `standard_fields_disabled`; campos livres em `registration_form_template.fields` (jsonb). **Evolução recomendada (fases):** (1) *Sem tabela nova:* acrescentar no jsonb do template um array `sections` (`id`, `title`, `sortOrder`) e, em cada item de `fields`, `sectionId` — o wizard ordena passos por secção (inclui misturar extras com blocos lógicos). (2) *Tabela auxiliar opcional:* `registration_form_template_section` (`id`, `template_id` FK, `slug`, `title`, `sort_order`, `metadata jsonb`) para edição relacional, RLS alinhada ao template; `fields` referenciam `section_id` ou `slug`. (3) *Catálogo global opcional:* tabela de definições reutilizáveis entre templates (somente se o produto exigir biblioteca partilhada). Documento de apoio: [CRM_HUB_TEMPLATES_E_ESCALA_SUPABASE.md](./CRM_HUB_TEMPLATES_E_ESCALA_SUPABASE.md). |
 | `[ ]` Assistente IA — panorama dos formulários | Edge Function (ex. Mistral) que consome **só agregados** (templates + contagens `hub_partner_org_signups` por `template_id` / estado) e texto estruturado dos nomes de campos; sem enviar PII em massa. UI: cartão em `/adm/templates` ou relatório dedicado. |
 
@@ -71,6 +72,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 - **2026-04-22** — Registado: painel de campanhas sem skeleton fullscreen; componente de loading dedicado.
 - **2026-04-22** — Backlog formalizado: secções/campos configuráveis (jsonb `sections` + `sectionId` → opcional tabela `registration_form_template_section`); assistente IA para insights agregados sobre formulários.
 - **2026-04-22** — Padrão+ revertido; direcção: catálogo de campos padrão em tabela Supabase (seed a partir do código actual) + possível aba no sideover e sugestões IA, mantendo extras como hoje.
+- **2026-04-22** — Catálogo padrão em Supabase + `/adm/catalogo-padrao` (secções e campos); fallback ao JS quando a BD não tem dados.
 
 ---
 

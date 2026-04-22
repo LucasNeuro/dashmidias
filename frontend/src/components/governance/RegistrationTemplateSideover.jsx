@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AppSideover } from '../AppSideover';
 import { useAuth } from '../../context/AuthContext';
 import { useUiFeedback } from '../../context/UiFeedbackContext';
@@ -221,7 +222,16 @@ function FieldRow({ field, index, total, onChange, onRemove, onMove }) {
   );
 }
 
-export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDraft, onSave, isNew, isSaving = false }) {
+export function RegistrationTemplateSideover({
+  open,
+  onClose,
+  draft,
+  onChangeDraft,
+  onSave,
+  isNew,
+  isSaving = false,
+  standardCatalog = null,
+}) {
   const { supabase, session, isAdmin } = useAuth();
   const { toast } = useUiFeedback();
   const [tab, setTab] = useState('geral');
@@ -277,11 +287,14 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
   function updateField(i, next) {
     const fields = [...draft.fields];
     fields[i] = next;
-    onChangeDraft({ ...draft, fields: assignStableKeysFromLabels(fields) });
+    onChangeDraft({ ...draft, fields: assignStableKeysFromLabels(fields, standardCatalog) });
   }
 
   function removeField(i) {
-    onChangeDraft({ ...draft, fields: assignStableKeysFromLabels(draft.fields.filter((_, j) => j !== i)) });
+    onChangeDraft({
+      ...draft,
+      fields: assignStableKeysFromLabels(draft.fields.filter((_, j) => j !== i), standardCatalog),
+    });
   }
 
   function moveField(i, delta) {
@@ -289,23 +302,26 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
     if (j < 0 || j >= draft.fields.length) return;
     const fields = [...draft.fields];
     [fields[i], fields[j]] = [fields[j], fields[i]];
-    onChangeDraft({ ...draft, fields: assignStableKeysFromLabels(fields) });
+    onChangeDraft({ ...draft, fields: assignStableKeysFromLabels(fields, standardCatalog) });
   }
 
   function addField() {
     const label = 'Novo campo';
     onChangeDraft({
       ...draft,
-      fields: assignStableKeysFromLabels([
-        ...draft.fields,
-        {
-          id: newFieldId(),
-          key: 'temp',
-          label,
-          type: 'text',
-          required: false,
-        },
-      ]),
+      fields: assignStableKeysFromLabels(
+        [
+          ...draft.fields,
+          {
+            id: newFieldId(),
+            key: 'temp',
+            label,
+            type: 'text',
+            required: false,
+          },
+        ],
+        standardCatalog
+      ),
     });
   }
 
@@ -488,7 +504,13 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
             Ligue ou desligue <strong>blocos inteiros</strong> (ex.: logística para prestadores; atuação em obra para fornecedores de produto).
             Depois pode refinar campo a campo dentro de cada bloco activo.
           </p>
-          {getOrgBuiltinPartnerFieldGroups().map((g) => {
+          <p className="text-xs text-slate-500">
+            <Link to="/adm/catalogo-padrao" className="font-semibold text-primary underline-offset-2 hover:underline">
+              Catálogo de campos padrão
+            </Link>
+            — gerir secções e definições que todos os templates partilham (tabela + formulários em painel lateral).
+          </p>
+          {getOrgBuiltinPartnerFieldGroups(standardCatalog).map((g) => {
             const groupOff = new Set((draft.disabledBuiltinGroups || []).map((x) => String(x).toLowerCase()));
             const blockOn = !groupOff.has(String(g.id).toLowerCase());
             const expanded = builtinOpenIds.includes(g.id);
