@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
-import { GovernanceSyncStatusBar } from '../components/governance/GovernanceSyncStatusBar';
 import { useAuth } from '../context/AuthContext';
 import { getAppNavItems } from '../lib/appNavItems';
 import { PORTAL_IMOVEIS } from '../lib/appPortal';
@@ -11,7 +10,7 @@ const TAB_LINK =
 const TAB_ACTIVE = 'border-tertiary text-primary';
 
 export function AdminGovernanceLayout() {
-  const { profile, session, supabase, isAdmin, hubAdmin, isHubOwner, isPlatformOwner, portal } = useAuth();
+  const { profile, isAdmin, hubAdmin, isHubOwner, isPlatformOwner, portal } = useAuth();
   const hubGovernance = hubAdmin || isHubOwner || isPlatformOwner;
   const navItems = useMemo(
     () => getAppNavItems({ isAdmin, hubGovernance, portal }),
@@ -86,7 +85,6 @@ export function AdminGovernanceLayout() {
             Organizações
           </NavLink>
         </nav>
-        <GovernanceSyncStatusBar supabase={supabase} enabled={Boolean(session && supabase)} />
         <Outlet />
       </div>
     </AppShell>
