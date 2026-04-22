@@ -238,22 +238,17 @@ export function AdminTemplatesPage() {
 
   if (!isSupabaseConfigured() || !supabase) {
     return (
-      <div className="min-w-0 w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        A ligação ao servidor de dados não está ativa, por isso não é possível ver nem criar modelos de cadastro. Peça a um administrador
-        para rever a configuração do ambiente (desenvolvimento e produção).
+      <div className="min-w-0 w-full max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        Ligação ao servidor indisponível. Peça apoio técnico.
       </div>
     );
   }
 
   return (
     <div className="min-w-0 w-full max-w-none">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 max-w-2xl">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Templates de cadastro</h1>
-          <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Defina quais informações o parceiro preenche no cadastro (por tipo de parceiro) e partilhe o link de convite. Os modelos
-            guardados aqui são os que aparecem no formulário público de criação de organizações.
-          </p>
         </div>
         <button
           type="button"
@@ -282,14 +277,14 @@ export function AdminTemplatesPage() {
       <div className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="p-4 sm:p-5 lg:p-6">
           {isLoading && listEnabled ? (
-            <p className="text-sm text-on-surface-variant">A carregar templates…</p>
+            <p className="text-sm text-on-surface-variant">A carregar…</p>
           ) : (
             <EntityDataTable
               data={templates}
               columns={columns}
               getRowId={(row) => row.id}
-              searchPlaceholder="Buscar templates…"
-              emptyLabel="Nenhum template. Crie o primeiro para definir campos de cadastro por empresa."
+              searchPlaceholder="Buscar…"
+              emptyLabel="Nenhum template"
             />
           )}
         </div>

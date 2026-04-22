@@ -148,10 +148,6 @@ function FieldRow({ field, index, total, onChange, onRemove, onMove }) {
         </label>
       </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-slate-500">
-        Nome interno do campo (único neste template), gerado a partir do rótulo.
-      </p>
-
       {needsOptions ? (
         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 p-3 sm:p-4">
           <FieldOptionsEditor
@@ -252,14 +248,14 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Descrição interna</span>
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Descrição</span>
             <input
               type="text"
               value={draft.description}
               maxLength={200}
               onChange={(e) => onChangeDraft({ ...draft, description: e.target.value })}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-              placeholder="Opcional — uma linha, só para a equipe"
+              placeholder="Opcional"
             />
             <p className="mt-1 text-[11px] text-slate-400">{draft.description?.length ?? 0}/200</p>
           </label>
@@ -267,9 +263,6 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-900">Convite por link</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-                  Quando desligado, quem abrir o endereço do cadastro vê que novos envios não são aceitos — útil para pausar campanhas sem apagar o template.
-                </p>
               </div>
               <button
                 type="button"
@@ -290,18 +283,10 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
                 />
               </button>
             </div>
-            {draft.inviteLinkEnabled === false ? (
-              <p className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                O link continua válido na lista, mas não abre o formulário para novos cadastros até você ativar de novo.
-              </p>
-            ) : null}
           </div>
           <div>
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tipo de parceiro</span>
-            <p className="mb-3 text-xs leading-relaxed text-slate-500">
-              Indica o segmento de quem vai usar este cadastro. Ajuda relatórios e permissões no hub.
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {HUB_PARTNER_KINDS.map((k) => {
                 const active = normalizePartnerKindSlug(draft.partnerKind) === k.value;
                 return (
@@ -342,9 +327,7 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
           </button>
           {draft.fields.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-10 text-center">
-              <p className="text-sm text-slate-600">
-                Nenhum campo extra neste template. CNPJ, e-mail, telefone e endereço já vêm no cadastro padrão.
-              </p>
+              <p className="text-sm text-slate-500">Nenhum campo extra</p>
             </div>
           ) : (
             <div className="space-y-4">

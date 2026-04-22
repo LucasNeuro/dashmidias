@@ -92,7 +92,6 @@ export function ShareTemplateSideover({ open, onClose, row }) {
       open={open}
       onClose={onClose}
       title="Compartilhar convite"
-      subtitle="A pessoa indicada recebe o link do cadastro no e-mail — pode acrescentar uma nota (opcional)."
       variant="governance"
       bodyClassName="p-0"
     >
@@ -108,12 +107,6 @@ export function ShareTemplateSideover({ open, onClose, row }) {
               </p>
             ) : null}
           </div>
-
-          {invitePaused ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-              O convite por link está desativado para este template. Ative em Editar.
-            </p>
-          ) : null}
 
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
