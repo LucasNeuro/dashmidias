@@ -1,5 +1,8 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 
+/** Re-export para quem importa verificação junto do upload (ex.: formulário de cadastro). */
+export { isSupabaseConfigured } from './supabaseClient';
+
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — alinhar com limite do bucket no Supabase
 
 /** Nome do bucket; definir o mesmo em `database/partner_signup_documents_bucket.sql`. */
