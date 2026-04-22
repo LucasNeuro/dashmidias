@@ -48,21 +48,22 @@ export function PartnerOrgSignupPage() {
   const template = templateQuery.data ?? null;
   const standardCatalog = catalogQuery.data ?? null;
   const loadStatus = !tplId ? 'ready' : templateQuery.isPending ? 'loading' : 'ready';
+  const templateRowId = template?.id ?? null;
 
   useEffect(() => {
-    if (!tplId || !isSupabaseConfigured()) return;
+    if (!templateRowId || !tplId || !isSupabaseConfigured()) return;
     const sb = getSupabase();
     if (!sb) return;
 
     const channel = sb
-      .channel(`invite-template-${tplId}`)
+      .channel(`invite-template-${templateRowId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'registration_form_template',
-          filter: `id=eq.${tplId}`,
+          filter: `id=eq.${templateRowId}`,
         },
         () => {
           void queryClient.invalidateQueries({ queryKey: registrationTemplateDetailQueryKey(tplId) });
@@ -77,7 +78,7 @@ export function PartnerOrgSignupPage() {
     return () => {
       void sb.removeChannel(channel);
     };
-  }, [tplId, queryClient, toast]);
+  }, [tplId, templateRowId, queryClient, toast]);
 
   const inviteBlocked = Boolean(template && template.inviteLinkEnabled === false);
   const showForm = !tplId || (loadStatus === 'ready' && template && !inviteBlocked);
@@ -113,7 +114,7 @@ export function PartnerOrgSignupPage() {
         {showForm ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <PartnerOrgSignupForm
-              key={tplId || 'sem-template'}
+              key={template?.id || tplId || 'sem-template'}
               signupSettings={template?.signupSettings}
               extraFields={mergePartnerOrgExtraFields(
                 template?.fields ?? [],
@@ -125,7 +126,7 @@ export function PartnerOrgSignupPage() {
               )}
               onSubmitSuccess={async (value) => {
                 const meta = {
-                  templateId: tplId || null,
+                  templateId: template?.id ?? null,
                   partnerKind: template?.partnerKind ?? null,
                 };
                 const r = await submitHubPartnerOrgSignup({ dados: value, meta });

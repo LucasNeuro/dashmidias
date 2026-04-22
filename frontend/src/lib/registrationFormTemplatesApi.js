@@ -7,7 +7,7 @@ import {
 } from './registrationFormTemplates';
 
 /**
- * Schema em produção: `registration_form_template` com coluna `fields jsonb` (sem tabela filha, sem `slug`).
+ * Schema em produção: `registration_form_template` com `fields jsonb` e opcional `invite_slug` (convite público).
  * @see database/registration_form_template_rls_production.sql
  */
 const SELECT_TEMPLATE_COLUMNS = [
@@ -17,6 +17,7 @@ const SELECT_TEMPLATE_COLUMNS = [
   'description',
   'partner_kind',
   'invite_link_enabled',
+  'invite_slug',
   'fields',
   'standard_fields_disabled',
   'signup_settings',
@@ -27,7 +28,18 @@ const SELECT_TEMPLATE_COLUMNS = [
 
 const SELECT_TEMPLATE = SELECT_TEMPLATE_COLUMNS.join(', ');
 
+const SELECT_TEMPLATE_WITHOUT_INVITE_SLUG = SELECT_TEMPLATE_COLUMNS.filter((c) => c !== 'invite_slug').join(', ');
+
 const SELECT_TEMPLATE_WITHOUT_SIGNUP = SELECT_TEMPLATE_COLUMNS.filter((c) => c !== 'signup_settings').join(', ');
+
+const SELECT_TEMPLATE_MINIMAL = SELECT_TEMPLATE_COLUMNS.filter(
+  (c) => c !== 'signup_settings' && c !== 'invite_slug'
+).join(', ');
+
+/** @param {string} s */
+function isUuidParam(s) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(s || '').trim());
+}
 
 /**
  * PostgREST quando a coluna ainda não foi migrada — evita quebrar listagens públicas/admin.
@@ -185,6 +197,7 @@ export function mapRowToClientTemplate(row) {
     description: row.description ?? '',
     partnerKind: row.partner_kind,
     inviteLinkEnabled: row.invite_link_enabled !== false,
+    inviteSlug: row.invite_slug != null && String(row.invite_slug).trim() ? String(row.invite_slug).trim() : '',
     standardFieldsDisabled: parseStandardFieldsDisabled(row.standard_fields_disabled),
     signupSettings,
     fields,
@@ -211,6 +224,10 @@ function templateToParentRow(t, userId, o) {
     description: t.description?.trim() ?? '',
     partner_kind: t.partnerKind,
     invite_link_enabled: t.inviteLinkEnabled !== false,
+    invite_slug:
+      typeof t.inviteSlug === 'string' && t.inviteSlug.trim()
+        ? t.inviteSlug.trim().toLowerCase()
+        : null,
     fields: fieldsJson,
     standard_fields_disabled: Array.isArray(t.standardFieldsDisabled) ? t.standardFieldsDisabled : [],
     signup_settings: {
@@ -236,15 +253,25 @@ function templateToParentRow(t, userId, o) {
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate[]>}
  */
 export async function listHubRegistrationTemplates(supabase) {
+  let sel = SELECT_TEMPLATE;
   let { data, error } = await supabase
     .from('registration_form_template')
-    .select(SELECT_TEMPLATE)
+    .select(sel)
     .is('organization_id', null)
     .order('updated_at', { ascending: false });
-  if (error && isMissingDbColumnError(error)) {
+  if (error && isMissingDbColumnError(error, 'invite_slug')) {
+    sel = SELECT_TEMPLATE_WITHOUT_INVITE_SLUG;
     ({ data, error } = await supabase
       .from('registration_form_template')
-      .select(SELECT_TEMPLATE_WITHOUT_SIGNUP)
+      .select(sel)
+      .is('organization_id', null)
+      .order('updated_at', { ascending: false }));
+  }
+  if (error && isMissingDbColumnError(error, 'signup_settings')) {
+    sel = sel === SELECT_TEMPLATE ? SELECT_TEMPLATE_WITHOUT_SIGNUP : SELECT_TEMPLATE_MINIMAL;
+    ({ data, error } = await supabase
+      .from('registration_form_template')
+      .select(sel)
       .is('organization_id', null)
       .order('updated_at', { ascending: false }));
   }
@@ -258,19 +285,28 @@ export async function listHubRegistrationTemplates(supabase) {
  * @param {string} id
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate | null>}
  */
-export async function getRegistrationTemplateById(supabase, id) {
-  if (!id) return null;
-  let { data, error } = await supabase
-    .from('registration_form_template')
-    .select(SELECT_TEMPLATE)
-    .eq('id', id)
-    .maybeSingle();
-  if (error && isMissingDbColumnError(error)) {
-    ({ data, error } = await supabase
-      .from('registration_form_template')
-      .select(SELECT_TEMPLATE_WITHOUT_SIGNUP)
-      .eq('id', id)
-      .maybeSingle());
+export async function getRegistrationTemplateById(supabase, idOrSlug) {
+  if (!idOrSlug) return null;
+  const raw = String(idOrSlug).trim();
+  if (!raw) return null;
+  const byId = isUuidParam(raw);
+
+  async function runMaybeSingle(/** @type {string} */ selectList) {
+    let q = supabase.from('registration_form_template').select(selectList);
+    q = byId ? q.eq('id', raw) : q.eq('invite_slug', raw.toLowerCase());
+    return q.maybeSingle();
+  }
+
+  let sel = SELECT_TEMPLATE;
+  let { data, error } = await runMaybeSingle(sel);
+  if (error && isMissingDbColumnError(error, 'invite_slug')) {
+    if (!byId) return null;
+    sel = SELECT_TEMPLATE_WITHOUT_INVITE_SLUG;
+    ({ data, error } = await runMaybeSingle(sel));
+  }
+  if (error && isMissingDbColumnError(error, 'signup_settings')) {
+    sel = sel === SELECT_TEMPLATE ? SELECT_TEMPLATE_WITHOUT_SIGNUP : SELECT_TEMPLATE_MINIMAL;
+    ({ data, error } = await runMaybeSingle(sel));
   }
   if (error) {
     if (String(error?.code) === 'PGRST116' || error?.message?.includes('0 rows')) return null;
@@ -289,8 +325,13 @@ export async function getRegistrationTemplateById(supabase, id) {
  */
 export async function upsertRegistrationTemplate(supabase, template, userId, isNew) {
   const t = normalizeTemplate({ ...template });
-  const parent = templateToParentRow(t, userId, { isNew });
-  const { error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' });
+  let parent = templateToParentRow(t, userId, { isNew });
+  let { error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' });
+  if (error && isMissingDbColumnError(error, 'invite_slug')) {
+    const { invite_slug: _drop, ...rest } = parent;
+    parent = rest;
+    ({ error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' }));
+  }
   if (error) throw error;
 }
 

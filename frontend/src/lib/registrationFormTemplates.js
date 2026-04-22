@@ -195,6 +195,17 @@ export function normalizeTemplate(t) {
   delete rest.targetOrgSlug;
   rest.partnerKind = normalizePartnerKindSlug(rest.partnerKind);
   rest.inviteLinkEnabled = rest.inviteLinkEnabled === false ? false : true;
+  if (rest.inviteSlug != null && String(rest.inviteSlug).trim()) {
+    let s = String(rest.inviteSlug)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    rest.inviteSlug = s.slice(0, 80);
+  } else {
+    rest.inviteSlug = '';
+  }
   if (Array.isArray(rest.standardFieldsDisabled)) {
     rest.standardFieldsDisabled = [
       ...new Set(rest.standardFieldsDisabled.map((k) => String(k).trim()).filter(Boolean)),
@@ -315,6 +326,7 @@ export function createEmptyTemplate() {
     description: '',
     partnerKind: DEFAULT_HUB_PARTNER_KIND,
     inviteLinkEnabled: true,
+    inviteSlug: '',
     standardFieldsDisabled: [],
     signupSettings: { cnpjRequired: false, collectCpf: true },
     fields: [],
@@ -323,10 +335,18 @@ export function createEmptyTemplate() {
   });
 }
 
-export function inviteUrlForTemplate(templateId) {
+/**
+ * @param {string | { id?: string, inviteSlug?: string } | null | undefined} templateOrId
+ */
+export function inviteUrlForTemplate(templateOrId) {
   if (typeof window === 'undefined') return '';
-  const u = new URL(window.location.origin + '/cadastro/organizacao');
-  u.searchParams.set('tpl', templateId);
+  const param =
+    templateOrId && typeof templateOrId === 'object'
+      ? String(templateOrId.inviteSlug || '').trim() || String(templateOrId.id || '').trim()
+      : String(templateOrId || '').trim();
+  if (!param) return '';
+  const u = new URL(`${window.location.origin}/cadastro/organizacao`);
+  u.searchParams.set('tpl', param);
   return u.toString();
 }
 

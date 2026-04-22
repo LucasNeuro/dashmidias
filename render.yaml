@@ -1,6 +1,14 @@
 # Render Blueprint – SPA React/Vite (dashmidias)
 # https://render.com/docs/blueprint-spec
 #
+# Rotas client-side (ex.: /cadastro/organizacao) exigem reescrita para /index.html.
+# Se criou o site estático à mão sem Blueprint: Dashboard → o serviço → Redirects/Rewrites →
+#   Source: /*   Destination: /index.html   Action: Rewrite (não Redirect).
+#
+# Alternativa (Web Service em vez de Static): buildCommand igual + startCommand:
+#   cd frontend && npx --yes serve@14 -s dist -l tcp://0.0.0.0:$PORT
+# (o pacote "serve" com -s aplica fallback SPA sem regras no painel).
+#
 # As variáveis abaixo (sync: false) têm de ser preenchidas no painel do serviço
 # (Settings → Environment) ANTES de confiar no build: o Vite embute VITE_* em `npm run build`.
 # Supabase: no dashboard Auth → URL Configuration, inclua a URL pública do Render
@@ -13,6 +21,9 @@ services:
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
     routes:
+      - type: rewrite
+        source: /cadastro/*
+        destination: /index.html
       - type: rewrite
         source: /*
         destination: /index.html

@@ -341,6 +341,23 @@ export function RegistrationTemplateSideover({
               placeholder="Ex.: Cadastro de parceiro"
             />
           </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Slug do link de convite (opcional)
+            </span>
+            <input
+              type="text"
+              value={draft.inviteSlug ?? ''}
+              onChange={(e) => onChangeDraft({ ...draft, inviteSlug: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+              placeholder="ex.: parceiros-2025 (vazio = usar só o ID no link)"
+              autoComplete="off"
+            />
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              Letras minúsculas, números e hífens. Único na plataforma. O convite continua a aceitar o ID UUID no parâmetro{' '}
+              <code className="rounded bg-slate-100 px-1">tpl</code>.
+            </p>
+          </label>
           <div className="block">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Descrição</span>
             <div className="relative">

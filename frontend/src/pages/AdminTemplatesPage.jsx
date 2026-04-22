@@ -150,7 +150,7 @@ export function AdminTemplatesPage() {
         });
         return;
       }
-      const url = inviteUrlForTemplate(row.id);
+      const url = inviteUrlForTemplate(row);
       if (navigator.clipboard?.writeText) {
         try {
           await navigator.clipboard.writeText(url);
