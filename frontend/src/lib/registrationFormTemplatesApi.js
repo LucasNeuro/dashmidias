@@ -1,52 +1,21 @@
-import { normalizeTemplate } from './registrationFormTemplates';
+import { normalizeTemplate, newFieldId } from './registrationFormTemplates';
 
-/** Colunas do template (sem embed — o PostgREST exige FK explícita no catálogo; evitamos embutir relação). */
+/**
+ * Schema em produção: `registration_form_template` com coluna `fields jsonb` (sem tabela filha, sem `slug`).
+ * @see database/registration_form_template_rls_production.sql
+ */
 const SELECT_TEMPLATE = [
   'id',
   'organization_id',
-  'slug',
   'name',
   'description',
   'partner_kind',
   'invite_link_enabled',
+  'fields',
   'created_at',
   'updated_at',
   'created_by_user_id',
 ].join(', ');
-
-const SELECT_FIELD = [
-  'id',
-  'template_id',
-  'sort_order',
-  'field_key',
-  'label',
-  'field_type',
-  'required',
-  'options',
-  'lookup_cnpj',
-].join(', ');
-
-/**
- * @param {string[]} templateIds
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- * @returns {Promise<Map<string, Record<string, unknown>[]>>}
- */
-async function loadFieldsByTemplateId(supabase, templateIds) {
-  const map = new Map();
-  if (!templateIds.length) return map;
-  const { data, error } = await supabase
-    .from('registration_form_template_field')
-    .select(SELECT_FIELD)
-    .in('template_id', templateIds);
-  if (error) throw error;
-  for (const f of data || []) {
-    const id = f.template_id;
-    if (!id) continue;
-    if (!map.has(id)) map.set(id, []);
-    map.get(id).push(f);
-  }
-  return map;
-}
 
 /**
  * @param {unknown} raw
@@ -67,22 +36,63 @@ function parseOptions(raw) {
 }
 
 /**
+ * @param {unknown} raw — jsonb ou JSON já parseado
+ * @returns {import('./registrationFormTemplates').TemplateField[]}
+ */
+function parseFieldsFromJsonb(raw) {
+  let arr = raw;
+  if (typeof raw === 'string') {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((f, i) => {
+      if (!f || typeof f !== 'object') return null;
+      const key = f.key ?? f.field_key;
+      const label = f.label != null ? String(f.label) : '';
+      if (!String(key || '').trim() && !label.trim()) return null;
+      const type = f.type ?? f.field_type ?? 'text';
+      return {
+        id: f.id != null && String(f.id) ? String(f.id) : newFieldId(),
+        key: String(key || '').trim() || `campo_${i}`,
+        label,
+        type: String(type),
+        required: f.required === true,
+        options: parseOptions(f.options),
+        lookupCnpj: f.lookupCnpj === true || f.lookup_cnpj === true,
+      };
+    })
+    .filter(Boolean);
+}
+
+/**
+ * @param {import('./registrationFormTemplates').RegistrationFormTemplate} t
+ */
+function templateFieldsToJsonb(t) {
+  return (t.fields || []).map((f) => {
+    const row = {
+      id: f.id,
+      key: f.key,
+      label: f.label,
+      type: f.type,
+      required: f.required === true,
+      options: Array.isArray(f.options) ? f.options.map((o) => String(o)) : [],
+    };
+    if (f.lookupCnpj === true) row.lookupCnpj = true;
+    return row;
+  });
+}
+
+/**
  * @param {Record<string, unknown>} row
  * @returns {import('./registrationFormTemplates').RegistrationFormTemplate}
  */
 export function mapRowToClientTemplate(row) {
-  const rawFields = row.registration_form_template_field ?? row.fields;
-  const fieldRows = Array.isArray(rawFields) ? rawFields : [];
-  const sorted = [...fieldRows].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const fields = sorted.map((f) => ({
-    id: f.id,
-    key: f.field_key,
-    label: f.label,
-    type: f.field_type,
-    required: f.required === true,
-    options: parseOptions(f.options),
-    lookupCnpj: f.lookup_cnpj === true,
-  }));
+  const fields = parseFieldsFromJsonb(row.fields);
   return normalizeTemplate({
     id: row.id,
     name: row.name,
@@ -103,6 +113,7 @@ export function mapRowToClientTemplate(row) {
  */
 function templateToParentRow(t, userId, o) {
   const now = new Date().toISOString();
+  const fieldsJson = templateFieldsToJsonb(t);
   const base = {
     id: t.id,
     organization_id: null,
@@ -110,6 +121,7 @@ function templateToParentRow(t, userId, o) {
     description: t.description?.trim() ?? '',
     partner_kind: t.partnerKind,
     invite_link_enabled: t.inviteLinkEnabled !== false,
+    fields: fieldsJson,
     updated_at: now,
   };
   if (o.isNew) {
@@ -123,43 +135,18 @@ function templateToParentRow(t, userId, o) {
 }
 
 /**
- * @param {import('./registrationFormTemplates').RegistrationFormTemplate} t
- * @returns {Record<string, unknown>[]}
- */
-function templateFieldsToRows(t) {
-  return (t.fields || []).map((f, i) => ({
-    template_id: t.id,
-    sort_order: i,
-    field_key: f.key,
-    label: f.label,
-    field_type: f.type,
-    required: f.required === true,
-    options: Array.isArray(f.options) ? f.options : [],
-    lookup_cnpj: f.lookupCnpj === true ? true : null,
-  }));
-}
-
-/**
  * Lista modelos de plataforma (organization_id nulo) — requer sessão e admin HUB.
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate[]>}
  */
 export async function listHubRegistrationTemplates(supabase) {
-  const { data: parents, error } = await supabase
+  const { data, error } = await supabase
     .from('registration_form_template')
     .select(SELECT_TEMPLATE)
     .is('organization_id', null)
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  const list = parents || [];
-  const ids = list.map((r) => r.id);
-  const fieldsByTmpl = await loadFieldsByTemplateId(supabase, ids);
-  return list.map((row) =>
-    mapRowToClientTemplate({
-      ...row,
-      registration_form_template_field: fieldsByTmpl.get(row.id) || [],
-    })
-  );
+  return (data || []).map((row) => mapRowToClientTemplate(row));
 }
 
 /**
@@ -180,15 +167,11 @@ export async function getRegistrationTemplateById(supabase, id) {
     throw error;
   }
   if (!data) return null;
-  const fieldsByTmpl = await loadFieldsByTemplateId(supabase, [id]);
-  return mapRowToClientTemplate({
-    ...data,
-    registration_form_template_field: fieldsByTmpl.get(id) || [],
-  });
+  return mapRowToClientTemplate(data);
 }
 
 /**
- * Cria ou atualiza template e substitui campos extra.
+ * Cria ou atualiza template (campos extra em `fields` jsonb).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {import('./registrationFormTemplates').RegistrationFormTemplate} template
  * @param {string} userId
@@ -197,21 +180,8 @@ export async function getRegistrationTemplateById(supabase, id) {
 export async function upsertRegistrationTemplate(supabase, template, userId, isNew) {
   const t = normalizeTemplate({ ...template });
   const parent = templateToParentRow(t, userId, { isNew });
-
-  const { error: e1 } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' });
-  if (e1) throw e1;
-
-  const { error: e2 } = await supabase
-    .from('registration_form_template_field')
-    .delete()
-    .eq('template_id', t.id);
-  if (e2) throw e2;
-
-  const fieldRows = templateFieldsToRows(t);
-  if (fieldRows.length) {
-    const { error: e3 } = await supabase.from('registration_form_template_field').insert(fieldRows);
-    if (e3) throw e3;
-  }
+  const { error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' });
+  if (error) throw error;
 }
 
 /**

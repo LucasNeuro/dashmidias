@@ -100,6 +100,8 @@ Sem tabelas dedicadas, `jsonb` solto em uma coluna dificulta:
 - relatórios por campo;
 - RLS (“só admin da org X edita template da org X”).
 
+**Estado actual no Supabase (Obra10+):** existe `public.registration_form_template` com coluna **`fields jsonb`** (array de campos extra), **sem** `slug` e **sem** tabela `registration_form_template_field`. O frontend e `database/registration_form_template_rls_production.sql` alinham-se a este schema. O modelo em duas tabelas abaixo permanece referência para evolução.
+
 ### 5.2 Modelo sugerido (duas tabelas + opcional submissões)
 
 **A) `registration_form_template`**
@@ -184,7 +186,7 @@ Implementação técnica: `papel_template`, `organizacao_membros`, `permissao_re
 ## 9. Checklist de implementação (engenharia)
 
 1. Aplicar migration `hub_partner_kind` + seed dos slugs alinhados a [hubPartnerKinds.js](../frontend/src/lib/hubPartnerKinds.js).
-2. Criar `registration_form_template` + `registration_form_template_field` + RLS (quem pode CRUD).
+2. RLS em `registration_form_template` (`registration_form_template_rls_production.sql`; campos em `fields` jsonb). Opcional futuro: normalizar em tabela filha.
 3. Substituir leitura/gravação de templates no frontend por API Supabase (ou Edge Functions) com **mesma semântica** de `extras` e `partner_kind`.
 4. Opcional: `registration_form_submission` para rastrear cadastros públicos antes do login.
 5. Preencher `organizacoes.tipo_organizacao` (ou FK) a partir do `hub_partner_kind` escolhido no template.

@@ -33,6 +33,9 @@ function friendlyDataError(err) {
   if (low.includes('relationship') && low.includes('schema')) {
     return 'A base de dados ainda não tem a mesma versão do sistema. Peça a um administrador a aplicar as actualizações de estrutura e a tentar de novo.';
   }
+  if (low.includes('does not exist') && low.includes('column')) {
+    return 'A estrutura da base não corresponde a esta versão da aplicação. Peça a um administrador a alinhar o schema ou a actualizar o front.';
+  }
   return m.length > 200 ? `${m.slice(0, 200)}…` : m;
 }
 
