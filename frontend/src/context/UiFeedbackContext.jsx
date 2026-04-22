@@ -152,11 +152,13 @@ export function UiFeedbackProvider({ children }) {
                 ? 'border-tertiary/60 bg-tertiary/10 text-primary'
                 : t.variant === 'warning'
                   ? 'border-amber-400 bg-amber-50 text-amber-950'
-                  : 'border-primary bg-white text-on-surface'
+                  : t.variant === 'info'
+                    ? 'border-sky-300 bg-sky-50 text-sky-950'
+                    : 'border-primary bg-white text-on-surface'
             }`}
           >
             <span className="material-symbols-outlined mt-0.5 shrink-0 text-[20px] text-primary opacity-90" aria-hidden>
-              {t.variant === 'success' ? 'check_circle' : t.variant === 'warning' ? 'warning' : 'info'}
+              {t.variant === 'success' ? 'check_circle' : t.variant === 'warning' ? 'warning' : 'notifications_active'}
             </span>
             <p className="text-sm leading-snug">{t.message}</p>
             <button

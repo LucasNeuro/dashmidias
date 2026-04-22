@@ -1,10 +1,28 @@
 import { z } from 'zod';
-import { normalizeCnpj14 } from '../lib/opencnpj';
+import { normalizeCnpj14, normalizeCpf11 } from '../lib/opencnpj';
 import { normalizeCep8 } from '../lib/viacep';
 
 const phoneRe = /^[\d\s().+-]{10,22}$/;
 const ufRe = /^[A-Za-z]{2}$/;
 const urlLooseRe = /^https?:\/\/[^\s]+$/i;
+
+/** @typedef {{ cnpjRequired?: boolean, collectCpf?: boolean }} SignupOptions */
+
+/** Opções por defeito (cadastro “empresa” clássica). */
+export const DEFAULT_SIGNUP_OPTIONS = /** @type {const} */ ({
+  cnpjRequired: true,
+  collectCpf: false,
+});
+
+/** @param {unknown} raw */
+export function normalizeSignupOptions(raw) {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_SIGNUP_OPTIONS };
+  const o = /** @type {Record<string, unknown>} */ (raw);
+  return {
+    cnpjRequired: o.cnpjRequired !== false,
+    collectCpf: o.collectCpf === true,
+  };
+}
 
 /** Campos base reutilizados na validação por etapas e no schema completo. */
 export const orgSignupFieldSchemas = {
@@ -14,6 +32,7 @@ export const orgSignupFieldSchemas = {
     .min(2, 'Informe o nome da empresa')
     .max(200, 'Nome muito longo'),
   cnpj: z.string().trim().refine((s) => normalizeCnpj14(s) !== null, 'CNPJ inválido — use 14 dígitos'),
+  cpf: z.string().trim().refine((s) => !s.trim() || normalizeCpf11(s) !== null, 'CPF inválido — use 11 dígitos'),
   email: z
     .string()
     .trim()
@@ -49,13 +68,6 @@ function parseExtrasMultiselect(raw) {
   }
 }
 
-const signupStepEmpresaSchema = z.object({
-  cnpj: orgSignupFieldSchemas.cnpj,
-  nome_empresa: orgSignupFieldSchemas.nome_empresa,
-  email: orgSignupFieldSchemas.email,
-  telefone: orgSignupFieldSchemas.telefone,
-});
-
 const signupStepEnderecoSchema = z.object({
   cep: orgSignupFieldSchemas.cep,
   logradouro: orgSignupFieldSchemas.logradouro,
@@ -78,15 +90,178 @@ const signupStepSenhaSchema = z
   });
 
 /**
- * Valida só os campos da etapa (multipasso). `stepIndex`: 0 empresa, 1 endereço, 2 senha, 3 extras.
- * @param {number} stepIndex
- * @param {Record<string, unknown>} value valores completos do formulário
- * @param {Array<{ key: string, type: string, required: boolean }>} extraFields
+ * Etapa Empresa: CNPJ opcional conforme template; CPF quando `collectCpf`; pelo menos um documento se CNPJ não for obrigatório e CPF estiver activo.
+ * @param {SignupOptions} signupOptions
  */
-export function validatePartnerSignupStep(stepIndex, value, extraFields = []) {
+export function buildEmpresaStepSchema(signupOptions = {}) {
+  const cnpjRequired = signupOptions.cnpjRequired !== false;
+  const collectCpf = signupOptions.collectCpf === true;
+  const cnpjSchema = cnpjRequired
+    ? orgSignupFieldSchemas.cnpj
+    : z
+        .string()
+        .trim()
+        .refine((s) => !s.trim() || normalizeCnpj14(s) !== null, 'CNPJ inválido — use 14 dígitos');
+  const cpfSchema = collectCpf
+    ? orgSignupFieldSchemas.cpf
+    : z.string().trim(); // campo oculto — mantém string vazia
+
+  return z
+    .object({
+      cnpj: cnpjSchema,
+      cpf: cpfSchema,
+      nome_empresa: orgSignupFieldSchemas.nome_empresa,
+      email: orgSignupFieldSchemas.email,
+      telefone: orgSignupFieldSchemas.telefone,
+    })
+    .superRefine((data, ctx) => {
+      if (!cnpjRequired && collectCpf) {
+        const hasCnpj = normalizeCnpj14(data.cnpj) !== null;
+        const hasCpf = normalizeCpf11(data.cpf) !== null;
+        if (!hasCnpj && !hasCpf) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Informe CNPJ ou CPF',
+            path: ['cnpj'],
+          });
+        }
+      }
+    });
+}
+
+/**
+ * Valida só chaves `extras` presentes em `slice` (uma etapa do wizard).
+ * @param {Array<{ key: string, type: string, required?: boolean, options?: string[] }>} slice
+ */
+export function buildExtrasSliceSchema(slice) {
+  return z.object({ extras: orgSignupFieldSchemas.extras }).superRefine((data, ctx) => {
+    for (const f of slice) {
+      const key = f.key;
+      const raw = data.extras[key];
+      const path = /** @type {const} */ (['extras', key]);
+      if (f.required) {
+        if (f.type === 'checkbox') {
+          if (raw !== true) ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
+        } else if (f.type === 'multiselect') {
+          const arr = parseExtrasMultiselect(raw);
+          if (arr.length === 0) ctx.addIssue({ code: 'custom', message: 'Selecione ao menos uma opção', path });
+        } else if (raw === undefined || String(raw).trim() === '') {
+          ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
+        }
+      }
+      if (raw === undefined || raw === '') continue;
+      if (f.type === 'multiselect') {
+        const opts = f.options || [];
+        const arr = parseExtrasMultiselect(raw);
+        for (const item of arr) {
+          if (opts.length && !opts.includes(item)) ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
+        }
+        continue;
+      }
+      const str = String(raw).trim();
+      switch (f.type) {
+        case 'number': {
+          if (Number.isNaN(Number(str.replace(',', '.')))) ctx.addIssue({ code: 'custom', message: 'Número inválido', path });
+          break;
+        }
+        case 'email': {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str)) ctx.addIssue({ code: 'custom', message: 'E-mail inválido', path });
+          break;
+        }
+        case 'url': {
+          if (str && !urlLooseRe.test(str)) ctx.addIssue({ code: 'custom', message: 'URL inválida (use http:// ou https://)', path });
+          break;
+        }
+        case 'date': {
+          if (str && !/^\d{4}-\d{2}-\d{2}$/.test(str)) ctx.addIssue({ code: 'custom', message: 'Data inválida', path });
+          break;
+        }
+        case 'select':
+        case 'radio': {
+          const opts = f.options || [];
+          if (opts.length && str && !opts.includes(str)) ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  });
+}
+
+function extrasSuperRefine(extraFields, data, ctx) {
+  for (const f of extraFields) {
+    const key = f.key;
+    const raw = data.extras[key];
+    const path = /** @type {const} */ (['extras', key]);
+    if (f.required) {
+      if (f.type === 'checkbox') {
+        if (raw !== true) ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
+      } else if (f.type === 'multiselect') {
+        const arr = parseExtrasMultiselect(raw);
+        if (arr.length === 0) ctx.addIssue({ code: 'custom', message: 'Selecione ao menos uma opção', path });
+      } else if (raw === undefined || String(raw).trim() === '') {
+        ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
+      }
+    }
+    if (raw === undefined || raw === '') continue;
+    if (f.type === 'multiselect') {
+      const opts = f.options || [];
+      const arr = parseExtrasMultiselect(raw);
+      for (const item of arr) {
+        if (opts.length && !opts.includes(item)) ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
+      }
+      continue;
+    }
+    const str = String(raw).trim();
+    switch (f.type) {
+      case 'number': {
+        if (Number.isNaN(Number(str.replace(',', '.')))) ctx.addIssue({ code: 'custom', message: 'Número inválido', path });
+        break;
+      }
+      case 'email': {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str)) ctx.addIssue({ code: 'custom', message: 'E-mail inválido', path });
+        break;
+      }
+      case 'url': {
+        if (str && !urlLooseRe.test(str)) ctx.addIssue({ code: 'custom', message: 'URL inválida (use http:// ou https://)', path });
+        break;
+      }
+      case 'date': {
+        if (str && !/^\d{4}-\d{2}-\d{2}$/.test(str)) ctx.addIssue({ code: 'custom', message: 'Data inválida', path });
+        break;
+      }
+      case 'select':
+      case 'radio': {
+        const opts = f.options || [];
+        if (opts.length && str && !opts.includes(str)) ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+}
+
+/**
+ * @param {number} stepIndex
+ * @param {Record<string, unknown>} value
+ * @param {object} layout
+ * @param {SignupOptions} [layout.signupOptions]
+ * @param {Array<{ key: string, type: string, required?: boolean, options?: string[], group?: string }>} [layout.commercial]
+ * @param {Array<{ key: string, type: string, required?: boolean, options?: string[], group?: string }>} [layout.logistics]
+ */
+export function validatePartnerSignupStep(stepIndex, value, layout = {}) {
+  const signupOptions = layout.signupOptions || DEFAULT_SIGNUP_OPTIONS;
+  const commercial = layout.commercial || [];
+  const logistics = layout.logistics || [];
+  const hasC = commercial.length > 0;
+  const hasL = logistics.length > 0;
+
   if (stepIndex === 0) {
-    return signupStepEmpresaSchema.safeParse({
+    return buildEmpresaStepSchema(signupOptions).safeParse({
       cnpj: value.cnpj,
+      cpf: value.cpf,
       nome_empresa: value.nome_empresa,
       email: value.email,
       telefone: value.telefone,
@@ -110,18 +285,38 @@ export function validatePartnerSignupStep(stepIndex, value, extraFields = []) {
       confirmar_senha: value.confirmar_senha,
     });
   }
-  if (stepIndex === 3 && extraFields.length > 0) {
-    return buildPartnerOrgSignupSchema(extraFields).safeParse(value);
+
+  const firstExtrasStep = 3;
+  if (stepIndex === firstExtrasStep) {
+    if (hasC) return buildExtrasSliceSchema(commercial).safeParse({ extras: value.extras });
+    if (hasL) return buildExtrasSliceSchema(logistics).safeParse({ extras: value.extras });
+    return z.unknown().safeParse(value);
+  }
+  if (stepIndex === 4 && hasC && hasL) {
+    return buildExtrasSliceSchema(logistics).safeParse({ extras: value.extras });
   }
   return z.unknown().safeParse(value);
 }
 
-/** @param {Array<{ key: string, type: string, required: boolean }>} extraFields */
-export function buildPartnerOrgSignupSchema(extraFields = []) {
+/**
+ * @param {Array<{ key: string, type: string, required?: boolean, options?: string[] }>} extraFields
+ * @param {SignupOptions} [signupOptions]
+ */
+export function buildPartnerOrgSignupSchema(extraFields = [], signupOptions = {}) {
+  const cnpjRequired = signupOptions.cnpjRequired !== false;
+  const collectCpf = signupOptions.collectCpf === true;
+  const cnpjSchema = cnpjRequired
+    ? orgSignupFieldSchemas.cnpj
+    : z
+        .string()
+        .trim()
+        .refine((s) => !s.trim() || normalizeCnpj14(s) !== null, 'CNPJ inválido — use 14 dígitos');
+
   return z
     .object({
       nome_empresa: orgSignupFieldSchemas.nome_empresa,
-      cnpj: orgSignupFieldSchemas.cnpj,
+      cnpj: cnpjSchema,
+      cpf: collectCpf ? orgSignupFieldSchemas.cpf : z.string().trim(),
       email: orgSignupFieldSchemas.email,
       telefone: orgSignupFieldSchemas.telefone,
       cep: orgSignupFieldSchemas.cep,
@@ -141,73 +336,14 @@ export function buildPartnerOrgSignupSchema(extraFields = []) {
       path: ['confirmar_senha'],
     })
     .superRefine((data, ctx) => {
-      for (const f of extraFields) {
-        const key = f.key;
-        const raw = data.extras[key];
-        const path = /** @type {const} */ (['extras', key]);
-        if (f.required) {
-          if (f.type === 'checkbox') {
-            if (raw !== true) {
-              ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
-            }
-          } else if (f.type === 'multiselect') {
-            const arr = parseExtrasMultiselect(raw);
-            if (arr.length === 0) {
-              ctx.addIssue({ code: 'custom', message: 'Selecione ao menos uma opção', path });
-            }
-          } else if (raw === undefined || String(raw).trim() === '') {
-            ctx.addIssue({ code: 'custom', message: 'Campo obrigatório', path });
-          }
-        }
-        if (raw === undefined || raw === '') continue;
-        if (f.type === 'multiselect') {
-          const opts = f.options || [];
-          const arr = parseExtrasMultiselect(raw);
-          for (const item of arr) {
-            if (opts.length && !opts.includes(item)) {
-              ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
-            }
-          }
-          continue;
-        }
-        const str = String(raw).trim();
-        switch (f.type) {
-          case 'number': {
-            if (Number.isNaN(Number(str.replace(',', '.')))) {
-              ctx.addIssue({ code: 'custom', message: 'Número inválido', path });
-            }
-            break;
-          }
-          case 'email': {
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str)) {
-              ctx.addIssue({ code: 'custom', message: 'E-mail inválido', path });
-            }
-            break;
-          }
-          case 'url': {
-            if (str && !urlLooseRe.test(str)) {
-              ctx.addIssue({ code: 'custom', message: 'URL inválida (use http:// ou https://)', path });
-            }
-            break;
-          }
-          case 'date': {
-            if (str && !/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-              ctx.addIssue({ code: 'custom', message: 'Data inválida', path });
-            }
-            break;
-          }
-          case 'select':
-          case 'radio': {
-            const opts = f.options || [];
-            if (opts.length && str && !opts.includes(str)) {
-              ctx.addIssue({ code: 'custom', message: 'Opção inválida', path });
-            }
-            break;
-          }
-          default:
-            break;
+      if (!cnpjRequired && collectCpf) {
+        const hasCnpj = normalizeCnpj14(data.cnpj) !== null;
+        const hasCpf = normalizeCpf11(data.cpf) !== null;
+        if (!hasCnpj && !hasCpf) {
+          ctx.addIssue({ code: 'custom', message: 'Informe CNPJ ou CPF', path: ['cnpj'] });
         }
       }
+      extrasSuperRefine(extraFields, data, ctx);
     });
 }
 
@@ -223,6 +359,7 @@ export function defaultPartnerOrgValues(extraFields = []) {
   return {
     nome_empresa: '',
     cnpj: '',
+    cpf: '',
     email: '',
     telefone: '',
     cep: '',

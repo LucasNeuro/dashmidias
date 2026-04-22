@@ -21,6 +21,21 @@ export const HUB_PARTNER_KINDS = [
 
 export const DEFAULT_HUB_PARTNER_KIND = 'prestadores_servico';
 
+/** Perfil em que CNPJ é opcional e CPF obrigatório no cadastro público (empreiteiros, MEI, etc.). */
+export const PRESTADORES_SERVICO_KIND = 'prestadores_servico';
+
+/** Escritórios — normalmente sem etapa de logística/doca no cadastro. */
+export const ARQUITETOS_KIND = 'arquitetos';
+
+/**
+ * @param {unknown} partnerKindRaw — `template.partnerKind`; se ausente, não aplica regra de prestador.
+ * @returns {boolean}
+ */
+export function isPrestadoresServicoTemplate(partnerKindRaw) {
+  if (partnerKindRaw === undefined || partnerKindRaw === null) return false;
+  return normalizePartnerKindSlug(partnerKindRaw) === PRESTADORES_SERVICO_KIND;
+}
+
 /** Mapeia slugs antigos (templates já salvos no localStorage) para o catálogo atual. */
 const LEGACY_PARTNER_KIND_MAP = /** @type {Record<string, string>} */ ({
   midia: 'parceiros_produtos',

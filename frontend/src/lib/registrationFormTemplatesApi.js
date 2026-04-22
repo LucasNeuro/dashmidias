@@ -1,10 +1,16 @@
-import { normalizeTemplate, newFieldId } from './registrationFormTemplates';
+import { normalizePartnerKindSlug, PRESTADORES_SERVICO_KIND } from './hubPartnerKinds';
+import { normalizeSignupOptions } from '../schemas/partnerOrgSignup';
+import {
+  normalizeDisabledBuiltinGroups,
+  normalizeTemplate,
+  newFieldId,
+} from './registrationFormTemplates';
 
 /**
  * Schema em produção: `registration_form_template` com coluna `fields jsonb` (sem tabela filha, sem `slug`).
  * @see database/registration_form_template_rls_production.sql
  */
-const SELECT_TEMPLATE = [
+const SELECT_TEMPLATE_COLUMNS = [
   'id',
   'organization_id',
   'name',
@@ -13,10 +19,31 @@ const SELECT_TEMPLATE = [
   'invite_link_enabled',
   'fields',
   'standard_fields_disabled',
+  'signup_settings',
   'created_at',
   'updated_at',
   'created_by_user_id',
-].join(', ');
+];
+
+const SELECT_TEMPLATE = SELECT_TEMPLATE_COLUMNS.join(', ');
+
+const SELECT_TEMPLATE_WITHOUT_SIGNUP = SELECT_TEMPLATE_COLUMNS.filter((c) => c !== 'signup_settings').join(', ');
+
+/**
+ * PostgREST quando a coluna ainda não foi migrada — evita quebrar listagens públicas/admin.
+ * @param {unknown} err
+ * @param {string} [columnName]
+ */
+function isMissingDbColumnError(err, columnName = 'signup_settings') {
+  const m = String(/** @type {{ message?: string }} */ (err)?.message || err || '');
+  const low = m.toLowerCase();
+  const col = columnName.toLowerCase();
+  if (!low.includes(col)) return false;
+  if (low.includes('does not exist') && low.includes('column')) return true;
+  if (low.includes('could not find') && low.includes('column')) return true;
+  if (low.includes('schema cache') && low.includes(col)) return true;
+  return false;
+}
 
 /**
  * @param {unknown} raw
@@ -112,6 +139,11 @@ function templateFieldsToJsonb(t) {
  */
 export function mapRowToClientTemplate(row) {
   const fields = parseFieldsFromJsonb(row.fields);
+  const kind = normalizePartnerKindSlug(row.partner_kind);
+  const signupFallback =
+    row.signup_settings == null && kind === PRESTADORES_SERVICO_KIND
+      ? { cnpjRequired: false, collectCpf: true }
+      : row.signup_settings;
   return normalizeTemplate({
     id: row.id,
     name: row.name,
@@ -119,6 +151,7 @@ export function mapRowToClientTemplate(row) {
     partnerKind: row.partner_kind,
     inviteLinkEnabled: row.invite_link_enabled !== false,
     standardFieldsDisabled: parseStandardFieldsDisabled(row.standard_fields_disabled),
+    signupSettings: signupFallback,
     fields,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -134,6 +167,8 @@ export function mapRowToClientTemplate(row) {
 function templateToParentRow(t, userId, o) {
   const now = new Date().toISOString();
   const fieldsJson = templateFieldsToJsonb(t);
+  const su = normalizeSignupOptions(t.signupSettings);
+  const dbg = normalizeDisabledBuiltinGroups(t.disabledBuiltinGroups, t.partnerKind);
   const base = {
     id: t.id,
     organization_id: null,
@@ -143,6 +178,11 @@ function templateToParentRow(t, userId, o) {
     invite_link_enabled: t.inviteLinkEnabled !== false,
     fields: fieldsJson,
     standard_fields_disabled: Array.isArray(t.standardFieldsDisabled) ? t.standardFieldsDisabled : [],
+    signup_settings: {
+      cnpjRequired: su.cnpjRequired,
+      collectCpf: su.collectCpf,
+      disabledBuiltinGroups: dbg,
+    },
     updated_at: now,
   };
   if (o.isNew) {
@@ -161,11 +201,18 @@ function templateToParentRow(t, userId, o) {
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate[]>}
  */
 export async function listHubRegistrationTemplates(supabase) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('registration_form_template')
     .select(SELECT_TEMPLATE)
     .is('organization_id', null)
     .order('updated_at', { ascending: false });
+  if (error && isMissingDbColumnError(error)) {
+    ({ data, error } = await supabase
+      .from('registration_form_template')
+      .select(SELECT_TEMPLATE_WITHOUT_SIGNUP)
+      .is('organization_id', null)
+      .order('updated_at', { ascending: false }));
+  }
   if (error) throw error;
   return (data || []).map((row) => mapRowToClientTemplate(row));
 }
@@ -178,11 +225,18 @@ export async function listHubRegistrationTemplates(supabase) {
  */
 export async function getRegistrationTemplateById(supabase, id) {
   if (!id) return null;
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('registration_form_template')
     .select(SELECT_TEMPLATE)
     .eq('id', id)
     .maybeSingle();
+  if (error && isMissingDbColumnError(error)) {
+    ({ data, error } = await supabase
+      .from('registration_form_template')
+      .select(SELECT_TEMPLATE_WITHOUT_SIGNUP)
+      .eq('id', id)
+      .maybeSingle());
+  }
   if (error) {
     if (String(error?.code) === 'PGRST116' || error?.message?.includes('0 rows')) return null;
     throw error;

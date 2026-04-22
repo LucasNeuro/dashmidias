@@ -1,8 +1,9 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UiFeedbackProvider } from './context/UiFeedbackContext';
 import { queryClient } from './lib/queryClient';
+import { createAppQueryPersister, shouldPersistQuery } from './lib/queryPersistConfig';
 import { getParticipantHomePath } from './lib/appPortal';
 import { CampaignsDashboardPage } from './modules/campaigns-dashboard';
 import { CrmHomePage } from './modules/crm-core';
@@ -161,9 +162,20 @@ function AppRoutes() {
   );
 }
 
+const queryPersister = createAppQueryPersister();
+
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: queryPersister,
+        maxAge: 1000 * 60 * 60 * 24,
+        dehydrateOptions: {
+          shouldDehydrateQuery: shouldPersistQuery,
+        },
+      }}
+    >
       <BrowserRouter>
         <AuthProvider>
           <UiFeedbackProvider>
@@ -171,6 +183,6 @@ export default function App() {
           </UiFeedbackProvider>
         </AuthProvider>
       </BrowserRouter>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }

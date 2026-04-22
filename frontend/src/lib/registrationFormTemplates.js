@@ -1,5 +1,12 @@
+import { normalizeSignupOptions } from '../schemas/partnerOrgSignup';
 import { isReservedOrgFieldKey } from './orgStandardFields';
-import { DEFAULT_HUB_PARTNER_KIND, hubPartnerKindSelectOptions, normalizePartnerKindSlug } from './hubPartnerKinds';
+import {
+  ARQUITETOS_KIND,
+  DEFAULT_HUB_PARTNER_KIND,
+  hubPartnerKindSelectOptions,
+  normalizePartnerKindSlug,
+  PRESTADORES_SERVICO_KIND,
+} from './hubPartnerKinds';
 
 const LS_KEY = 'hub_registration_form_templates_v1';
 
@@ -48,10 +55,47 @@ export function newFieldId() {
  *   inviteLinkEnabled?: boolean,
  *   fields: TemplateField[],
  *   standardFieldsDisabled?: string[],
+ *   signupSettings?: { cnpjRequired?: boolean, collectCpf?: boolean },
+ *   disabledBuiltinGroups?: string[],
  *   createdAt: string,
  *   updatedAt: string,
  * }} RegistrationFormTemplate
  */
+
+/** Grupos de campos built-in configuráveis (ver `orgStandardFields.js`). */
+export const BUILTIN_TEMPLATE_GROUPS = /** @type {const} */ (['produto_servico', 'logistica']);
+
+/**
+ * Por defeito, prestadores e arquitetos não mostram bloco de frete/doca.
+ * @param {unknown} partnerKindRaw
+ * @returns {string[]}
+ */
+export function defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw) {
+  const k = normalizePartnerKindSlug(partnerKindRaw);
+  if (k === PRESTADORES_SERVICO_KIND || k === ARQUITETOS_KIND) return ['logistica'];
+  return [];
+}
+
+/**
+ * @param {unknown} raw
+ * @param {unknown} partnerKindRaw
+ * @returns {string[]}
+ */
+export function normalizeDisabledBuiltinGroups(raw, partnerKindRaw) {
+  const allowed = new Set(BUILTIN_TEMPLATE_GROUPS);
+  if (raw === undefined || raw === null) {
+    return defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw);
+  }
+  if (!Array.isArray(raw)) return defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw);
+  const out = [
+    ...new Set(
+      raw
+        .map((g) => String(g).trim().toLowerCase())
+        .filter((g) => allowed.has(/** @type {'produto_servico' | 'logistica'} */ (g)))
+    ),
+  ];
+  return out;
+}
 
 /** Catálogo do hub — ver `hubPartnerKinds.js` (e SQL espelhado em `database/hub_partner_kinds.sql`). */
 export const PARTNER_KIND_OPTIONS = hubPartnerKindSelectOptions();
@@ -117,6 +161,24 @@ export function normalizeTemplate(t) {
   } else {
     rest.standardFieldsDisabled = [];
   }
+
+  const signupBlob =
+    rest.signupSettings && typeof rest.signupSettings === 'object' && !Array.isArray(rest.signupSettings)
+      ? { ...rest.signupSettings }
+      : {};
+  const { disabledBuiltinGroups: dbgFromBlob, ...signupOptsBlob } = signupBlob;
+  rest.disabledBuiltinGroups = normalizeDisabledBuiltinGroups(
+    rest.disabledBuiltinGroups !== undefined ? rest.disabledBuiltinGroups : dbgFromBlob,
+    rest.partnerKind
+  );
+  rest.signupSettings = normalizeSignupOptions(
+    Object.keys(signupOptsBlob).length
+      ? signupOptsBlob
+      : rest.partnerKind === PRESTADORES_SERVICO_KIND
+        ? { cnpjRequired: false, collectCpf: true }
+        : undefined
+  );
+
   if (Array.isArray(rest.fields)) {
     const cleaned = rest.fields
       .filter((f) => f)
@@ -199,17 +261,18 @@ export function loadTemplatesMerged() {
 
 export function createEmptyTemplate() {
   const now = new Date().toISOString();
-  return {
+  return normalizeTemplate({
     id: newId(),
     name: '',
     description: '',
     partnerKind: DEFAULT_HUB_PARTNER_KIND,
     inviteLinkEnabled: true,
     standardFieldsDisabled: [],
+    signupSettings: { cnpjRequired: false, collectCpf: true },
     fields: [],
     createdAt: now,
     updatedAt: now,
-  };
+  });
 }
 
 export function inviteUrlForTemplate(templateId) {

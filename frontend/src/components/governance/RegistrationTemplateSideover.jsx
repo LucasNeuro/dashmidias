@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { AppSideover } from '../AppSideover';
 import { getOrgBuiltinPartnerFieldGroups } from '../../lib/orgStandardFields';
-import { HUB_PARTNER_KINDS, normalizePartnerKindSlug } from '../../lib/hubPartnerKinds';
+import { HUB_PARTNER_KINDS, normalizePartnerKindSlug, PRESTADORES_SERVICO_KIND } from '../../lib/hubPartnerKinds';
+import { normalizeSignupOptions } from '../../schemas/partnerOrgSignup';
 import {
   assignStableKeysFromLabels,
+  defaultDisabledBuiltinGroupsForPartnerKind,
   FIELD_TYPES,
   FIELD_TYPES_WITH_OPTIONS,
   newFieldId,
@@ -260,7 +262,57 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
             />
             <p className="mt-1 text-[11px] text-slate-400">{draft.description?.length ?? 0}/200</p>
           </label>
-          <div className="rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3.5">
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3.5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">CNPJ obrigatório</p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Desligue para permitir cadastro só com CPF (ex.: empreiteiros sem firma).
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={normalizeSignupOptions(draft.signupSettings).cnpjRequired}
+                onClick={() => {
+                  const su = normalizeSignupOptions(draft.signupSettings);
+                  onChangeDraft({ ...draft, signupSettings: { ...su, cnpjRequired: !su.cnpjRequired } });
+                }}
+                className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                  normalizeSignupOptions(draft.signupSettings).cnpjRequired ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    normalizeSignupOptions(draft.signupSettings).cnpjRequired ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Pedir CPF</p>
+                <p className="mt-0.5 text-xs text-slate-600">Mostra o campo CPF na etapa Empresa (validação com CNPJ conforme regras acima).</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={normalizeSignupOptions(draft.signupSettings).collectCpf}
+                onClick={() => {
+                  const su = normalizeSignupOptions(draft.signupSettings);
+                  onChangeDraft({ ...draft, signupSettings: { ...su, collectCpf: !su.collectCpf } });
+                }}
+                className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                  normalizeSignupOptions(draft.signupSettings).collectCpf ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    normalizeSignupOptions(draft.signupSettings).collectCpf ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-900">Convite por link</p>
@@ -294,7 +346,19 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
                   <button
                     key={k.value}
                     type="button"
-                    onClick={() => onChangeDraft({ ...draft, partnerKind: k.value })}
+                    onClick={() => {
+                      const isPrest = k.value === PRESTADORES_SERVICO_KIND;
+                      onChangeDraft({
+                        ...draft,
+                        partnerKind: k.value,
+                        signupSettings: normalizeSignupOptions(
+                          isPrest
+                            ? { cnpjRequired: false, collectCpf: true }
+                            : { cnpjRequired: true, collectCpf: false }
+                        ),
+                        disabledBuiltinGroups: defaultDisabledBuiltinGroupsForPartnerKind(k.value),
+                      });
+                    }}
                     className={`rounded-xl border px-3 py-3 text-left transition-all ${
                       active
                         ? 'border-emerald-600 bg-emerald-50/90 shadow-sm ring-2 ring-emerald-600/20'
@@ -318,48 +382,94 @@ export function RegistrationTemplateSideover({ open, onClose, draft, onChangeDra
       label: 'Padrão',
       content: (
         <div className="space-y-6">
-          {getOrgBuiltinPartnerFieldGroups().map((g) => (
-            <div key={g.id}>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.label}</h3>
-              <ul className="space-y-2">
-                {g.fields.map((f) => {
-                  const disabledList = draft.standardFieldsDisabled || [];
-                  const isOn = !disabledList.some((k) => String(k).toLowerCase() === f.key.toLowerCase());
-                  return (
-                    <li
-                      key={f.key}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+          <p className="text-xs leading-relaxed text-slate-600">
+            Ligue ou desligue <strong>blocos inteiros</strong> (ex.: prestadores e arquitetos costumam não precisar de frete/doca).
+            Depois pode refinar campo a campo dentro de cada bloco activo.
+          </p>
+          {getOrgBuiltinPartnerFieldGroups().map((g) => {
+            const groupOff = new Set((draft.disabledBuiltinGroups || []).map((x) => String(x).toLowerCase()));
+            const blockOn = !groupOff.has(String(g.id).toLowerCase());
+            return (
+              <div key={g.id}>
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.label}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-600">Bloco no cadastro</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={blockOn}
+                      title={blockOn ? 'Ocultar este bloco no formulário público' : 'Mostrar este bloco'}
+                      onClick={() => {
+                        const id = String(g.id).toLowerCase();
+                        const cur = [...(draft.disabledBuiltinGroups || [])].map((x) => String(x).toLowerCase());
+                        const has = cur.includes(id);
+                        const next = blockOn
+                          ? has
+                            ? cur
+                            : [...cur, id]
+                          : cur.filter((x) => x !== id);
+                        const normalized = [...new Set(next)].filter(Boolean);
+                        onChangeDraft({ ...draft, disabledBuiltinGroups: normalized });
+                      }}
+                      className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                        blockOn ? 'bg-emerald-600' : 'bg-slate-300'
+                      }`}
                     >
-                      <span className="min-w-0 text-sm text-slate-800">{f.label}</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={isOn}
-                        title={isOn ? 'Desativar no formulário' : 'Ativar no formulário'}
-                        onClick={() => {
-                          const next = [...disabledList];
-                          const idx = next.findIndex((k) => String(k).toLowerCase() === f.key.toLowerCase());
-                          if (isOn) {
-                            if (idx < 0) next.push(f.key);
-                          } else if (idx >= 0) next.splice(idx, 1);
-                          onChangeDraft({ ...draft, standardFieldsDisabled: next });
-                        }}
-                        className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
-                          isOn ? 'bg-emerald-600' : 'bg-slate-300'
+                      <span
+                        className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                          blockOn ? 'translate-x-5' : 'translate-x-0'
                         }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+                {!blockOn ? (
+                  <p className="mb-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                    Bloco desligado — não aparece no convite (nem como etapa extra).
+                  </p>
+                ) : null}
+                <ul className={`space-y-2 ${!blockOn ? 'pointer-events-none opacity-45' : ''}`}>
+                  {g.fields.map((f) => {
+                    const disabledList = draft.standardFieldsDisabled || [];
+                    const isOn = !disabledList.some((k) => String(k).toLowerCase() === f.key.toLowerCase());
+                    return (
+                      <li
+                        key={f.key}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5"
                       >
-                        <span
-                          className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                            isOn ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+                        <span className="min-w-0 text-sm text-slate-800">{f.label}</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={isOn}
+                          disabled={!blockOn}
+                          title={isOn ? 'Desativar no formulário' : 'Ativar no formulário'}
+                          onClick={() => {
+                            const next = [...disabledList];
+                            const idx = next.findIndex((k) => String(k).toLowerCase() === f.key.toLowerCase());
+                            if (isOn) {
+                              if (idx < 0) next.push(f.key);
+                            } else if (idx >= 0) next.splice(idx, 1);
+                            onChangeDraft({ ...draft, standardFieldsDisabled: next });
+                          }}
+                          className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                            isOn ? 'bg-emerald-600' : 'bg-slate-300'
+                          } disabled:opacity-40`}
+                        >
+                          <span
+                            className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                              isOn ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </div>
       ),
     },

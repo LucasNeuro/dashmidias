@@ -13,6 +13,7 @@ import {
   PARTNER_KIND_OPTIONS,
 } from '../lib/registrationFormTemplates';
 import { ORG_BUILTIN_PARTNER_EXTRA_FIELDS } from '../lib/orgStandardFields';
+import { registrationTemplatesListQueryKey } from '../lib/queryKeys';
 import {
   deleteRegistrationTemplate,
   listHubRegistrationTemplates,
@@ -21,7 +22,7 @@ import {
 
 const colHelper = createColumnHelper();
 
-const qk = (userId) => ['registration_form_templates', userId];
+const qk = registrationTemplatesListQueryKey;
 
 /** Erro vindo do PostgREST / Supabase — mensagem legível, sem jargão de implementação. */
 function friendlyDataError(err) {
@@ -52,10 +53,12 @@ export function AdminTemplatesPage() {
 
   const listEnabled = Boolean(supabase && userId) && isSupabaseConfigured();
 
-  const { data: templates = [], isLoading, isError, error, refetch } = useQuery({
+  const { data: templates = [], isLoading, isFetching } = useQuery({
     queryKey: qk(userId),
     queryFn: () => listHubRegistrationTemplates(supabase),
     enabled: listEnabled,
+    retry: 1,
+    staleTime: 15_000,
   });
 
   const openNew = useCallback(() => {
@@ -85,7 +88,10 @@ export function AdminTemplatesPage() {
     try {
       await upsertRegistrationTemplate(supabase, next, userId, isNew);
       await queryClient.invalidateQueries({ queryKey: qk(userId) });
-      toast(isNew ? 'Template criado.' : 'Template atualizado.', { variant: 'success' });
+      toast(isNew ? 'Template criado e lista actualizada.' : 'Alterações guardadas; lista sincronizada.', {
+        variant: 'success',
+        duration: 4500,
+      });
       setSideOpen(false);
     } catch (e) {
       await alert(friendlyDataError(e) || 'Não foi possível guardar.', { title: 'Erro' });
@@ -106,7 +112,7 @@ export function AdminTemplatesPage() {
       try {
         await deleteRegistrationTemplate(supabase, id);
         await queryClient.invalidateQueries({ queryKey: qk(userId) });
-        toast('Template excluído.', { variant: 'success' });
+        toast('Template excluído. A tabela foi actualizada.', { variant: 'success', duration: 4500 });
       } catch (e) {
         await alert(friendlyDataError(e) || 'Falha ao excluir.', { title: 'Erro' });
       } finally {
@@ -263,21 +269,16 @@ export function AdminTemplatesPage() {
         </button>
       </div>
 
-      {isError && (
-        <p className="mb-3 text-sm text-red-800">
-          {friendlyDataError(error)}
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="ml-2 font-semibold text-primary underline underline-offset-2"
-          >
-            Tentar de novo
-          </button>
-        </p>
-      )}
-
       <div className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="p-4 sm:p-5 lg:p-6">
+          {listEnabled && !isLoading && isFetching ? (
+            <p className="mb-3 flex items-center gap-2 text-xs font-medium text-emerald-800" role="status">
+              <span className="material-symbols-outlined text-[18px] animate-pulse" aria-hidden>
+                sync
+              </span>
+              A actualizar dados…
+            </p>
+          ) : null}
           {isLoading && listEnabled ? (
             <p className="text-sm text-on-surface-variant">A carregar…</p>
           ) : (

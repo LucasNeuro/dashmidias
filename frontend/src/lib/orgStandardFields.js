@@ -7,6 +7,7 @@
 export const ORG_STANDARD_KEYS = /** @type {const} */ ([
   'nome_empresa',
   'cnpj',
+  'cpf',
   'email',
   'telefone',
   'cep',
@@ -168,20 +169,42 @@ export function getOrgBuiltinPartnerFieldGroups() {
 
 /**
  * @param {Array<{ id?: string, key: string, label?: string, type?: string, required?: boolean, options?: string[] }>} templateFields
- * @param {{ standardFieldsDisabled?: string[] }} [opts]
+ * @param {{ standardFieldsDisabled?: string[], disabledBuiltinGroups?: string[] }} [opts]
  */
 export function mergePartnerOrgExtraFields(templateFields = [], opts = {}) {
   const disabled = new Set((opts.standardFieldsDisabled || []).map((k) => String(k).toLowerCase()));
-  const builtins = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter((f) => !disabled.has(String(f.key).toLowerCase()));
+  const disabledGroups = new Set((opts.disabledBuiltinGroups || []).map((g) => String(g).toLowerCase()));
+  const builtins = ORG_BUILTIN_PARTNER_EXTRA_FIELDS.filter(
+    (f) =>
+      !disabled.has(String(f.key).toLowerCase()) &&
+      !disabledGroups.has(String(f.group || '').toLowerCase())
+  );
   const reserved = new Set(ORG_BUILTIN_PARTNER_EXTRA_KEYS.map((k) => k.toLowerCase()));
   const rest = (templateFields || []).filter((f) => f?.key && !reserved.has(String(f.key).toLowerCase()));
   return [...builtins, ...rest];
+}
+
+/**
+ * Separa campos padrão em duas etapas no wizard: comercial (produto + extras do template) e logística.
+ * @param {Array<{ key: string, group?: string }>} mergedFields — resultado de mergePartnerOrgExtraFields
+ */
+export function partitionPartnerOrgExtraFields(mergedFields = []) {
+  /** @type {typeof mergedFields} */
+  const commercial = [];
+  /** @type {typeof mergedFields} */
+  const logistics = [];
+  for (const f of mergedFields) {
+    if (f.group === 'logistica') logistics.push(f);
+    else commercial.push(f);
+  }
+  return { commercial, logistics };
 }
 
 /** @type {Record<string, { label: string; hint?: string }>} */
 export const ORG_STANDARD_META = {
   nome_empresa: { label: 'Nome da empresa', hint: 'Razão social ou nome fantasia' },
   cnpj: { label: 'CNPJ' },
+  cpf: { label: 'CPF', hint: 'Para prestadores sem CNPJ (ex.: empreiteiro, MEI)' },
   email: { label: 'E-mail comercial' },
   telefone: { label: 'Telefone / WhatsApp' },
   cep: { label: 'CEP', hint: '8 dígitos' },

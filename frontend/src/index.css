@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Evita faixa clara por baixo ao usar scroll/bounce (rotas de auth/cadastro). */
+html {
+  background-color: var(--color-primary);
+}
+
 @theme {
   --color-primary: #0b1622;
   --color-secondary: #515f74;

@@ -8,12 +8,13 @@ import {
   fetchCnpjaOffice,
   hasCnpjaApiKey,
 } from '../../lib/cnpja';
-import { ORG_STANDARD_META } from '../../lib/orgStandardFields';
-import { normalizeCnpj14 } from '../../lib/opencnpj';
+import { ORG_STANDARD_META, partitionPartnerOrgExtraFields } from '../../lib/orgStandardFields';
+import { formatCpfMask, normalizeCnpj14 } from '../../lib/opencnpj';
 import { fetchViaCepJson, formatCepMask, normalizeCep8, onlyDigits } from '../../lib/viacep';
 import {
   buildPartnerOrgSignupSchema,
   defaultPartnerOrgValues,
+  normalizeSignupOptions,
   orgSignupFieldSchemas,
   validatePartnerSignupStep,
 } from '../../schemas/partnerOrgSignup';
@@ -71,9 +72,178 @@ function parseExtrasMultiJson(raw) {
   }
 }
 
-export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
+/** @param {number} step @param {unknown[]} commercial @param {unknown[]} logistics */
+function extrasSliceForStep(step, commercial, logistics) {
+  const hasC = commercial.length > 0;
+  const hasL = logistics.length > 0;
+  if (step === 3) {
+    if (hasC) return commercial;
+    if (hasL) return logistics;
+    return [];
+  }
+  if (step === 4 && hasC && hasL) return logistics;
+  return [];
+}
+
+function SignupExtraFieldsGrid({ form, slice, stepErrors }) {
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {slice.map((f) => (
+        <form.Field key={f.id} name={`extras.${f.key}`}>
+          {(field) => (
+            <div className={f.type === 'textarea' || f.type === 'radio' || f.type === 'multiselect' ? 'md:col-span-2 xl:col-span-3' : ''}>
+              <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={`extra-${f.id}`}>
+                {f.label}
+                {f.required ? ' *' : ''}
+              </label>
+              {f.type === 'textarea' ? (
+                <textarea
+                  id={`extra-${f.id}`}
+                  rows={f.rows != null ? Number(f.rows) : 3}
+                  value={String(field.state.value ?? '')}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                />
+              ) : f.type === 'checkbox' ? (
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={field.state.value === true}
+                    onChange={(e) => field.handleChange(e.target.checked)}
+                    onBlur={field.handleBlur}
+                    className="h-4 w-4 rounded-none border-outline-variant accent-tertiary"
+                  />
+                  <span className="text-sm text-primary">Sim</span>
+                </label>
+              ) : f.type === 'select' ? (
+                <select
+                  id={`extra-${f.id}`}
+                  value={String(field.state.value ?? '')}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full border border-outline-variant bg-white px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                >
+                  <option value="">Selecione…</option>
+                  {(f.options || []).map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              ) : f.type === 'radio' ? (
+                <div className="space-y-2.5">
+                  {(f.options || []).length === 0 ? (
+                    <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
+                  ) : (
+                    (f.options || []).map((opt) => (
+                      <label
+                        key={opt}
+                        className="flex cursor-pointer items-start gap-3 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
+                      >
+                        <input
+                          type="radio"
+                          name={`extra-radio-${f.key}`}
+                          value={opt}
+                          checked={String(field.state.value ?? '') === opt}
+                          onChange={() => field.handleChange(opt)}
+                          onBlur={field.handleBlur}
+                          className="mt-0.5 h-4 w-4 border-slate-300 text-primary"
+                        />
+                        <span className="text-sm text-primary">{opt}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              ) : f.type === 'multiselect' ? (
+                <div className="space-y-2.5">
+                  {(f.options || []).length === 0 ? (
+                    <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
+                  ) : (
+                    (f.options || []).map((opt) => {
+                      const selected = parseExtrasMultiJson(field.state.value);
+                      const on = selected.includes(opt);
+                      return (
+                        <label
+                          key={opt}
+                          className="flex cursor-pointer items-start gap-3 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => {
+                              const next = on ? selected.filter((x) => x !== opt) : [...selected, opt];
+                              field.handleChange(JSON.stringify(next));
+                            }}
+                            onBlur={field.handleBlur}
+                            className="mt-0.5 h-4 w-4 rounded-none border-outline-variant accent-tertiary text-primary"
+                          />
+                          <span className="text-sm text-primary">{opt}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              ) : f.type === 'date' ? (
+                <input
+                  id={`extra-${f.id}`}
+                  type="date"
+                  value={String(field.state.value ?? '')}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full max-w-[12rem] border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                />
+              ) : (
+                <input
+                  id={`extra-${f.id}`}
+                  type={
+                    f.type === 'number'
+                      ? 'number'
+                      : f.type === 'email'
+                        ? 'email'
+                        : f.type === 'url'
+                          ? 'url'
+                          : f.type === 'tel'
+                            ? 'tel'
+                            : 'text'
+                  }
+                  placeholder={f.type === 'url' ? 'https://' : undefined}
+                  value={String(field.state.value ?? '')}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                />
+              )}
+              <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, `extras.${f.key}`)} />
+            </div>
+          )}
+        </form.Field>
+      ))}
+    </div>
+  );
+}
+
+export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupSettingsRaw, onSubmitSuccess, className = '' }) {
   const queryClient = useQueryClient();
-  const schema = useMemo(() => buildPartnerOrgSignupSchema(extraFields), [extraFields]);
+  const signupOptions = useMemo(() => normalizeSignupOptions(signupSettingsRaw), [signupSettingsRaw]);
+  const { commercial, logistics } = useMemo(() => partitionPartnerOrgExtraFields(extraFields), [extraFields]);
+  const wizardLayout = useMemo(
+    () => ({ signupOptions, commercial, logistics }),
+    [signupOptions, commercial, logistics]
+  );
+
+  const hasC = commercial.length > 0;
+  const hasL = logistics.length > 0;
+  const lastStepIndex = useMemo(() => {
+    if (hasC && hasL) return 4;
+    if (hasC || hasL) return 3;
+    return 2;
+  }, [hasC, hasL]);
+
+  const cnpjRequired = signupOptions.cnpjRequired !== false;
+  const collectCpf = signupOptions.collectCpf === true;
+
+  const schema = useMemo(() => buildPartnerOrgSignupSchema(extraFields, signupOptions), [extraFields, signupOptions]);
   const defaultValues = useMemo(() => defaultPartnerOrgValues(extraFields), [extraFields]);
 
   const [cepBusy, setCepBusy] = useState(false);
@@ -94,16 +264,19 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
   /** @type {Record<string, string>} */
   const [stepErrors, setStepErrors] = useState({});
   const wizardCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const wizardBodyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
-  const hasExtras = extraFields.length > 0;
-  const lastStepIndex = hasExtras ? 3 : 2;
-  const stepLabels = useMemo(
-    () =>
-      hasExtras
-        ? ['Empresa', 'Endereço', 'Acesso', 'Informações adicionais']
-        : ['Empresa', 'Endereço', 'Acesso'],
-    [hasExtras]
-  );
+  const stepLabels = useMemo(() => {
+    const labels = ['Empresa', 'Endereço', 'Acesso'];
+    if (hasC && hasL) {
+      labels.push('Informações comerciais', 'Logística e doca');
+    } else if (hasC) {
+      labels.push('Informações comerciais');
+    } else if (hasL) {
+      labels.push('Logística e doca');
+    }
+    return labels;
+  }, [hasC, hasL]);
 
   const form = useForm({
     defaultValues,
@@ -231,14 +404,19 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
 
   const values = useStore(form.store, (s) => s.values);
 
+  const activeExtraSlice = useMemo(
+    () => extrasSliceForStep(step, commercial, logistics),
+    [step, commercial, logistics]
+  );
+
   useEffect(() => {
-    wizardCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    wizardBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
   const handleWizardPrimary = useCallback(() => {
     const v = values;
     if (step < lastStepIndex) {
-      const r = validatePartnerSignupStep(step, v, extraFields);
+      const r = validatePartnerSignupStep(step, v, wizardLayout);
       if (!r.success) {
         setStepErrors(zodIssuesToStepErrors(r.error?.issues));
         return;
@@ -247,37 +425,35 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
       setStep((x) => x + 1);
       return;
     }
-    const rFinal = hasExtras
-      ? validatePartnerSignupStep(3, v, extraFields)
-      : validatePartnerSignupStep(2, v, extraFields);
+    const rFinal = validatePartnerSignupStep(lastStepIndex, v, wizardLayout);
     if (!rFinal.success) {
       setStepErrors(zodIssuesToStepErrors(rFinal.error?.issues));
       return;
     }
     setStepErrors({});
     void form.handleSubmit();
-  }, [values, step, lastStepIndex, extraFields, hasExtras, form]);
+  }, [values, step, lastStepIndex, wizardLayout, form]);
 
   return (
     <form
-      className="w-full max-w-none [&_button]:rounded-none [&_input]:rounded-none [&_select]:rounded-none [&_textarea]:rounded-none"
+      className={`flex min-h-0 w-full max-w-none flex-1 flex-col [&_button]:rounded-none [&_input]:rounded-none [&_select]:rounded-none [&_textarea]:rounded-none ${className}`}
       onSubmit={(e) => {
         e.preventDefault();
       }}
     >
       <div
         ref={wizardCardRef}
-        className="overflow-hidden rounded-none border-2 border-primary bg-white shadow-xl"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-2 border-primary bg-white shadow-xl"
       >
-        <header className="border-b border-outline-variant bg-white px-5 py-4 sm:px-8">
+        <header className="shrink-0 border-b border-outline-variant bg-white px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
             Passo {step + 1} de {stepLabels.length}
           </p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex gap-1.5 overflow-x-auto overflow-y-visible pb-1 -mx-1 px-1 no-scrollbar sm:mt-3 sm:flex-wrap sm:overflow-x-visible">
             {stepLabels.map((label, i) => (
               <span
                 key={label}
-                className={`inline-flex items-center gap-1.5 rounded-none border px-2 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-none border px-2 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
                   i === step
                     ? 'border-primary bg-primary text-white'
                     : i < step
@@ -290,17 +466,21 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
               </span>
             ))}
           </div>
-          <h2 className="mt-4 text-2xl font-black tracking-tight text-primary">{stepLabels[step]}</h2>
+          <h2 className="mt-3 text-lg font-black tracking-tight text-primary sm:mt-4 sm:text-2xl">{stepLabels[step]}</h2>
         </header>
 
-        <div className="space-y-6 p-5 sm:p-8">
+        <div
+          ref={wizardBodyRef}
+          className="hub-table-scrollbar min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4 sm:space-y-5 sm:px-6 sm:py-5 lg:px-8 lg:py-6"
+        >
           {step === 0 ? (
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
               <form.Field name="cnpj">
                 {(field) => (
                   <div className="lg:col-span-12">
                     <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
-                      {ORG_STANDARD_META.cnpj.label} *
+                      {ORG_STANDARD_META.cnpj.label}
+                      {cnpjRequired ? ' *' : ''}
                     </label>
                     <input
                       id={field.name}
@@ -322,6 +502,13 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                       }}
                       onBlur={async (e) => {
                         field.handleBlur();
+                        const n = normalizeCnpj14(e.target.value);
+                        if (!n) {
+                          lastCnpjLookup.current = '';
+                          setCnpjHint('');
+                          setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
+                          return;
+                        }
                         await runCnpjLookup(e.target.value);
                       }}
                       className="w-full border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0 disabled:opacity-60"
@@ -352,6 +539,39 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
                   </div>
                 )}
               </form.Field>
+
+              {collectCpf ? (
+                <form.Field name="cpf">
+                  {(field) => (
+                    <div className="lg:col-span-12">
+                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
+                        {ORG_STANDARD_META.cpf.label}
+                      </label>
+                      {!cnpjRequired ? (
+                        <p className="mb-1 text-xs text-slate-500">Preencha CNPJ ou CPF (pelo menos um).</p>
+                      ) : ORG_STANDARD_META.cpf.hint ? (
+                        <p className="mb-1 text-xs text-slate-500">{ORG_STANDARD_META.cpf.hint}</p>
+                      ) : null}
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="000.000.000-00"
+                        value={formatCpfMask(field.state.value)}
+                        onChange={(e) => {
+                          const d = onlyDigits(e.target.value).slice(0, 11);
+                          field.handleChange(d);
+                        }}
+                        onBlur={field.handleBlur}
+                        className="w-full border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                      />
+                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'cpf')} />
+                    </div>
+                  )}
+                </form.Field>
+              ) : null}
 
               <form.Field name="nome_empresa">
                 {(field) => (
@@ -708,144 +928,12 @@ export function PartnerOrgSignupForm({ extraFields = [], onSubmitSuccess }) {
             </div>
           ) : null}
 
-          {step === 3 && hasExtras ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {extraFields.map((f) => (
-                <form.Field key={f.id} name={`extras.${f.key}`}>
-                  {(field) => (
-                    <div className={f.type === 'textarea' || f.type === 'radio' || f.type === 'multiselect' ? 'md:col-span-2 xl:col-span-3' : ''}>
-                      <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={`extra-${f.id}`}>
-                        {f.label}
-                        {f.required ? ' *' : ''}
-                      </label>
-                      {f.type === 'textarea' ? (
-                        <textarea
-                          id={`extra-${f.id}`}
-                          rows={f.rows != null ? Number(f.rows) : 3}
-                          value={String(field.state.value ?? '')}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
-                        />
-                      ) : f.type === 'checkbox' ? (
-                        <label className="flex cursor-pointer items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={field.state.value === true}
-                            onChange={(e) => field.handleChange(e.target.checked)}
-                            onBlur={field.handleBlur}
-                            className="h-4 w-4 rounded-none border-outline-variant accent-tertiary"
-                          />
-                          <span className="text-sm text-primary">Sim</span>
-                        </label>
-                      ) : f.type === 'select' ? (
-                        <select
-                          id={`extra-${f.id}`}
-                          value={String(field.state.value ?? '')}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full border border-outline-variant bg-white px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
-                        >
-                          <option value="">Selecione…</option>
-                          {(f.options || []).map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
-                      ) : f.type === 'radio' ? (
-                        <div className="space-y-2.5">
-                          {(f.options || []).length === 0 ? (
-                            <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
-                          ) : (
-                            (f.options || []).map((opt) => (
-                              <label
-                                key={opt}
-                                className="flex cursor-pointer items-start gap-3 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
-                              >
-                                <input
-                                  type="radio"
-                                  name={`extra-radio-${f.key}`}
-                                  value={opt}
-                                  checked={String(field.state.value ?? '') === opt}
-                                  onChange={() => field.handleChange(opt)}
-                                  onBlur={field.handleBlur}
-                                  className="mt-0.5 h-4 w-4 border-slate-300 text-primary"
-                                />
-                                <span className="text-sm text-primary">{opt}</span>
-                              </label>
-                            ))
-                          )}
-                        </div>
-                      ) : f.type === 'multiselect' ? (
-                        <div className="space-y-2.5">
-                          {(f.options || []).length === 0 ? (
-                            <p className="text-sm text-amber-800">Opções não configuradas. Fale com quem enviou o link.</p>
-                          ) : (
-                            (f.options || []).map((opt) => {
-                              const selected = parseExtrasMultiJson(field.state.value);
-                              const on = selected.includes(opt);
-                              return (
-                                <label
-                                  key={opt}
-                                  className="flex cursor-pointer items-start gap-3 rounded-none border border-outline-variant bg-surface-container-low px-3 py-2.5 transition-colors hover:border-primary hover:bg-white"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={on}
-                                    onChange={() => {
-                                      const next = on ? selected.filter((x) => x !== opt) : [...selected, opt];
-                                      field.handleChange(JSON.stringify(next));
-                                    }}
-                                    onBlur={field.handleBlur}
-                                    className="mt-0.5 h-4 w-4 rounded-none border-outline-variant accent-tertiary text-primary"
-                                  />
-                                  <span className="text-sm text-primary">{opt}</span>
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
-                      ) : f.type === 'date' ? (
-                        <input
-                          id={`extra-${f.id}`}
-                          type="date"
-                          value={String(field.state.value ?? '')}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full max-w-[12rem] border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0"
-                        />
-                      ) : (
-                        <input
-                          id={`extra-${f.id}`}
-                          type={
-                            f.type === 'number'
-                              ? 'number'
-                              : f.type === 'email'
-                                ? 'email'
-                                : f.type === 'url'
-                                  ? 'url'
-                                  : f.type === 'tel'
-                                    ? 'tel'
-                                    : 'text'
-                          }
-                          placeholder={f.type === 'url' ? 'https://' : undefined}
-                          value={String(field.state.value ?? '')}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
-                        />
-                      )}
-                      <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, `extras.${f.key}`)} />
-                    </div>
-                  )}
-                </form.Field>
-              ))}
-            </div>
+          {step >= 3 && activeExtraSlice.length > 0 ? (
+            <SignupExtraFieldsGrid form={form} slice={activeExtraSlice} stepErrors={stepErrors} />
           ) : null}
         </div>
 
-        <footer className="flex flex-col gap-4 border-t border-outline-variant bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-outline-variant bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
           <div className="flex flex-wrap gap-2">
             {step > 0 ? (
               <button
