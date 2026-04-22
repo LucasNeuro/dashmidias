@@ -193,8 +193,14 @@ export function AdminTemplatesPage() {
   return (
     <div className="min-w-0 w-full max-w-none">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
+        <div className="min-w-0 max-w-2xl">
           <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Templates de cadastro</h1>
+          <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
+            Estes modelos de <strong>formulário de cadastro</strong> ficam no <strong>armazenamento local do navegador</strong>,
+            não nas tabelas <code className="rounded-none bg-slate-100 px-1 text-xs">papel_template</code> (isso é catálogo de
+            <strong> papéis</strong> e permissões) nem noutra tabela ainda — a persistência partilhada no Supabase continua
+            por implementar. Em <strong>produção</strong> o domínio é outro, por isso a lista aí costuma começar vazia.
+          </p>
         </div>
         <button
           type="button"

@@ -47,7 +47,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 | Item | Ref / contexto |
 |------|------------------|
 | `[ ]` Aprovação HUB coerente | Alinhar UI "aprovar" com `hub_admins` + `hub_solicitacoes_admin` (doc [CADASTRO_ORGANIZACOES_E_USUARIOS.md](./CADASTRO_ORGANIZACOES_E_USUARIOS.md), [PLANEJAMENTO](./PLANEJAMENTO.md) MVP). |
-| `[ ]` Templates de cadastro em servidor | Hoje templates de convite em `localStorage`; evoluir para Supabase e links estáveis (slugs) conforme [SCHEMA_DADOS_V0.md §7](./SCHEMA_DADOS_V0.md). |
+| `[ ]` Templates de cadastro em servidor | **Não confundir** com `papel_template` (papéis RBAC). Modelos de **formulário de convite** ainda só em `localStorage`; falta tabela tipo `registration_form_template` + RLS — ver [CRM_HUB_TEMPLATES_E_ESCALA_SUPABASE.md §5](./CRM_HUB_TEMPLATES_E_ESCALA_SUPABASE.md) e [SCHEMA_DADOS_V0.md §7](./SCHEMA_DADOS_V0.md). |
 | `[ ]` Rotas públicas com slug de org | `organizacoes.slug` global — paths tipo `/o/:orgSlug` (schema §7.3). |
 | `[ ]` CNPJÁ em produção | `VITE_CNPJA_API_KEY` no Render; considerar proxy servidor no futuro (segredo fora do bundle). |
 | `[ ]` CRM / pipeline | Marcos M5–M7 em [PLANEJAMENTO.md](./PLANEJAMENTO.md). |
@@ -57,6 +57,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 
 ## Histórico (changelog curto)
 
+- **2026-04-22** — Backlog e UI de /adm/templates: distinção explícita entre `papel_template` (RBAC) e modelos de formulário de convite (ainda `localStorage`).
 - **2026-04-22** — Cadastro público: título/eyebrow com contraste; admin templates: compartilhar convite (Resend via Edge) em vez de duplicar.
 - **2026-04-22** — Criação do ficheiro; preenchido com o estado conhecido do repositório e do trabalho recente (auth, admin, deploy, gitignore).
 - **2026-04-22** — Registado: painel de campanhas sem skeleton fullscreen; componente de loading dedicado.
