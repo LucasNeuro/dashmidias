@@ -1,9 +1,9 @@
 # Render Blueprint – SPA React/Vite (dashmidias)
 # https://render.com/docs/blueprint-spec
 #
-# Rotas client-side (ex.: /cadastro/organizacao) exigem reescrita para /index.html.
-# Se criou o site estático à mão sem Blueprint: Dashboard → o serviço → Redirects/Rewrites →
-#   Source: /*   Destination: /index.html   Action: Rewrite (não Redirect).
+# A app usa HashRouter: convites e rotas ficam em /#/... (só o pedido GET / é necessário).
+# Reescrita /* → /index.html continua útil para links antigos sem hash ou rotas “bonitas” no futuro.
+# Se criou o site estático à mão: Dashboard → Redirects/Rewrites → /* → /index.html (Rewrite).
 #
 # Alternativa (Web Service em vez de Static): buildCommand igual + startCommand:
 #   cd frontend && npx --yes serve@14 -s dist -l tcp://0.0.0.0:$PORT

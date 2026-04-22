@@ -121,7 +121,7 @@ export function AdminStandardCatalogPage() {
   );
 
   const publicWizardUrl = useMemo(
-    () => (typeof window !== 'undefined' ? `${window.location.origin}/cadastro/organizacao` : ''),
+    () => (typeof window !== 'undefined' ? `${window.location.origin}/#/cadastro/organizacao` : ''),
     []
   );
 

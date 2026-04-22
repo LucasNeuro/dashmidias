@@ -1,5 +1,5 @@
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UiFeedbackProvider } from './context/UiFeedbackContext';
 import { queryClient } from './lib/queryClient';
@@ -178,13 +178,13 @@ export default function App() {
         },
       }}
     >
-      <BrowserRouter>
+      <HashRouter>
         <AuthProvider>
           <UiFeedbackProvider>
             <AppRoutes />
           </UiFeedbackProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </HashRouter>
     </PersistQueryClientProvider>
   );
 }

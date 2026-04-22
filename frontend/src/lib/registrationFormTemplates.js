@@ -345,9 +345,8 @@ export function inviteUrlForTemplate(templateOrId) {
       ? String(templateOrId.inviteSlug || '').trim() || String(templateOrId.id || '').trim()
       : String(templateOrId || '').trim();
   if (!param) return '';
-  const u = new URL(`${window.location.origin}/cadastro/organizacao`);
-  u.searchParams.set('tpl', param);
-  return u.toString();
+  // HashRouter: o servidor só precisa servir `/` (funciona em static hosts sem rewrite SPA, ex.: Render).
+  return `${window.location.origin}/#/cadastro/organizacao?tpl=${encodeURIComponent(param)}`;
 }
 
 export function getTemplateById(id) {

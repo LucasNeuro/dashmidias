@@ -24,7 +24,9 @@ export function StandardCatalogSectionSideover({
   busy,
 }) {
   const canSave = title.trim().length > 0;
-  const href = publicWizardUrl || (typeof window !== 'undefined' ? `${window.location.origin}/cadastro/organizacao` : '#');
+  const href =
+    publicWizardUrl ||
+    (typeof window !== 'undefined' ? `${window.location.origin}/#/cadastro/organizacao` : '#');
 
   return (
     <AppSideover

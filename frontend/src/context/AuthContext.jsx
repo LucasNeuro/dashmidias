@@ -227,7 +227,7 @@ export function AuthProvider({ children }) {
         if (!supabase) throw new Error('Supabase não configurado');
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: origin ? `${origin}/login/redefinir` : undefined,
+          redirectTo: origin ? `${origin}/#/login/redefinir` : undefined,
         });
         if (error) throw new Error(formatAuthError(error));
       },
