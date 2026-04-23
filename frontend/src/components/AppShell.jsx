@@ -133,7 +133,7 @@ function SideRow({ drawerOpen, left, right, variant = 'nav' }) {
   return (
     <div className="flex items-start">
       <div
-        className={`flex ${RAIL_W} shrink-0 justify-center border-[#0b1622] bg-[#0b1622] ${variant === 'group' ? 'items-start pt-2' : 'items-center py-1'}`}
+        className={`flex ${RAIL_W} shrink-0 justify-center border-[#1a344d] bg-[#1a344d] ${variant === 'group' ? 'items-start pt-2' : 'items-center py-1'}`}
       >
         {left}
       </div>
@@ -249,10 +249,10 @@ function DesktopSidebar({ navItems, drawerOpen, isGroupExpanded, toggleGroup }) 
   });
 
   return (
-    <div className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden bg-[#0b1622] shadow-2xl">
+    <div className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden bg-[#1a344d] shadow-2xl">
       <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-10">{navRows}</div>
       <div className="flex shrink-0 items-stretch border-t border-white/10">
-        <div className={`flex ${RAIL_W} shrink-0 flex-col items-center justify-center bg-[#0b1622] py-1.5`}>
+        <div className={`flex ${RAIL_W} shrink-0 flex-col items-center justify-center bg-[#1a344d] py-1.5`}>
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tertiary/25 text-xs font-bold text-white ring-2 ring-white/10"
             aria-hidden
@@ -487,7 +487,7 @@ export function AppShell({
       {mobileOpen && (
         <div className="fixed inset-0 z-[90] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <button type="button" className="absolute inset-0 bg-black/50" aria-label="Fechar menu" onClick={closeMobile} />
-          <div className="sidebar-scrollbar absolute left-0 top-0 flex h-full w-[min(100%,20rem)] flex-col overflow-y-auto bg-[#0b1622] shadow-2xl">
+          <div className="sidebar-scrollbar absolute left-0 top-0 flex h-full w-[min(100%,20rem)] flex-col overflow-y-auto bg-[#1a344d] shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
               <span className="text-sm font-black uppercase tracking-widest text-white/90">Menu</span>
               <button type="button" onClick={closeMobile} className="p-2 text-white" aria-label="Fechar">
