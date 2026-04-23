@@ -19,6 +19,96 @@ const TABS = [
   { id: 'funnel', label: 'Funil & ROI' },
 ];
 
+/** Abas de nível painel — visão HUB por mercado; «Campanhas e mídia» mantém o dashboard operacional actual. */
+const PAINEL_KIND_TABS = [
+  { id: 'arquitetura', label: 'Arquitetura', icon: 'architecture' },
+  { id: 'produtos', label: 'Produtos', icon: 'inventory_2' },
+  { id: 'leads', label: 'Leads', icon: 'person_search' },
+  { id: 'prestadores', label: 'Prestadores', icon: 'engineering' },
+  { id: 'campanhas', label: 'Campanhas e mídia', icon: 'campaign' },
+];
+
+const MERCADO_OVERVIEW = {
+  arquitetura: {
+    title: 'Arquitetura',
+    description:
+      'Visão geral do ecossistema de escritórios e projectos no HUB — volume de organizações, pipeline e oportunidades ligadas a arquitectura.',
+    icon: 'architecture',
+    kpis: [
+      { label: 'Organizações (segmento)', footer: 'Consolidado no HUB quando os dados estiverem ligados.' },
+      { label: 'Projectos activos', footer: '—' },
+      { label: 'Pipeline qualificado', footer: '—' },
+      { label: 'Actividade (30 dias)', footer: '—' },
+    ],
+  },
+  produtos: {
+    title: 'Produtos',
+    description: 'Fornecedores, marcas e catálogo de produtos integrados à Obra10+ no HUB.',
+    icon: 'inventory_2',
+    kpis: [
+      { label: 'Fornecedores / marcas', footer: '—' },
+      { label: 'Itens de catálogo', footer: '—' },
+      { label: 'Pedidos / cotações', footer: '—' },
+      { label: 'Cobertura por região', footer: '—' },
+    ],
+  },
+  leads: {
+    title: 'Leads',
+    description: 'Entrada, qualificação e distribuição de contactos comerciais no ecossistema HUB.',
+    icon: 'person_search',
+    kpis: [
+      { label: 'Leads novos (período)', footer: '—' },
+      { label: 'Taxa de qualificação', footer: '—' },
+      { label: 'Tempo médio de resposta', footer: '—' },
+      { label: 'Conversão para oportunidade', footer: '—' },
+    ],
+  },
+  prestadores: {
+    title: 'Prestadores',
+    description: 'Prestadores de serviço, homologações e capacidade em obra no HUB.',
+    icon: 'engineering',
+    kpis: [
+      { label: 'Prestadores activos', footer: '—' },
+      { label: 'Homologações em vigor', footer: '—' },
+      { label: 'Obras com recurso alocado', footer: '—' },
+      { label: 'Satisfação / incidentes', footer: '—' },
+    ],
+  },
+};
+
+function HubMercadoOverview({ mercadoId }) {
+  const cfg = MERCADO_OVERVIEW[mercadoId] || MERCADO_OVERVIEW.arquitetura;
+  return (
+    <div className="space-y-8">
+      <header className="border-b border-slate-200/90 pb-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <span className="material-symbols-outlined text-4xl text-tertiary shrink-0" aria-hidden>
+            {cfg.icon}
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-3xl md:text-4xl font-black leading-tight tracking-tighter text-primary">{cfg.title}</h1>
+            <p className="mt-2 text-lg font-semibold text-on-surface-variant max-w-3xl leading-snug">{cfg.description}</p>
+            <p className="mt-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+              Visão HUB · resumo por mercado (indicadores reais em ligação à base)
+            </p>
+          </div>
+        </div>
+      </header>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cfg.kpis.map((k) => (
+          <DashboardMetricCard
+            key={k.label}
+            label={k.label}
+            value="—"
+            surface="whiteMedia"
+            footer={<span className="text-on-surface-variant">{k.footer}</span>}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function badgeToneClass(tone) {
   const m = { blue: 'bg-blue-600 text-white', red: 'bg-red-600 text-white', slate: 'bg-slate-700 text-white' };
   return m[tone] || m.slate;
@@ -91,6 +181,7 @@ function campaignOverlapsRange(campaign, dateWindow) {
 export function CampaignsDashboardPage() {
   const { session, isAdmin, hubAdmin, isHubOwner, isPlatformOwner, signOut, portal } = useAuth();
   const { loading, banner, payload, syncLabel, reportOptions, selectedSlug, setSelectedSlug } = useCampaignsDashboardData();
+  const [painelKind, setPainelKind] = useState('arquitetura');
   const [tab, setTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
@@ -397,22 +488,41 @@ export function CampaignsDashboardPage() {
   const usePlatformShell = isSupabaseConfigured();
   const showAsPlatformOwner = isHubOwner || isPlatformOwner;
   const shellSubtitle = loading
-    ? 'A carregar indicadores e campanhas…'
+    ? 'A carregar indicadores…'
     : showAsPlatformOwner
-      ? 'Visão consolidada — gestão global de campanhas (dono da plataforma ou e-mail owner). Obras, imóveis e projetos · Meta e Google.'
-      : 'Visão consolidada na rota da plataforma — gestão geral de campanhas e insights. Obras, imóveis e projetos · Meta e Google.';
-
-  const headerActions = (
-    <Link
-      to="/"
-      className="text-[10px] font-black uppercase tracking-widest border border-primary px-4 py-2 hover:bg-primary hover:text-white transition-colors"
-    >
-      Hub
-    </Link>
-  );
+      ? 'Painel HUB — resumo por mercado (Arquitetura, Produtos, Leads, Prestadores) e campanhas Meta/Google para dono da plataforma ou owner.'
+      : 'Painel HUB — visão geral por mercado no ecossistema e, em «Campanhas e mídia», o dashboard operacional de anúncios.';
 
   const dashboardContent = (
       <div className={`w-full max-w-[1800px] mx-auto px-4 py-8 lg:px-6 space-y-8 min-w-0 ${banner ? 'pt-16' : ''}`}>
+        <nav
+          className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/95 to-white p-1.5 shadow-sm"
+          aria-label="Tipo de painel"
+        >
+          {PAINEL_KIND_TABS.map((t) => {
+            const active = painelKind === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setPainelKind(t.id)}
+                className={`inline-flex min-h-[2.75rem] flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition sm:px-4 lg:flex-none lg:justify-start ${
+                  active
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'bg-white/90 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px] opacity-90 sm:text-[22px]" aria-hidden>
+                  {t.icon}
+                </span>
+                <span className="min-w-0 truncate">{t.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {painelKind === 'campanhas' ? (
+          <>
         <header className="flex flex-col md:flex-row justify-between items-end gap-6 pb-8 border-b border-slate-200/90">
           <div className="space-y-3">
             <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -1120,6 +1230,10 @@ export function CampaignsDashboardPage() {
             <span className="text-outline">Build 2.4.0-GA</span>
           </div>
         </footer>
+          </>
+        ) : (
+          <HubMercadoOverview mercadoId={painelKind} />
+        )}
       </div>
   );
 
@@ -1136,18 +1250,13 @@ export function CampaignsDashboardPage() {
       <DataPolicyModal mode="info" open={policyInfoOpen} onClose={() => setPolicyInfoOpen(false)} />
 
       {banner && (
-        <div className="fixed top-0 inset-x-0 z-50 bg-red-700 text-white text-center text-[11px] font-semibold py-2 px-4">
+        <div className="fixed top-0 inset-x-0 z-[100] bg-red-700 text-white text-center text-[11px] font-semibold py-2 px-4">
           {banner}
         </div>
       )}
 
       {usePlatformShell ? (
-        <AppShell
-          title="Painel de campanhas"
-          subtitle={shellSubtitle}
-          navItems={navItems}
-          headerActions={headerActions}
-        >
+        <AppShell title="Painel HUB" subtitle={shellSubtitle} navItems={navItems}>
           {mainContent}
         </AppShell>
       ) : (

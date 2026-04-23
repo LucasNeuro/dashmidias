@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useStore } from '@tanstack/react-store';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useUiFeedback } from '../context/UiFeedbackContext';
 import {
   hydrateDrawerOpen,
   hydrateExpandedGroups,
@@ -67,6 +68,58 @@ function drawerColClass(drawerOpen) {
   }`;
 }
 
+/** Barra global: gradiente alinhado ao `AppSideover` (governança), marca à esquerda. */
+function AppShellTopBar({ onOpenMobileNav }) {
+  const { signOut, session } = useAuth();
+  const { toast } = useUiFeedback();
+  const email = session?.user?.email?.trim() || '';
+
+  return (
+    <header className="relative z-[80] flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-primary via-[#1a3050] to-[#24364a] px-3 shadow-[0_2px_12px_rgba(7,16,24,0.35)] sm:px-4 lg:px-6">
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 w-[min(40%,14rem)] bg-gradient-to-l from-white/[0.07] to-transparent"
+        aria-hidden
+      />
+      <div className="relative flex min-w-0 items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={onOpenMobileNav}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white transition hover:bg-white/10 lg:hidden"
+          aria-label="Abrir menu de navegação"
+        >
+          <span className="material-symbols-outlined text-[26px] leading-none">menu</span>
+        </button>
+        <HubBrandMark compact />
+      </div>
+      <div className="relative flex shrink-0 items-center gap-1 sm:gap-2">
+        {email ? (
+          <span className="hidden max-w-[14rem] truncate text-xs font-medium text-white/85 md:inline" title={email}>
+            {email}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          onClick={() =>
+            toast('Centro de notificações em breve.', { variant: 'info', duration: 4200 })
+          }
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-white/90 transition hover:bg-white/10"
+          aria-label="Notificações"
+        >
+          <span className="material-symbols-outlined text-[24px] leading-none">notifications</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="flex h-10 items-center gap-1.5 rounded-lg border border-white/25 bg-white/5 px-3 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-white/15"
+        >
+          <span className="material-symbols-outlined text-[20px] leading-none sm:text-[22px]">logout</span>
+          <span className="hidden sm:inline">Sair</span>
+        </button>
+      </div>
+    </header>
+  );
+}
+
 /**
  * Rail (ícones) + gaveta (rótulos) — minidrawer.
  */
@@ -91,7 +144,7 @@ function SideRow({ drawerOpen, left, right, variant = 'nav' }) {
   );
 }
 
-function DesktopSidebar({ navItems, drawerOpen, setDrawerOpen, isGroupExpanded, toggleGroup }) {
+function DesktopSidebar({ navItems, drawerOpen, isGroupExpanded, toggleGroup }) {
   const { session, profile, isAdmin } = useAuth();
   const email = session?.user?.email || '';
   const name = profile?.full_name?.trim() || email.split('@')[0] || 'Usuário';
@@ -196,26 +249,8 @@ function DesktopSidebar({ navItems, drawerOpen, setDrawerOpen, isGroupExpanded, 
   });
 
   return (
-    <div className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden rounded-sm border border-white/10 bg-[#0b1622] shadow-2xl">
-      <SideRow
-        variant="header"
-        drawerOpen={drawerOpen}
-        left={
-          <button
-            type="button"
-            onClick={() => setDrawerOpen((d) => !d)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-tertiary/40 bg-tertiary/15 text-white shadow-sm hover:bg-tertiary/30"
-            aria-expanded={drawerOpen}
-            aria-label={drawerOpen ? 'Recolher menu de nomes' : 'Expandir menu de nomes'}
-          >
-            <span className="material-symbols-outlined text-[20px] leading-none">
-              {drawerOpen ? 'chevron_left' : 'chevron_right'}
-            </span>
-          </button>
-        }
-        right={<HubBrandMark compact />}
-      />
-      <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{navRows}</div>
+    <div className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden bg-[#0b1622] shadow-2xl">
+      <div className="sidebar-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-10">{navRows}</div>
       <div className="flex shrink-0 items-stretch border-t border-white/10">
         <div className={`flex ${RAIL_W} shrink-0 flex-col items-center justify-center bg-[#0b1622] py-1.5`}>
           <div
@@ -329,8 +364,20 @@ function MobileDrawerNav({ navItems, onNavigate, isGroupExpanded, toggleGroup })
 /**
  * Shell autenticado: minidrawer (rail + gaveta) + área principal clara.
  */
-export function AppShell({ navItems = [], title, subtitle, headerActions, children }) {
-  const { signOut, session, profile, isAdmin } = useAuth();
+export function AppShell({
+  navItems = [],
+  title,
+  subtitle,
+  headerActions,
+  /** Conteúdo logo abaixo do título (ex.: tabs de governança), sem scroll separado. */
+  headerTabs = null,
+  /** Substitui o padding horizontal/vertical padrão do `<main>`. */
+  mainClassName,
+  /** Substitui o invólucro branco (card) por classes próprias; omitir = padrão. */
+  contentClassName,
+  children,
+}) {
+  const { session, profile, isAdmin } = useAuth();
   const userId = session?.user?.id ?? '';
   const drawerKey = useMemo(() => (userId ? `${LS_DRAWER}__${userId}` : LS_DRAWER), [userId]);
   const groupKey = useMemo(() => (userId ? `${LS_GROUP_EXPAND}__${userId}` : LS_GROUP_EXPAND), [userId]);
@@ -396,45 +443,53 @@ export function AppShell({ navItems = [], title, subtitle, headerActions, childr
 
   const closeMobile = () => setMobileOpen(false);
 
-  const contentShell =
-    'flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm';
+  const contentShellDefault =
+    'flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(15,23,42,0.06)]';
+  const contentShell = contentClassName?.trim() ? contentClassName : contentShellDefault;
+  const mainBase =
+    'min-h-0 w-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#f8fafc]';
+  const mainPadDefault = 'px-5 py-4 sm:px-6 sm:py-5 lg:px-8';
+  const mainContentPad = mainClassName !== undefined && mainClassName !== null ? mainClassName : mainPadDefault;
 
-  const mainPad = drawerOpen
-    ? 'lg:pl-[calc(0.375rem+3.25rem+14rem+0.375rem)]'
-    : 'lg:pl-[calc(0.375rem+3.25rem+0.375rem)]';
+  /** Desktop: só largura rail + gaveta — sidebar colada à margem esquerda (sem gap). */
+  const mainColumnOffset = drawerOpen ? 'lg:pl-[calc(3.25rem+14rem)]' : 'lg:pl-[3.25rem]';
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#f1f5f9] text-on-surface lg:flex-row">
-      <div className="pointer-events-none fixed left-1.5 top-1.5 bottom-1.5 z-40 hidden lg:block">
-        <DesktopSidebar
-          navItems={navItems}
-          drawerOpen={drawerOpen}
-          setDrawerOpen={setDrawerOpen}
-          isGroupExpanded={isGroupExpanded}
-          toggleGroup={toggleGroup}
-        />
-      </div>
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#f1f5f9] text-on-surface">
+      <AppShellTopBar onOpenMobileNav={() => setMobileOpen(true)} />
 
-      <div className="flex shrink-0 flex-col bg-[#0b1622] lg:hidden">
-        <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-          <HubBrandMark compact />
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-white"
-            aria-label="Abrir menu"
-          >
-            <span className="material-symbols-outlined text-[26px]">menu</span>
-          </button>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <div
+          className="pointer-events-none fixed left-0 z-40 hidden h-[calc(100%-3.5rem)] lg:block"
+          style={{ top: '3.5rem' }}
+        >
+          <div className="relative h-full w-max min-h-0">
+            <DesktopSidebar
+              navItems={navItems}
+              drawerOpen={drawerOpen}
+              isGroupExpanded={isGroupExpanded}
+              toggleGroup={toggleGroup}
+            />
+            <button
+              type="button"
+              onClick={() => setDrawerOpen((d) => !d)}
+              className="pointer-events-auto absolute left-full top-2 z-[45] flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full bg-tertiary text-primary shadow-[0_2px_10px_rgba(34,197,94,0.4)] ring-1 ring-white/50 transition hover:brightness-110 hover:ring-white/70"
+              aria-expanded={drawerOpen}
+              aria-label={drawerOpen ? 'Recolher menu de nomes' : 'Expandir menu de nomes'}
+            >
+              <span className="material-symbols-outlined text-[18px] leading-none font-bold">
+                {drawerOpen ? 'chevron_left' : 'chevron_right'}
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+        <div className="fixed inset-0 z-[90] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <button type="button" className="absolute inset-0 bg-black/50" aria-label="Fechar menu" onClick={closeMobile} />
           <div className="sidebar-scrollbar absolute left-0 top-0 flex h-full w-[min(100%,20rem)] flex-col overflow-y-auto bg-[#0b1622] shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
-              <HubBrandMark compact />
+              <span className="text-sm font-black uppercase tracking-widest text-white/90">Menu</span>
               <button type="button" onClick={closeMobile} className="p-2 text-white" aria-label="Fechar">
                 <span className="material-symbols-outlined text-[24px]">close</span>
               </button>
@@ -465,32 +520,26 @@ export function AppShell({ navItems = [], title, subtitle, headerActions, childr
         </div>
       )}
 
-      <div className={`flex min-h-0 min-w-0 w-full flex-1 flex-col p-1.5 transition-[padding] duration-200 ease-out sm:p-2 ${mainPad}`}>
-        <div className={contentShell}>
-          <header className="z-30 shrink-0 border-b border-slate-100 bg-white px-5 py-3.5 sm:px-6 sm:py-4 lg:px-8">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                {title ? <h1 className="text-lg font-bold tracking-tight text-[#0b1622] sm:text-xl">{title}</h1> : null}
-                {subtitle ? <p className="mt-0.5 max-w-2xl break-words text-sm leading-snug text-slate-600">{subtitle}</p> : null}
+        <div
+          className={`flex min-h-0 min-w-0 w-full flex-1 flex-col pl-1.5 pt-1.5 pr-1.5 pb-1.5 transition-[padding] duration-200 ease-out sm:pl-2 sm:pt-2 sm:pr-2 sm:pb-2 lg:pt-2 lg:pr-2 lg:pb-2 ${mainColumnOffset}`}
+        >
+          <div className={contentShell}>
+            <header className="z-30 shrink-0 border-b border-slate-100 bg-white px-5 py-3 sm:px-6 sm:py-3.5 lg:px-7">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  {title ? <h1 className="text-lg font-bold tracking-tight text-[#0b1622] sm:text-xl">{title}</h1> : null}
+                  {subtitle ? <p className="mt-0.5 max-w-2xl break-words text-sm leading-snug text-slate-600">{subtitle}</p> : null}
+                </div>
+                {headerActions ? <div className="flex shrink-0 flex-wrap items-center gap-1.5">{headerActions}</div> : null}
               </div>
-              {headerActions ? <div className="flex shrink-0 flex-wrap items-center gap-1.5">{headerActions}</div> : null}
-            </div>
-          </header>
-          <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#f8fafc] px-5 py-4 sm:px-6 sm:py-5 lg:px-8">
-            {children}
-          </main>
+              {headerTabs ? <div className="mt-3 min-w-0 border-t border-slate-100 pt-2.5">{headerTabs}</div> : null}
+            </header>
+            <main className={`${mainBase} ${mainContentPad}`}>
+              {children}
+            </main>
+          </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={() => signOut()}
-        className="pointer-events-auto fixed bottom-3 right-3 z-[45] flex h-7 w-7 items-center justify-center rounded-full border border-slate-300/50 bg-slate-100/80 text-slate-500/75 shadow-[0_1px_2px_rgba(15,23,42,0.06)] backdrop-blur-sm transition hover:border-slate-400/60 hover:bg-slate-200/90 hover:text-slate-600 sm:bottom-4 sm:right-4 lg:bottom-6 lg:right-6"
-        title="Sair"
-        aria-label="Sair"
-      >
-        <span className="material-symbols-outlined text-[15px] leading-none">logout</span>
-      </button>
     </div>
   );
 }

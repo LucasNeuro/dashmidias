@@ -1028,14 +1028,14 @@ export function PartnerOrgSignupForm({
                         Senha *
                       </label>
                       <div className="relative">
-                        <input
-                          id={field.name}
-                          name={field.name}
+                      <input
+                        id={field.name}
+                        name={field.name}
                           type={showSenha ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
+                        autoComplete="new-password"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
                           className="w-full min-h-[2.75rem] border border-outline-variant pl-3 pr-11 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
                         />
                         <button
@@ -1061,14 +1061,14 @@ export function PartnerOrgSignupForm({
                         Confirmar senha *
                       </label>
                       <div className="relative">
-                        <input
-                          id={field.name}
-                          name={field.name}
+                      <input
+                        id={field.name}
+                        name={field.name}
                           type={showConfirmarSenha ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
+                        autoComplete="new-password"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
                           className="w-full min-h-[2.75rem] border border-outline-variant pl-3 pr-11 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
                         />
                         <button

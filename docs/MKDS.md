@@ -4,6 +4,8 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 
 **Stack:** React (Vite), React Router, Tailwind CSS v4 (`@import "tailwindcss"` + `@theme` em `src/index.css`), Supabase Auth, fontes **Inter** e **Material Symbols Outlined** (`index.html`).
 
+**Shell autenticado (layout fixo, logout, notificações, painéis):** [UI_APP_SHELL.md](./UI_APP_SHELL.md).
+
 ---
 
 ## 1. Princípios de marca e tom visual

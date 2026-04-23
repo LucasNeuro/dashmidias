@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
@@ -606,21 +605,6 @@ export function AdminStandardCatalogPage() {
 
   return (
     <div className="min-w-0 w-full max-w-none space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Catálogo de campos padrão</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
-            Secções e campos partilhados por todos os templates. O convite público só mostra entradas{' '}
-            <strong>activas</strong>. Cada secção corresponde a um grupo no cadastro público (o slug da secção identifica a etapa).
-          </p>
-          <p className="mt-2 text-xs text-on-surface-variant">
-            <Link to="/adm/templates" className="font-semibold text-primary underline-offset-2 hover:underline">
-              ← Voltar aos templates
-            </Link>
-          </p>
-        </div>
-      </div>
-
       <section className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Secções (blocos)</h2>

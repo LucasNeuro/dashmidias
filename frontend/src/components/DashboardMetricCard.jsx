@@ -4,23 +4,17 @@
  */
 
 const SURFACE = {
-  /** Padrão mídia: barra verde à esquerda (igual sumário executivo “Investimento”). */
-  whiteMedia:
-    'rounded-sm bg-white border border-slate-200/90 border-l-[3px] border-l-tertiary border-y border-r shadow-sm',
-  white: 'rounded-sm bg-white border border-surface-container-high shadow-sm',
-  /** Acento navy (legado / primeiro cartão). */
-  whiteAccentPrimary:
-    'rounded-sm bg-white border border-surface-container-high border-l-4 border-l-primary border-y border-r shadow-sm',
-  whiteAccentAmber:
-    'rounded-sm bg-white border border-amber-200/80 border-l-4 border-l-amber-500 border-y border-r shadow-sm',
-  darkBlue: 'relative overflow-hidden rounded-sm bg-gradient-to-br from-primary to-[#152a3d] text-white shadow-md',
-  darkSlate: 'relative overflow-hidden rounded-sm bg-gradient-to-br from-slate-600 to-slate-800 text-white shadow-md',
+  /** Cartões claros homogéneos — sem borda; sombra suave. */
+  whiteMedia: 'rounded-xl bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)]',
+  white: 'rounded-xl bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)]',
+  whiteAccentPrimary: 'rounded-xl bg-slate-50/90 shadow-[0_2px_12px_rgba(15,23,42,0.05)]',
+  whiteAccentAmber: 'rounded-xl bg-amber-50/80 shadow-[0_2px_12px_rgba(15,23,42,0.05)]',
+  darkBlue: 'relative overflow-hidden rounded-xl bg-gradient-to-br from-primary to-[#152a3d] text-white shadow-md',
+  darkSlate: 'relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 text-white shadow-md',
   tertiary:
-    'relative overflow-hidden rounded-sm bg-gradient-to-br from-tertiary/90 to-[#16a34a] text-primary shadow-md',
-  amberPanel:
-    'rounded-sm border border-amber-200/90 bg-gradient-to-b from-amber-50 to-amber-100/80 shadow-sm',
-  /** Destaque escuro + valor verde (ex.: ROAS no painel de campanhas). */
-  highlight: 'rounded-sm bg-primary border-l-4 border-l-tertiary shadow-sm text-white',
+    'relative overflow-hidden rounded-xl bg-gradient-to-br from-tertiary/90 to-[#16a34a] text-primary shadow-md',
+  amberPanel: 'rounded-xl bg-gradient-to-b from-amber-50 to-amber-100/70 shadow-[0_2px_12px_rgba(15,23,42,0.05)]',
+  highlight: 'rounded-xl bg-primary shadow-md text-white',
 };
 
 /**

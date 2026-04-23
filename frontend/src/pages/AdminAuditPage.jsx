@@ -158,7 +158,7 @@ export function AdminAuditPage() {
           <button
             type="button"
             onClick={() => setPanel({ open: true, row: row.original })}
-            className="border border-primary px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white"
+            className="rounded-lg bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white"
           >
             Ver
           </button>
@@ -181,11 +181,9 @@ export function AdminAuditPage() {
 
   return (
     <>
-      <div className="w-full min-w-0 space-y-5">
-        <div className="flex flex-col gap-3 border-b border-surface-container-high pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Auditoria de acessos</h1>
-          </div>
+      <div className="w-full min-w-0 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Auditoria de acessos</p>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Período</span>
             <div className="flex flex-wrap gap-1.5">
@@ -195,10 +193,10 @@ export function AdminAuditPage() {
                   type="button"
                   onClick={() => setRange(b.id)}
                   disabled={showInitialSkeleton}
-                  className={`rounded-sm border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 ${
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 sm:px-3 ${
                     range === b.id
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-surface-container-high bg-white text-primary hover:border-primary/40'
+                      ? 'bg-primary text-white shadow-sm shadow-primary/25'
+                      : 'bg-slate-100 text-primary hover:bg-slate-200/90'
                   }`}
                 >
                   {b.label}
@@ -215,17 +213,13 @@ export function AdminAuditPage() {
         )}
         {showInitialSkeleton ? <p className="text-sm text-on-surface-variant">Carregando auditoria…</p> : null}
 
-        <section className={showInitialSkeleton ? 'pointer-events-none min-h-[280px]' : ''}>
-          <div className="mb-4 flex items-center gap-3">
-            <div className="h-6 w-1.5 bg-tertiary" aria-hidden />
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Indicadores</h2>
-            {isFetching ? (
-              <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">A atualizar…</span>
-            ) : null}
-          </div>
+        <section className={showInitialSkeleton ? 'pointer-events-none min-h-[280px]' : ''} aria-label="Indicadores">
+          {isFetching && !showInitialSkeleton ? (
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">A atualizar…</p>
+          ) : null}
 
           {!showInitialSkeleton ? (
-            <div className="grid min-w-0 grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               <DashboardMetricCard
                 label="Eventos"
                 value={auditMetrics.events}
@@ -288,29 +282,24 @@ export function AdminAuditPage() {
           ) : null}
         </section>
 
-        <section className="overflow-hidden rounded-sm border border-surface-container-high bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5 sm:py-3.5">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Registros de acesso ao painel</h2>
-          </div>
-          <div className="p-4 sm:p-5">
-            {!showInitialSkeleton ? (
-              <EntityDataTable
-                data={logsForTable}
-                columns={logColumns}
-                getRowId={(r) => r.id}
-                searchPlaceholder="Buscar por rota, e-mail ou user-agent…"
-                pageSize={PAGE_SIZE}
-                emptyLabel="Nenhum registro."
-                serverPagination
-                pageIndex={pageIndex}
-                onPageIndexChange={setPageIndex}
-                totalRowCount={totalCount}
-                pageCount={pageCount}
-                searchValue={searchInput}
-                onSearchChange={setSearchInput}
-              />
-            ) : null}
-          </div>
+        <section className="min-w-0 border-t border-slate-200/80 pt-4" aria-label="Registros de acesso">
+          {!showInitialSkeleton ? (
+            <EntityDataTable
+              data={logsForTable}
+              columns={logColumns}
+              getRowId={(r) => r.id}
+              searchPlaceholder="Buscar por rota, e-mail ou user-agent…"
+              pageSize={PAGE_SIZE}
+              emptyLabel="Nenhum registro."
+              serverPagination
+              pageIndex={pageIndex}
+              onPageIndexChange={setPageIndex}
+              totalRowCount={totalCount}
+              pageCount={pageCount}
+              searchValue={searchInput}
+              onSearchChange={setSearchInput}
+            />
+          ) : null}
         </section>
       </div>
 
