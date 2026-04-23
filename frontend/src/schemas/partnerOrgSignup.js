@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isStrongPassword, strongPasswordMessage } from '../lib/passwordPolicy';
 import { normalizeCnpj14, normalizeCpf11 } from '../lib/opencnpj';
 import { normalizeCep8 } from '../lib/viacep';
 
@@ -53,7 +54,11 @@ export const orgSignupFieldSchemas = {
     .max(2)
     .refine((s) => ufRe.test(s), 'UF inválida'),
   codigo_ibge: z.string().trim().max(10),
-  senha: z.string().min(8, 'Senha: mínimo 8 caracteres').max(128),
+  senha: z
+    .string()
+    .min(1, 'Informe a senha')
+    .max(128, 'Senha muito longa')
+    .refine((s) => isStrongPassword(s), { message: strongPasswordMessage() }),
   confirmar_senha: z.string(),
   extras: z.record(z.string(), z.union([z.string(), z.boolean()])),
 };

@@ -19,6 +19,7 @@ import {
   parsePartnerSignupFileRef,
   validatePartnerSignupStep,
 } from '../../schemas/partnerOrgSignup';
+import { getPasswordChecks } from '../../lib/passwordPolicy';
 import { isSupabaseConfigured, uploadPartnerSignupExtraFile } from '../../lib/partnerSignupStorage';
 
 /** @param {import('zod').ZodType} schema @param {unknown} value */
@@ -347,6 +348,8 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
   const [cnpjBusy, setCnpjBusy] = useState(false);
   const lastCnpjLookup = useRef('');
   const [step, setStep] = useState(0);
+  const [showSenha, setShowSenha] = useState(false);
+  const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
   /** @type {Record<string, string>} */
   const [stepErrors, setStepErrors] = useState({});
   const wizardCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -969,6 +972,22 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
               <p className="text-sm text-on-surface-variant">
                 Use o mesmo e-mail da etapa &quot;Empresa&quot; para entrar depois do cadastro.
               </p>
+              <div className="rounded-none border border-outline-variant bg-surface-container-low p-3 sm:p-4">
+                <p className="text-[10px] font-black uppercase tracking-wide text-on-surface-variant">Requisitos da senha</p>
+                <ul className="mt-2 space-y-1.5">
+                  {getPasswordChecks(values.senha).map((c) => (
+                    <li
+                      key={c.id}
+                      className={`flex items-start gap-2 text-xs ${c.pass ? 'text-emerald-800' : 'text-on-surface-variant'}`}
+                    >
+                      <span className="material-symbols-outlined shrink-0 text-[18px] leading-none" aria-hidden>
+                        {c.pass ? 'check_circle' : 'radio_button_unchecked'}
+                      </span>
+                      <span>{c.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <form.Field name="senha">
                   {(field) => (
@@ -976,16 +995,29 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
                       <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
                         Senha *
                       </label>
-                      <input
-                        id={field.name}
-                        name={field.name}
-                        type="password"
-                        autoComplete="new-password"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
-                      />
+                      <div className="relative">
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type={showSenha ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full min-h-[2.75rem] border border-outline-variant pl-3 pr-11 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowSenha((v) => !v)}
+                          className="absolute right-0 top-0 bottom-0 flex items-center justify-center px-3 text-on-surface-variant hover:text-primary"
+                          aria-label={showSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                        >
+                          <span className="material-symbols-outlined text-[22px] leading-none">
+                            {showSenha ? 'visibility_off' : 'visibility'}
+                          </span>
+                        </button>
+                      </div>
                       <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'senha')} />
                     </div>
                   )}
@@ -996,16 +1028,29 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
                       <label className="mb-1 block text-[10px] font-black uppercase text-on-surface-variant" htmlFor={field.name}>
                         Confirmar senha *
                       </label>
-                      <input
-                        id={field.name}
-                        name={field.name}
-                        type="password"
-                        autoComplete="new-password"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className="w-full border border-outline-variant px-3 py-2 text-sm text-primary outline-none focus:border-primary focus:ring-0"
-                      />
+                      <div className="relative">
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type={showConfirmarSenha ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full min-h-[2.75rem] border border-outline-variant pl-3 pr-11 py-2.5 text-sm text-primary outline-none focus:border-primary focus:ring-0"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowConfirmarSenha((v) => !v)}
+                          className="absolute right-0 top-0 bottom-0 flex items-center justify-center px-3 text-on-surface-variant hover:text-primary"
+                          aria-label={showConfirmarSenha ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'}
+                        >
+                          <span className="material-symbols-outlined text-[22px] leading-none">
+                            {showConfirmarSenha ? 'visibility_off' : 'visibility'}
+                          </span>
+                        </button>
+                      </div>
                       <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'confirmar_senha')} />
                     </div>
                   )}
