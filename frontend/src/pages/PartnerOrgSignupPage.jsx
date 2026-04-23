@@ -124,10 +124,12 @@ export function PartnerOrgSignupPage() {
                 },
                 standardCatalog
               )}
-              onSubmitSuccess={async (value) => {
+              onSubmitSuccess={async (value, consultaMeta = {}) => {
                 const meta = {
                   templateId: template?.id ?? null,
                   partnerKind: template?.partnerKind ?? null,
+                  cnpjSnapshot: consultaMeta.cnpjSnapshot ?? null,
+                  consultaFonte: consultaMeta.consultaFonte ?? null,
                 };
                 const r = await submitHubPartnerOrgSignup({ dados: value, meta });
                 if (r.skipped) {

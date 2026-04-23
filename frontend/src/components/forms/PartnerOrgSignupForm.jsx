@@ -7,6 +7,7 @@ import {
   extractCnpjaOfficeHints,
   fetchCnpjaOffice,
   hasCnpjaApiKey,
+  buildConsultaCnpjSnapshotForSubmit,
 } from '../../lib/cnpja';
 import {
   ORG_STANDARD_META,
@@ -400,7 +401,12 @@ export function PartnerOrgSignupForm({
       onChange: schema,
     },
     onSubmit: async ({ value }) => {
-      await onSubmitSuccess?.(value);
+      const doc = String(value.cnpj || '').trim();
+      const { snapshot, consultaFonte } = buildConsultaCnpjSnapshotForSubmit(queryClient, doc);
+      await onSubmitSuccess?.(value, {
+        cnpjSnapshot: snapshot,
+        consultaFonte,
+      });
     },
   });
 

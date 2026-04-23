@@ -220,6 +220,34 @@ export function cnpjaOfficeToHubSnapshot(data) {
 }
 
 /**
+ * Monta o JSON a guardar em `hub_partner_org_signups.cnpja_snapshot` no envio (resposta completa).
+ * @param {import('@tanstack/react-query').QueryClient} queryClient
+ * @param {string} cnpjRaw
+ * @returns {{ snapshot: Record<string, unknown> | null, consultaFonte: 'cnpja' | 'brasilapi' | null }}
+ */
+export function buildConsultaCnpjSnapshotForSubmit(queryClient, cnpjRaw) {
+  const n = normalizeCnpj14(cnpjRaw);
+  if (!n) return { snapshot: null, consultaFonte: null };
+  const cnpjaData = queryClient.getQueryData(['cnpja', 'office', n]);
+  if (cnpjaData && typeof cnpjaData === 'object') {
+    const snap = cnpjaOfficeToHubSnapshot(/** @type {Record<string, unknown>} */ (cnpjaData));
+    return { snapshot: snap, consultaFonte: 'cnpja' };
+  }
+  const br = queryClient.getQueryData(['brasilapi', 'cnpj', n]);
+  if (br && typeof br === 'object') {
+    return {
+      snapshot: {
+        _fonte: 'brasilapi',
+        _consulta_em: new Date().toISOString(),
+        payload: br,
+      },
+      consultaFonte: 'brasilapi',
+    };
+  }
+  return { snapshot: null, consultaFonte: null };
+}
+
+/**
  * Aplica dados do office no formulário.
  * @param {{ getFieldValue: (name: string) => unknown, setFieldValue: (name: string, value: unknown) => void }} form
  * @param {Record<string, unknown>} data

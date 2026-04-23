@@ -14,6 +14,7 @@ import { HubPendingApprovalPage } from './pages/HubPendingApprovalPage';
 import { CrmPlaceholderPage } from './pages/CrmPlaceholderPage';
 import { LoginPage } from './pages/LoginPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { OrgInviteAcceptPage } from './pages/OrgInviteAcceptPage';
 import { PartnerOrgSignupPage } from './pages/PartnerOrgSignupPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminHubPlaceholderPage } from './pages/AdminHubPlaceholderPage';
@@ -77,6 +78,7 @@ function AppRoutes() {
       {/* Rotas públicas: convites, tpl=, recuperação — sempre registadas (links diretos isolados do painel). */}
       <Route path="/entrada" element={<EntradaPage />} />
       <Route path="/cadastro/organizacao" element={<PartnerOrgSignupPage />} />
+      <Route path="/convite/organizacao" element={<OrgInviteAcceptPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/recuperar-senha" element={<ForgotPasswordPage />} />
       <Route path="/login/redefinir" element={<ResetPasswordPage />} />

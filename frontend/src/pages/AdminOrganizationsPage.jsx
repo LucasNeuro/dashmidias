@@ -1,10 +1,215 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppSideover } from '../components/AppSideover';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
 import { fetchPartnerOrgSignups } from '../lib/governanceQueries';
+import { fetchModulosCatalogoGovernanca, rpcApprovePartnerOrgSignup } from '../lib/hubPartnerOrgGovernance';
+import {
+  buildCnpjSnapshotPresentation,
+  buildFormularioGovFields,
+  describeProvisioningCodeHint,
+  hubMarketLegendItems,
+  labelConsultaFonte,
+  labelPartnerKind,
+  shortTemplateRef,
+} from '../lib/partnerOrgGovernanceDisplay';
 import { onlyDigits } from '../lib/opencnpj';
+
+/** @param {{ fields: import('../lib/partnerOrgGovernanceDisplay').GovField[] }} p */
+function GovernanceFieldGrid({ fields }) {
+  if (!fields.length) {
+    return <p className="text-sm text-on-surface-variant">Sem dados nesta secção.</p>;
+  }
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      {fields.map((f) => (
+        <div
+          key={`${f.label}-${f.value.slice(0, 24)}`}
+          className="flex gap-3 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm transition hover:border-tertiary/30"
+        >
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tertiary/15 text-tertiary"
+            aria-hidden
+          >
+            <span className="material-symbols-outlined text-[22px] leading-none">{f.icon}</span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{f.label}</p>
+            <p className="mt-1 text-sm font-semibold leading-snug text-primary break-words">{f.value}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HubCodeLegend({ className = '' }) {
+  const items = hubMarketLegendItems();
+  const y = new Date().getFullYear();
+  return (
+    <div
+      className={`rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/90 via-white to-slate-50/50 p-4 shadow-inner ${className}`}
+    >
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Padrão de códigos (CRM)</p>
+      <p className="mt-2 text-[11px] leading-relaxed text-on-surface-variant">
+        <strong className="text-primary">NEG</strong> e <strong className="text-primary">OPP</strong> identificam negócios e oportunidades; são imutáveis após criação. Na homologação, a{' '}
+        <strong>organização</strong> recebe <strong className="text-primary">ORG-[mercado]-ano-sequência</strong>, com os mesmos prefixos de mercado (origem da demanda).
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.map((m) => (
+          <div
+            key={m.code}
+            className="min-w-[8.5rem] rounded-lg bg-gradient-to-br from-primary to-[#1a3550] px-3 py-2 text-white shadow-md"
+            title={m.hint}
+          >
+            <p className="font-mono text-[10px] font-bold tracking-tight">
+              NEG-{m.code}-{y}-001
+            </p>
+            <p className="text-[9px] font-semibold text-white/90">{m.label}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {items.map((m) => (
+          <div
+            key={`opp-${m.code}`}
+            className="min-w-[8.5rem] rounded-lg bg-gradient-to-br from-amber-600 to-orange-700 px-3 py-2 text-white shadow-md"
+            title={m.hint}
+          >
+            <p className="font-mono text-[10px] font-bold tracking-tight">
+              OPP-{m.code}-{y}-001
+            </p>
+            <p className="text-[9px] font-semibold text-white/90">{m.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** @param {{ row: Record<string, unknown> }} p */
+function OrgConsultaStructuredView({ row }) {
+  const snap = row.cnpja_snapshot && typeof row.cnpja_snapshot === 'object' ? row.cnpja_snapshot : null;
+  const pres = buildCnpjSnapshotPresentation(snap);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <h4 className="text-base font-black leading-snug text-primary">{pres.title}</h4>
+        <p className="mt-1 text-[11px] text-on-surface-variant">
+          Fonte: {labelConsultaFonte(row.consulta_fonte)} · leitura homologação
+        </p>
+      </div>
+      {!snap ? (
+        <p className="text-sm text-on-surface-variant">Sem snapshot de CNPJ neste pedido (envio antigo ou consulta indisponível).</p>
+      ) : (
+        pres.sections.map((sec) => (
+          <div key={sec.id} className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">{sec.title}</h4>
+            <div className="mt-3">
+              <GovernanceFieldGrid fields={sec.fields} />
+            </div>
+          </div>
+        ))
+      )}
+      {pres.members.length > 0 ? (
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Quadro societário / administradores</h4>
+          <ul className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+            {pres.members.map((line, i) => (
+              <li
+                key={i}
+                className="flex gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm text-primary"
+              >
+                <span className="material-symbols-outlined mt-0.5 text-[18px] text-tertiary" aria-hidden>
+                  person
+                </span>
+                <span className="leading-snug">{line}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** @param {{ row: Record<string, unknown> }} p */
+function OrgExpandedTabs({ row }) {
+  const [tab, setTab] = useState('formulario');
+  const dados = stripSensitiveDados(row.dados_formulario);
+  const formFields = buildFormularioGovFields(dados);
+  const hint = describeProvisioningCodeHint('', row.partner_kind);
+
+  const tabs = [
+    { id: 'formulario', label: 'Formulário' },
+    { id: 'consulta', label: 'Consulta CNPJ' },
+    { id: 'contexto', label: 'Contexto' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-0 overflow-x-auto border-b border-slate-200/80 bg-white/60 no-scrollbar">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`shrink-0 border-b-[3px] px-3 py-2.5 text-[10px] font-black uppercase tracking-widest transition-colors ${
+              tab === t.id ? 'border-tertiary text-primary' : 'border-transparent text-on-surface-variant hover:text-primary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'formulario' ? (
+        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Dados enviados pelo parceiro</h4>
+          <div className="mt-3">
+            <GovernanceFieldGrid fields={formFields} />
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'consulta' ? <OrgConsultaStructuredView row={row} /> : null}
+
+      {tab === 'contexto' ? (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Pedido</h4>
+            <GovernanceFieldGrid
+              fields={[
+                { icon: 'fingerprint', label: 'ID do pedido', value: String(row.id) },
+                { icon: 'mail', label: 'E-mail do pedido', value: String(row.email || '—') },
+                {
+                  icon: 'schedule',
+                  label: 'Recebido em',
+                  value: row.criado_em ? new Date(row.criado_em).toLocaleString('pt-BR') : '—',
+                },
+                { icon: 'dynamic_form', label: 'Formulário', value: shortTemplateRef(row.template_id) },
+                { icon: 'handshake', label: 'Tipo de parceiro', value: labelPartnerKind(row.partner_kind) },
+                { icon: 'travel_explore', label: 'Fonte CNPJ', value: labelConsultaFonte(row.consulta_fonte) },
+              ]}
+            />
+          </div>
+          <div className="rounded-xl border border-tertiary/25 bg-tertiary/5 p-4">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Código interno após aprovação</h4>
+            <p className="mt-2 text-sm text-primary">
+              Prefixo esperado: <strong className="font-mono">{hint.prefix}</strong> · exemplo:{' '}
+              <strong className="font-mono">{hint.exemploOrg}</strong>
+            </p>
+            <p className="mt-1 text-[11px] text-on-surface-variant">
+              O número final é gerado na base de dados aquando clicar em «Provisionar org + convite» no painel.
+            </p>
+          </div>
+          <HubCodeLegend />
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function formatCnpjMask(d) {
   const x = onlyDigits(String(d || ''));
@@ -40,12 +245,24 @@ export function AdminOrganizationsPage() {
   const [expandedId, setExpandedId] = useState(null);
   const [panel, setPanel] = useState({ open: false, row: null });
   const [busyId, setBusyId] = useState(null);
+  const [busyApprove, setBusyApprove] = useState(false);
   const [actionErr, setActionErr] = useState(null);
+  /** @type {[string[], React.Dispatch<React.SetStateAction<string[]>>]} */
+  const [selectedModuloCodigos, setSelectedModuloCodigos] = useState([]);
+  const [tipoOrgOverride, setTipoOrgOverride] = useState('');
+  const [approveBanner, setApproveBanner] = useState(/** @type {{ link: string, codigo: string } | null} */ (null));
 
   const orgQuery = useQuery({
     queryKey: ['governance', 'partner-org-signups'],
     queryFn: () => fetchPartnerOrgSignups(supabase),
     enabled: Boolean(supabase),
+  });
+
+  const modulosQuery = useQuery({
+    queryKey: ['governance', 'modulos-catalogo'],
+    queryFn: () => fetchModulosCatalogoGovernanca(supabase),
+    enabled: Boolean(supabase),
+    staleTime: 120_000,
   });
 
   const rows = orgQuery.data ?? [];
@@ -66,8 +283,18 @@ export function AdminOrganizationsPage() {
     const aprovado = rows.filter((r) => r.status === 'aprovado').length;
     const rejeitado = rows.filter((r) => r.status === 'rejeitado').length;
     const processado = rows.filter((r) => r.status === 'processado').length;
-    return { total: rows.length, pendente, aprovado, rejeitado, processado };
+    const provisionados = processado + aprovado;
+    return { total: rows.length, pendente, aprovado, rejeitado, processado, provisionados };
   }, [rows]);
+
+  const active = panel.row;
+
+  useEffect(() => {
+    if (!active) return;
+    setTipoOrgOverride(String(active.partner_kind || '').trim());
+    setSelectedModuloCodigos([]);
+    setApproveBanner(null);
+  }, [active?.id]);
 
   async function setSignupStatus(id, status) {
     if (!supabase || !session?.user?.id) return;
@@ -87,13 +314,64 @@ export function AdminOrganizationsPage() {
     }
   }
 
-  const active = panel.row;
+  async function runProvisionSignup(row) {
+    if (!supabase || !row?.id) return;
+    setBusyApprove(true);
+    setActionErr(null);
+    setApproveBanner(null);
+    try {
+      const r = await rpcApprovePartnerOrgSignup(supabase, {
+        signupId: row.id,
+        moduloSlugs: selectedModuloCodigos,
+        tipoOrganizacao: tipoOrgOverride.trim() || null,
+      });
+      if (!r.ok) {
+        setActionErr(r.error || 'RPC falhou');
+        return;
+      }
+      const raw = r.raw && typeof r.raw === 'object' ? r.raw : {};
+      if (raw.ok === false) {
+        setActionErr(
+          [raw.error, raw.detail].filter(Boolean).join(': ') || 'Aprovação rejeitada pela base de dados'
+        );
+        return;
+      }
+      const token = raw.invite_token != null ? String(raw.invite_token) : '';
+      const codigo = raw.codigo_rastreio != null ? String(raw.codigo_rastreio) : '';
+      const origin = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : '';
+      const link = token ? `${origin}#/convite/organizacao?token=${encodeURIComponent(token)}` : '';
+      setApproveBanner(link ? { link, codigo } : null);
+      await queryClient.invalidateQueries({ queryKey: ['governance', 'partner-org-signups'] });
+      setPanel((p) =>
+        p.open && p.row?.id === row.id
+          ? {
+              ...p,
+              row: {
+                ...p.row,
+                status: 'processado',
+                organizacao_id: raw.organizacao_id,
+              },
+            }
+          : p
+      );
+    } catch (e) {
+      setActionErr(e?.message || 'Erro ao provisionar');
+    } finally {
+      setBusyApprove(false);
+    }
+  }
+
+  function toggleModuloCodigo(codigo) {
+    const c = String(codigo || '').trim();
+    if (!c) return;
+    setSelectedModuloCodigos((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  }
 
   return (
     <div className="w-full min-w-0 space-y-6">
-      {(err || actionErr) && (
+      {(err || actionErr || modulosQuery.isError) && (
         <p className="text-sm font-semibold text-red-600" role="alert">
-          {err || actionErr}
+          {err || actionErr || (modulosQuery.error ? String(modulosQuery.error.message) : '')}
         </p>
       )}
 
@@ -132,14 +410,14 @@ export function AdminOrganizationsPage() {
             }
           />
           <DashboardMetricCard
-            label="Aprovados"
-            value={metrics.aprovado}
+            label="Provisionados"
+            value={metrics.provisionados}
             surface="whiteMedia"
             valueClassName="text-3xl sm:text-4xl font-black text-tertiary tracking-tighter tabular-nums mb-2"
             footer={
               <>
                 <span className="material-symbols-outlined text-sm">check_circle</span>
-                Acesso autorizado
+                Org + convite (processado ou legado aprovado)
               </>
             }
           />
@@ -161,7 +439,7 @@ export function AdminOrganizationsPage() {
         <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Organizações (parceiros)</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Linhas expansíveis com resumo; use o painel lateral para ver JSON completo e aprovar ou rejeitar.
+            Expanda a linha para mini-abas com formulário, consulta CNPJ e contexto. Use o painel para homologar (módulos, tipo e convite).
           </p>
         </div>
 
@@ -208,9 +486,6 @@ export function AdminOrganizationsPage() {
                   ) : (
                     filtered.map((row, i) => {
                   const open = expandedId === row.id;
-                  const dados = stripSensitiveDados(row.dados_formulario);
-                  const snap = row.cnpja_snapshot && typeof row.cnpja_snapshot === 'object' ? row.cnpja_snapshot : null;
-                  const mainAct = snap?.mainActivity?.text ?? null;
                   return (
                     <Fragment key={row.id}>
                       <tr className={i % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}>
@@ -242,7 +517,7 @@ export function AdminOrganizationsPage() {
                           </span>
                         </td>
                         <td className="hidden align-middle px-3 py-3 text-xs text-on-surface-variant lg:table-cell lg:px-4">
-                          {row.consulta_fonte || '—'}
+                          {labelConsultaFonte(row.consulta_fonte)}
                         </td>
                         <td className="hidden align-middle whitespace-nowrap px-3 py-3 text-xs text-on-surface-variant md:table-cell md:px-4">
                           {row.criado_em ? new Date(row.criado_em).toLocaleString('pt-BR') : '—'}
@@ -250,62 +525,19 @@ export function AdminOrganizationsPage() {
                         <td className="align-middle px-3 py-3 text-right sm:px-4">
                           <button
                             type="button"
-                            className="text-[10px] font-black uppercase tracking-widest text-primary underline-offset-2 hover:underline"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-primary shadow-sm transition hover:border-tertiary/40 hover:bg-tertiary/5"
                             onClick={() => setPanel({ open: true, row })}
+                            title="Abrir painel de homologação"
+                            aria-label="Abrir painel de homologação"
                           >
-                            Painel
+                            <span className="material-symbols-outlined text-[22px] leading-none">dock_to_right</span>
                           </button>
                         </td>
                       </tr>
                       {open ? (
                         <tr key={`${row.id}-detail`} className="bg-slate-50/90">
                           <td colSpan={8} className="border-t border-slate-200 px-4 py-4 sm:px-6">
-                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
-                              <div className="min-w-0 rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">Resumo dinâmico</h3>
-                                <dl className="mt-3 space-y-2 text-sm">
-                                  <div className="flex flex-wrap gap-x-2">
-                                    <dt className="text-on-surface-variant">Cidade / UF:</dt>
-                                    <dd className="font-semibold text-primary">
-                                      {[dados.cidade, dados.uf].filter(Boolean).join(' / ') || '—'}
-                                    </dd>
-                                  </div>
-                                  <div className="flex flex-wrap gap-x-2">
-                                    <dt className="text-on-surface-variant">Template:</dt>
-                                    <dd className="font-semibold text-primary">{row.template_id || '—'}</dd>
-                                  </div>
-                                  <div className="flex flex-wrap gap-x-2">
-                                    <dt className="text-on-surface-variant">Tipo parceiro:</dt>
-                                    <dd className="font-semibold text-primary">{row.partner_kind || '—'}</dd>
-                                  </div>
-                                  {mainAct ? (
-                                    <div className="pt-1">
-                                      <dt className="text-[10px] font-black uppercase text-on-surface-variant">Atividade (snapshot)</dt>
-                                      <dd className="mt-0.5 text-sm leading-snug text-primary">{String(mainAct)}</dd>
-                                    </div>
-                                  ) : null}
-                                </dl>
-                              </div>
-                              <div className="min-w-0 rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">Dados enviados (sem senha)</h3>
-                                <ul className="mt-3 list-inside list-disc space-y-1.5 text-sm text-primary">
-                                  <li>
-                                    <span className="text-on-surface-variant">E-mail comercial:</span>{' '}
-                                    <span className="font-medium">{dados.email || row.email || '—'}</span>
-                                  </li>
-                                  <li>
-                                    <span className="text-on-surface-variant">Telefone:</span>{' '}
-                                    <span className="font-medium">{dados.telefone || '—'}</span>
-                                  </li>
-                                  <li>
-                                    <span className="text-on-surface-variant">Logradouro:</span>{' '}
-                                    <span className="font-medium">
-                                      {[dados.logradouro, dados.numero, dados.bairro].filter(Boolean).join(', ') || '—'}
-                                    </span>
-                                  </li>
-                                </ul>
-                              </div>
-                            </div>
+                            <OrgExpandedTabs key={row.id} row={row} />
                           </td>
                         </tr>
                       ) : null}
@@ -324,6 +556,7 @@ export function AdminOrganizationsPage() {
         key={active?.id ?? 'org'}
         open={panel.open && !!active}
         onClose={() => setPanel({ open: false, row: null })}
+        eyebrow="Homologação · Organizações"
         title="Cadastro de organização"
         subtitle={active?.email}
         variant="operational"
@@ -332,54 +565,47 @@ export function AdminOrganizationsPage() {
           active
             ? [
                 {
+                  id: 'consulta',
+                  label: 'Consulta CNPJ',
+                  content: <OrgConsultaStructuredView row={active} />,
+                },
+                {
                   id: 'dados',
-                  label: 'Dados',
+                  label: 'Dados do pedido',
                   content: (
-                    <div className="space-y-4 text-sm">
-                      <dl className="space-y-2">
-                        <div>
-                          <dt className="text-[10px] font-black uppercase text-on-surface-variant">Status</dt>
-                          <dd className="mt-0.5">
-                            <span className={`inline-flex rounded px-2 py-0.5 text-[10px] font-black uppercase ${statusPillClass(active.status)}`}>
-                              {active.status}
-                            </span>
-                          </dd>
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Registo</h4>
+                        <div className="mt-3">
+                          <GovernanceFieldGrid
+                            fields={[
+                              { icon: 'flag', label: 'Status', value: String(active.status || '—') },
+                              {
+                                icon: 'domain',
+                                label: 'Organização na base',
+                                value: active.organizacao_id
+                                  ? `Ref. interna · …${String(active.organizacao_id).slice(-8)}`
+                                  : 'Ainda não provisionada',
+                              },
+                              { icon: 'badge', label: 'CNPJ / documento', value: formatCnpjMask(active.cnpj) },
+                              {
+                                icon: 'schedule',
+                                label: 'Pedido recebido',
+                                value: active.criado_em ? new Date(active.criado_em).toLocaleString('pt-BR') : '—',
+                              },
+                              { icon: 'travel_explore', label: 'Fonte da consulta', value: labelConsultaFonte(active.consulta_fonte) },
+                              { icon: 'dynamic_form', label: 'Formulário', value: shortTemplateRef(active.template_id) },
+                              { icon: 'handshake', label: 'Tipo de parceiro', value: labelPartnerKind(active.partner_kind) },
+                            ]}
+                          />
                         </div>
-                        <div>
-                          <dt className="text-[10px] font-black uppercase text-on-surface-variant">CNPJ</dt>
-                          <dd className="mt-0.5 font-mono text-xs">{formatCnpjMask(active.cnpj)}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[10px] font-black uppercase text-on-surface-variant">Criado em</dt>
-                          <dd className="mt-0.5 font-mono text-xs">
-                            {active.criado_em ? new Date(active.criado_em).toLocaleString('pt-BR') : '—'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-[10px] font-black uppercase text-on-surface-variant">Consulta</dt>
-                          <dd className="mt-0.5">{active.consulta_fonte || '—'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[10px] font-black uppercase text-on-surface-variant">Template / tipo</dt>
-                          <dd className="mt-0.5">
-                            {active.template_id || '—'} · {active.partner_kind || '—'}
-                          </dd>
-                        </div>
-                      </dl>
-                      <div>
-                        <h4 className="text-[10px] font-black uppercase text-on-surface-variant">dados_formulario (JSON)</h4>
-                        <pre className="mt-2 max-h-48 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-primary">
-                          {JSON.stringify(stripSensitiveDados(active.dados_formulario), null, 2)}
-                        </pre>
                       </div>
-                      {active.cnpja_snapshot ? (
-                        <div>
-                          <h4 className="text-[10px] font-black uppercase text-on-surface-variant">cnpja_snapshot</h4>
-                          <pre className="mt-2 max-h-48 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-primary">
-                            {JSON.stringify(active.cnpja_snapshot, null, 2)}
-                          </pre>
+                      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Campos do formulário</h4>
+                        <div className="mt-3">
+                          <GovernanceFieldGrid fields={buildFormularioGovFields(stripSensitiveDados(active.dados_formulario))} />
                         </div>
-                      ) : null}
+                      </div>
                     </div>
                   ),
                 },
@@ -388,28 +614,121 @@ export function AdminOrganizationsPage() {
                   label: 'Decisão',
                   content: (
                     <div className="space-y-4">
+                      <HubCodeLegend />
                       {active.status === 'pendente' ? (
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <button
-                            type="button"
-                            disabled={busyId === active.id}
-                            onClick={() => setSignupStatus(active.id, 'aprovado')}
-                            className="bg-tertiary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-tertiary/90 disabled:opacity-50"
-                          >
-                            Aprovar acesso
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyId === active.id}
-                            onClick={() => setSignupStatus(active.id, 'rejeitado')}
-                            className="border border-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white disabled:opacity-50"
-                          >
-                            Rejeitar
-                          </button>
-                        </div>
+                        <>
+                          <div className="rounded-xl border border-tertiary/20 bg-tertiary/5 p-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Pré-visualização (código da org)</p>
+                            <p className="mt-2 text-sm text-primary">
+                              Com o tipo selecionado abaixo, o prefixo será{' '}
+                              <strong className="font-mono">
+                                {describeProvisioningCodeHint(tipoOrgOverride, active.partner_kind).prefix}
+                              </strong>{' '}
+                              · exemplo:{' '}
+                              <strong className="font-mono">
+                                {describeProvisioningCodeHint(tipoOrgOverride, active.partner_kind).exemploOrg}
+                              </strong>
+                            </p>
+                            <p className="mt-1 text-[11px] text-on-surface-variant">
+                              Os códigos <span className="font-mono">NEG-*</span> e <span className="font-mono">OPP-*</span> pertencem ao CRM; a
+                              organização usa <span className="font-mono">ORG-*</span> na aprovação.
+                            </p>
+                          </div>
+                          <div>
+                            <label htmlFor="tipo-org-override" className="text-[10px] font-black uppercase text-on-surface-variant">
+                              Tipo de organização (HUB)
+                            </label>
+                            <select
+                              id="tipo-org-override"
+                              value={tipoOrgOverride}
+                              onChange={(e) => setTipoOrgOverride(e.target.value)}
+                              className="mt-1.5 w-full border border-slate-200 bg-white px-3 py-2 text-sm text-primary"
+                            >
+                              <option value="imobiliaria">Imobiliária</option>
+                              <option value="arquitetura">Arquitetura</option>
+                              <option value="produtos">Produtos</option>
+                              <option value="prestador_servicos">Prestador de serviços</option>
+                              <option value="servicos">Serviços</option>
+                              <option value="outro">Outro</option>
+                            </select>
+                            <p className="mt-1 text-[10px] text-on-surface-variant">
+                              Define o prefixo do código interno (<span className="font-mono">ORG-IMB-…</span>, <span className="font-mono">ORG-ARQ-…</span>) e{' '}
+                              <code className="font-mono">tipo_organizacao</code> na base.
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-on-surface-variant">Módulos licenciados</p>
+                            {modulosQuery.isPending ? (
+                              <p className="mt-2 text-xs text-on-surface-variant">A carregar catálogo…</p>
+                            ) : (
+                              <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto border border-slate-100 p-2">
+                                {(modulosQuery.data || []).map((m) => {
+                                  const cod = String(m.codigo || m.id || '').trim();
+                                  if (!cod) return null;
+                                  const on = selectedModuloCodigos.includes(cod);
+                                  return (
+                                    <li key={cod}>
+                                      <label className="flex cursor-pointer items-start gap-2 text-xs">
+                                        <input
+                                          type="checkbox"
+                                          checked={on}
+                                          onChange={() => toggleModuloCodigo(cod)}
+                                          className="mt-0.5"
+                                        />
+                                        <span>
+                                          <span className="font-bold text-primary">{m.nome || cod}</span>
+                                          <span className="ml-1 font-mono text-[10px] text-slate-500">{cod}</span>
+                                        </span>
+                                      </label>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                            <p className="mt-1 text-[10px] text-on-surface-variant">
+                              Apenas códigos existentes em <code className="font-mono">modulos_catalogo.codigo</code> são gravados.
+                            </p>
+                          </div>
+                          {approveBanner ? (
+                            <div className="rounded border border-tertiary/40 bg-tertiary/10 p-3 text-xs">
+                              <p className="font-black uppercase tracking-wide text-primary">Organização provisionada</p>
+                              <p className="mt-1 font-mono text-[11px] text-primary">Código interno: {approveBanner.codigo}</p>
+                              <p className="mt-2 text-[10px] font-bold uppercase text-on-surface-variant">Link único do convite (copiar)</p>
+                              <textarea
+                                readOnly
+                                rows={3}
+                                className="mt-1 w-full border border-slate-200 bg-white p-2 font-mono text-[10px] text-primary"
+                                value={approveBanner.link}
+                              />
+                            </div>
+                          ) : null}
+                          <div className="flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap">
+                            <button
+                              type="button"
+                              disabled={busyApprove || busyId === active.id}
+                              onClick={() => void runProvisionSignup(active)}
+                              className="bg-tertiary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-tertiary/90 disabled:opacity-50"
+                            >
+                              Provisionar org + convite
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyId === active.id || busyApprove}
+                              onClick={() => setSignupStatus(active.id, 'rejeitado')}
+                              className="border border-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white disabled:opacity-50"
+                            >
+                              Rejeitar pedido
+                            </button>
+                          </div>
+                        </>
                       ) : (
                         <p className="text-sm text-on-surface-variant">
                           Este cadastro já foi tratado (status: <strong>{active.status}</strong>).
+                          {active.organizacao_id ? (
+                            <span className="mt-2 block font-mono text-[11px]">
+                              Org: {String(active.organizacao_id)}
+                            </span>
+                          ) : null}
                         </p>
                       )}
                     </div>

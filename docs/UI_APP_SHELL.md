@@ -28,8 +28,8 @@ Um único layout (`AppShell`) para ecrãs com sessão: barra superior fixa com i
 
 ## Painel HUB (`/painel/campanhas`)
 
-- **Abas de painel** (nível superior): visão **por mercado** no HUB — **Arquitetura**, **Produtos**, **Leads**, **Prestadores** — cada uma com resumo e cartões KPI (valores reais quando a base estiver ligada); **Campanhas e mídia** mantém o dashboard operacional completo (Meta/Google, funil, tabela de campanhas).
-- As **sub-abas** (Visão geral, Meta, Google, Funil) existem **só** dentro da aba «Campanhas e mídia».
+- **Abas de painel** (nível superior): **Imóveis**, **Arquitetura**, **Produtos**, **Serviços** (resumo por mercado com KPIs quando a base estiver ligada); **Desempenho do HUB** mantém o dashboard operacional completo (Meta/Google, funil, tabela de campanhas).
+- As **sub-abas** (Visão geral, Meta, Google, Funil) existem **só** dentro da aba «Desempenho do HUB».
 
 ## Convenções
 

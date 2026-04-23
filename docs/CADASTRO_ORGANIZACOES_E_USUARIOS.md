@@ -6,7 +6,7 @@ Este documento alinha **produto**, **documentação existente** e **estado atual
 2. Criação e gestão de **administradores do HUB** (nível plataforma).
 3. Depois do primeiro acesso, a **própria organização** poder **criar e convidar utilizadores** (RBAC por papel na org).
 
-**Referências:** [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md), [MODULOS_PERMISSOES_E_HUB.md](./MODULOS_PERMISSOES_E_HUB.md), [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md).
+**Referências:** [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md), [MODULOS_PERMISSOES_E_HUB.md](./MODULOS_PERMISSOES_E_HUB.md), [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md), [ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md](./ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md) (NEG/OPP/mercados e código `ORG-*` de rastreio).
 
 **Projeto Supabase de referência:** `OBRA10` (verificado via MCP — tabelas abaixo existem em `public`).
 
@@ -35,12 +35,13 @@ A **auth** continua centralizada em `auth.users`; o vínculo multi-tenant é `or
 | `hub_admins` | **Admin HUB** (`user_id` PK, `ativo`, `criado_por_user_id`). |
 | `hub_solicitacoes_admin` | Fila de pedidos de acesso admin (fluxo já referenciado na doc de acessos). |
 | `convites_administrador_hub` | Convite por **token** para tornar alguém admin HUB (uso futuro / alternativa à promoção manual). |
-| `organizacoes` | Tenant: `nome`, `slug`, `status` (ativa / suspensa / em_onboarding), **`tipo_organizacao`** (nullable — **a fixar por convenção**), `criado_por_user_id`. **Rows:** 0 (ainda sem orgs na base). |
+| `organizacoes` | Tenant: `nome`, `slug`, `status` (ativa / suspensa / em_onboarding), **`tipo_organizacao`** (nullable — **a fixar por convenção**), `criado_por_user_id`, **`codigo_rastreio`** (opcional — identificador legível `ORG-{MERCADO}-{ANO}-{SEQ}`, ver script `database/hub_partner_org_approve_and_invite.sql`). |
 | `organizacao_membros` | `organizacao_id` + `user_id` + **`papel_id`** (FK `papel_template`) + `papel_legacy`. Unique implícito por desenho: par org+user. |
 | `organizacao_convites` | Convite por e-mail: `token_hash`, `organizacao_id`, `email`, `papel_id`, `expira_em`, **`criado_por_escopo`** ∈ `hub` \| `admin_organizacao`, `criado_por_user_id`. |
 | `papel_template` | Papéis base. **No ambiente atual:** `hub_admin` (escopo **plataforma**), `admin_organizacao`, `membro` (escopo **organizacao**). |
 | `papel_template_permissoes` + `permissao_recursos` + `modulos_catalogo` | Catálogo de módulos e permissões finas (ex.: `crm_central`, `campanhas`, …). |
 | `organizacao_modulos` | Liga org ↔ módulo do catálogo (`ativo`, `config` jsonb). |
+| `hub_partner_org_signups` | Pedidos do formulário público `/cadastro/organizacao`: `dados_formulario`, **`cnpja_snapshot`** (JSON **completo** da API CNPJA ou Brasil API), `consulta_fonte`, `status`; após aprovação via RPC: `organizacao_id`, `hub_convite_id`, `modulos_concedidos`, `processado_em`, `processado_por_user_id` (ver `database/hub_partner_org_approve_and_invite.sql`). |
 
 ### 2.2 Convenção recomendada: `organizacoes.tipo_organizacao`
 
@@ -72,6 +73,8 @@ Valores sugeridos (texto livre ou CHECK futuro), alinhados ao produto:
    - **Opção 1:** criar `organizacao_convites` com `papel_id` = `admin_organizacao`, `criado_por_escopo = hub`, e enviar e-mail (Edge Function ou fluxo manual com link).
    - **Opção 2:** se o admin da org já tiver conta: `INSERT` em `organizacao_membros` + ligação em `perfis`/onboarding.
 
+**Caminho paralelo — cadastro público de parceiro:** o fluxo **Governança → Organizações** usa `hub_partner_org_signups`: o pedido já inclui snapshot CNPJ completo; o admin escolhe **tipo** e **módulos** e executa `hub_approve_partner_org_signup`, que gera `codigo_rastreio`, provisiona módulos e cria o convite. O parceiro aceita em **`#/convite/organizacao?token=...`** (`hub_preview_org_invite` + `hub_claim_org_invite`).
+
 ### Fase C — Admin da organização convida o restante da equipa
 
 1. Utilizador com papel `admin_organizacao` na org acede a **“Equipa” / “Utilizadores”** (rota a definir, ex. `/app/org/:slug/equipe`).
@@ -94,7 +97,8 @@ Valores sugeridos (texto livre ou CHECK futuro), alinhados ao produto:
 | Item | Estado |
 |------|--------|
 | Wizard / formulário **nova organização** (HUB) | Não existe como fluxo completo |
-| Página **convites pendentes** + aceitar convite (token na URL) | Parcial / ausente |
+| Página **convites pendentes** + aceitar convite (token na URL) | Rota pública `/#/convite/organizacao` + RPCs preview/claim (após aplicar SQL no Supabase) |
+| **Aprovar cadastro público** + módulos + snapshot CNPJ | UI em **Config e governança → Organizações** + RPC `hub_approve_partner_org_signup` |
 | **Gestão de equipa** por `admin_organizacao` (listar membros, convidar, revogar) | Ausente |
 | `AuthContext`: org **atual** (se multi-org no futuro: `organizacao_id` selecionado) | A consolidar com `organizacao_membros` |
 | Rotas e menu: entrada **por org** vs portal Hub/Imóveis | Já existe portal; falta amarrar **org** ao CRM |

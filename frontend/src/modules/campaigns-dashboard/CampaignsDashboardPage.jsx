@@ -19,16 +19,58 @@ const TABS = [
   { id: 'funnel', label: 'Funil & ROI' },
 ];
 
-/** Abas de nível painel — visão HUB por mercado; «Campanhas e mídia» mantém o dashboard operacional actual. */
+/** Abas de nível painel — visão HUB por mercado; «Desempenho do HUB» = dashboard operacional (campanhas Meta/Google, funil). */
 const PAINEL_KIND_TABS = [
+  { id: 'imoveis', label: 'Imóveis', icon: 'real_estate_agent' },
   { id: 'arquitetura', label: 'Arquitetura', icon: 'architecture' },
   { id: 'produtos', label: 'Produtos', icon: 'inventory_2' },
-  { id: 'leads', label: 'Leads', icon: 'person_search' },
-  { id: 'prestadores', label: 'Prestadores', icon: 'engineering' },
-  { id: 'campanhas', label: 'Campanhas e mídia', icon: 'campaign' },
+  { id: 'servicos', label: 'Serviços', icon: 'design_services' },
+  { id: 'desempenho_hub', label: 'Desempenho do HUB', icon: 'monitoring' },
 ];
 
+function PainelKindNav({ painelKind, onKindChange, className = '' }) {
+  return (
+    <nav
+      className={`flex min-w-0 flex-wrap gap-0 border-b border-slate-200/80 bg-slate-50 px-5 sm:px-6 lg:px-7 ${className}`}
+      aria-label="Tipo de painel"
+    >
+      {PAINEL_KIND_TABS.map((t) => {
+        const active = painelKind === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onKindChange(t.id)}
+            className={`inline-flex min-h-[2.5rem] flex-1 items-center justify-center gap-2 rounded-none border-r border-slate-200/80 px-3 py-2 text-xs font-bold transition last:border-r-0 sm:px-4 lg:flex-none lg:justify-start ${
+              active
+                ? 'bg-primary text-white shadow-none'
+                : 'bg-transparent text-slate-700 hover:bg-slate-100/90'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px] opacity-90 sm:text-[22px]" aria-hidden>
+              {t.icon}
+            </span>
+            <span className="min-w-0 truncate">{t.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 const MERCADO_OVERVIEW = {
+  imoveis: {
+    title: 'Imóveis',
+    description:
+      'Visão geral do segmento imobiliário no HUB — incorporação, revenda, locação e pipeline comercial ligado a empreendimentos e unidades.',
+    icon: 'real_estate_agent',
+    kpis: [
+      { label: 'Empreendimentos / carteira', footer: '—' },
+      { label: 'Oportunidades abertas', footer: '—' },
+      { label: 'Volume e conversão', footer: '—' },
+      { label: 'Actividade (30 dias)', footer: '—' },
+    ],
+  },
   arquitetura: {
     title: 'Arquitetura',
     description:
@@ -52,32 +94,22 @@ const MERCADO_OVERVIEW = {
       { label: 'Cobertura por região', footer: '—' },
     ],
   },
-  leads: {
-    title: 'Leads',
-    description: 'Entrada, qualificação e distribuição de contactos comerciais no ecossistema HUB.',
-    icon: 'person_search',
+  servicos: {
+    title: 'Serviços',
+    description:
+      'Prestação de serviços em obra e pós-obra no HUB — contratos, execução, homologações e capacidade operacional.',
+    icon: 'design_services',
     kpis: [
-      { label: 'Leads novos (período)', footer: '—' },
-      { label: 'Taxa de qualificação', footer: '—' },
-      { label: 'Tempo médio de resposta', footer: '—' },
-      { label: 'Conversão para oportunidade', footer: '—' },
-    ],
-  },
-  prestadores: {
-    title: 'Prestadores',
-    description: 'Prestadores de serviço, homologações e capacidade em obra no HUB.',
-    icon: 'engineering',
-    kpis: [
-      { label: 'Prestadores activos', footer: '—' },
-      { label: 'Homologações em vigor', footer: '—' },
-      { label: 'Obras com recurso alocado', footer: '—' },
-      { label: 'Satisfação / incidentes', footer: '—' },
+      { label: 'Contratos / OS activos', footer: '—' },
+      { label: 'Prestadores alocados', footer: '—' },
+      { label: 'Cumprimento de prazo', footer: '—' },
+      { label: 'Satisfação / retrabalho', footer: '—' },
     ],
   },
 };
 
 function HubMercadoOverview({ mercadoId }) {
-  const cfg = MERCADO_OVERVIEW[mercadoId] || MERCADO_OVERVIEW.arquitetura;
+  const cfg = MERCADO_OVERVIEW[mercadoId] || MERCADO_OVERVIEW.imoveis;
   return (
     <div className="space-y-8">
       <header className="border-b border-slate-200/90 pb-8">
@@ -181,7 +213,7 @@ function campaignOverlapsRange(campaign, dateWindow) {
 export function CampaignsDashboardPage() {
   const { session, isAdmin, hubAdmin, isHubOwner, isPlatformOwner, signOut, portal } = useAuth();
   const { loading, banner, payload, syncLabel, reportOptions, selectedSlug, setSelectedSlug } = useCampaignsDashboardData();
-  const [painelKind, setPainelKind] = useState('arquitetura');
+  const [painelKind, setPainelKind] = useState('imoveis');
   const [tab, setTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
@@ -490,38 +522,23 @@ export function CampaignsDashboardPage() {
   const shellSubtitle = loading
     ? 'A carregar indicadores…'
     : showAsPlatformOwner
-      ? 'Painel HUB — resumo por mercado (Arquitetura, Produtos, Leads, Prestadores) e campanhas Meta/Google para dono da plataforma ou owner.'
-      : 'Painel HUB — visão geral por mercado no ecossistema e, em «Campanhas e mídia», o dashboard operacional de anúncios.';
+      ? 'Painel HUB — Imóveis, Arquitetura, Produtos e Serviços; em «Desempenho do HUB», campanhas Meta/Google e funil (dono da plataforma ou owner).'
+      : 'Painel HUB — resumo por mercado (Imóveis, Arquitetura, Produtos, Serviços) e, em «Desempenho do HUB», o painel operacional de mídia.';
+
+  const painelKindHeaderTabs = useMemo(
+    () => <PainelKindNav painelKind={painelKind} onKindChange={setPainelKind} />,
+    [painelKind]
+  );
 
   const dashboardContent = (
       <div className={`w-full max-w-[1800px] mx-auto px-4 py-8 lg:px-6 space-y-8 min-w-0 ${banner ? 'pt-16' : ''}`}>
-        <nav
-          className="flex flex-wrap gap-1.5 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/95 to-white p-1.5 shadow-sm"
-          aria-label="Tipo de painel"
-        >
-          {PAINEL_KIND_TABS.map((t) => {
-            const active = painelKind === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setPainelKind(t.id)}
-                className={`inline-flex min-h-[2.75rem] flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition sm:px-4 lg:flex-none lg:justify-start ${
-                  active
-                    ? 'bg-primary text-white shadow-md shadow-primary/20'
-                    : 'bg-white/90 text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px] opacity-90 sm:text-[22px]" aria-hidden>
-                  {t.icon}
-                </span>
-                <span className="min-w-0 truncate">{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {!usePlatformShell ? (
+          <div className="-mx-4 border-y border-slate-200/80 lg:-mx-6">
+            <PainelKindNav painelKind={painelKind} onKindChange={setPainelKind} className="border-b-0" />
+          </div>
+        ) : null}
 
-        {painelKind === 'campanhas' ? (
+        {painelKind === 'desempenho_hub' ? (
           <>
         <header className="flex flex-col md:flex-row justify-between items-end gap-6 pb-8 border-b border-slate-200/90">
           <div className="space-y-3">
@@ -1256,7 +1273,13 @@ export function CampaignsDashboardPage() {
       )}
 
       {usePlatformShell ? (
-        <AppShell title="Painel HUB" subtitle={shellSubtitle} navItems={navItems}>
+        <AppShell
+          title="Painel HUB"
+          subtitle={shellSubtitle}
+          navItems={navItems}
+          headerTabs={painelKindHeaderTabs}
+          headerTabsWrapperClassName="min-w-0 -mx-5 mt-1 border-t border-slate-200/80 sm:-mx-6 lg:-mx-7"
+        >
           {mainContent}
         </AppShell>
       ) : (

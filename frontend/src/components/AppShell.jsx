@@ -371,6 +371,8 @@ export function AppShell({
   headerActions,
   /** Conteúdo logo abaixo do título (ex.: tabs de governança), sem scroll separado. */
   headerTabs = null,
+  /** Classes do invólucro das tabs (omitir = margem + separador padrão). */
+  headerTabsWrapperClassName,
   /** Substitui o padding horizontal/vertical padrão do `<main>`. */
   mainClassName,
   /** Substitui o invólucro branco (card) por classes próprias; omitir = padrão. */
@@ -532,7 +534,17 @@ export function AppShell({
                 </div>
                 {headerActions ? <div className="flex shrink-0 flex-wrap items-center gap-1.5">{headerActions}</div> : null}
               </div>
-              {headerTabs ? <div className="mt-3 min-w-0 border-t border-slate-100 pt-2.5">{headerTabs}</div> : null}
+              {headerTabs ? (
+                <div
+                  className={
+                    headerTabsWrapperClassName?.trim()
+                      ? headerTabsWrapperClassName
+                      : 'mt-3 min-w-0 border-t border-slate-100 pt-2.5'
+                  }
+                >
+                  {headerTabs}
+                </div>
+              ) : null}
             </header>
             <main className={`${mainBase} ${mainContentPad}`}>
               {children}

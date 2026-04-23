@@ -7,6 +7,8 @@ create table if not exists public.hub_partner_org_signups (
   cnpj text not null,
   dados_formulario jsonb not null,
   cnpja_snapshot jsonb,
+  -- Colunas pós-aprovação (HUB): aplicar também database/hub_partner_org_approve_and_invite.sql
+  -- organizacao_id, hub_convite_id, modulos_concedidos, processado_em, processado_por_user_id
   consulta_fonte text,
   template_id text,
   partner_kind text,
