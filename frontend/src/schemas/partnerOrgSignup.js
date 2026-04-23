@@ -291,15 +291,11 @@ function extrasSuperRefine(extraFields, data, ctx) {
  * @param {Record<string, unknown>} value
  * @param {object} layout
  * @param {SignupOptions} [layout.signupOptions]
- * @param {Array<{ key: string, type: string, required?: boolean, options?: string[], group?: string }>} [layout.commercial]
- * @param {Array<{ key: string, type: string, required?: boolean, options?: string[], group?: string }>} [layout.logistics]
+ * @param {Array<{ slice: Array<{ key: string, type: string, required?: boolean, options?: string[], group?: string }> }>} [layout.extraSteps]
  */
 export function validatePartnerSignupStep(stepIndex, value, layout = {}) {
   const signupOptions = layout.signupOptions || DEFAULT_SIGNUP_OPTIONS;
-  const commercial = layout.commercial || [];
-  const logistics = layout.logistics || [];
-  const hasC = commercial.length > 0;
-  const hasL = logistics.length > 0;
+  const extraSteps = layout.extraSteps || [];
 
   if (stepIndex === 0) {
     return buildEmpresaStepSchema(signupOptions).safeParse({
@@ -329,14 +325,10 @@ export function validatePartnerSignupStep(stepIndex, value, layout = {}) {
     });
   }
 
-  const firstExtrasStep = 3;
-  if (stepIndex === firstExtrasStep) {
-    if (hasC) return buildExtrasSliceSchema(commercial).safeParse({ extras: value.extras });
-    if (hasL) return buildExtrasSliceSchema(logistics).safeParse({ extras: value.extras });
-    return z.unknown().safeParse(value);
-  }
-  if (stepIndex === 4 && hasC && hasL) {
-    return buildExtrasSliceSchema(logistics).safeParse({ extras: value.extras });
+  const extrasIdx = stepIndex - 3;
+  if (extrasIdx >= 0 && extrasIdx < extraSteps.length) {
+    const slice = extraSteps[extrasIdx].slice;
+    return buildExtrasSliceSchema(slice).safeParse({ extras: value.extras });
   }
   return z.unknown().safeParse(value);
 }

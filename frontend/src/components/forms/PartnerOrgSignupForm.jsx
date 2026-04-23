@@ -8,7 +8,14 @@ import {
   fetchCnpjaOffice,
   hasCnpjaApiKey,
 } from '../../lib/cnpja';
-import { ORG_STANDARD_META, partitionPartnerOrgExtraFields } from '../../lib/orgStandardFields';
+import {
+  ORG_STANDARD_META,
+  partitionCommercialExtraFields,
+  partitionSignupWizardExtraSlices,
+  sortCommercialProductFields,
+  sortCommercialServiceFields,
+} from '../../lib/orgStandardFields';
+import { isPrestadoresServicoTemplate } from '../../lib/hubPartnerKinds';
 import { formatCpfMask, normalizeCnpj14 } from '../../lib/opencnpj';
 import { fetchViaCepJson, formatCepMask, normalizeCep8, onlyDigits } from '../../lib/viacep';
 import {
@@ -73,19 +80,6 @@ function parseExtrasMultiJson(raw) {
   } catch {
     return [];
   }
-}
-
-/** @param {number} step @param {unknown[]} commercial @param {unknown[]} logistics */
-function extrasSliceForStep(step, commercial, logistics) {
-  const hasC = commercial.length > 0;
-  const hasL = logistics.length > 0;
-  if (step === 3) {
-    if (hasC) return commercial;
-    if (hasL) return logistics;
-    return [];
-  }
-  if (step === 4 && hasC && hasL) return logistics;
-  return [];
 }
 
 /** Campo extra tipo ficheiro: envia para Storage e guarda JSON em `extras.key`. */
@@ -153,6 +147,43 @@ function FileExtraInput({ id, value, onChange, onBlur, disabled }) {
         <p className="text-xs text-red-700" role="alert">
           {localErr}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Etapa comercial: separa oferta (produto/serviço) de atuação em obra; logística mantém grelha única. */
+function CommercialExtrasStepBody({ partnerKind, slice, form, stepErrors }) {
+  const { commercialProduct, commercialService } = partitionCommercialExtraFields(slice);
+  const productSlice = sortCommercialProductFields(commercialProduct);
+  const serviceSlice = sortCommercialServiceFields(commercialService);
+  const twoBlocks = productSlice.length > 0 && serviceSlice.length > 0;
+  return (
+    <div className="space-y-8">
+      {productSlice.length > 0 ? (
+        <div className="space-y-3">
+          {twoBlocks ? (
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
+              Produto / oferta comercial
+            </h3>
+          ) : null}
+          <SignupExtraFieldsGrid form={form} slice={productSlice} stepErrors={stepErrors} />
+        </div>
+      ) : null}
+      {serviceSlice.length > 0 ? (
+        <div className="space-y-3">
+          {twoBlocks ? (
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
+              Atuação e serviços (obra)
+            </h3>
+          ) : null}
+          {isPrestadoresServicoTemplate(partnerKind) ? (
+            <p className="text-xs leading-relaxed text-on-surface-variant">
+              Como prestador de serviço, estes dados ajudam a equipa a entender a sua especialidade e disponibilidade em obra.
+            </p>
+          ) : null}
+          <SignupExtraFieldsGrid form={form} slice={serviceSlice} stepErrors={stepErrors} />
+        </div>
       ) : null}
     </div>
   );
@@ -310,22 +341,25 @@ function SignupExtraFieldsGrid({ form, slice, stepErrors }) {
   );
 }
 
-export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupSettingsRaw, onSubmitSuccess, className = '' }) {
+export function PartnerOrgSignupForm({
+  extraFields = [],
+  signupSettings: signupSettingsRaw,
+  /** `registration_form_template.partner_kind` — dicas de UI para prestadores de serviço. */
+  partnerKind = null,
+  /** Catálogo padrão (opcional) — necessário para distinguir campos reservados dos extras do template. */
+  standardCatalog = null,
+  onSubmitSuccess,
+  className = '',
+}) {
   const queryClient = useQueryClient();
   const signupOptions = useMemo(() => normalizeSignupOptions(signupSettingsRaw), [signupSettingsRaw]);
-  const { commercial, logistics } = useMemo(() => partitionPartnerOrgExtraFields(extraFields), [extraFields]);
-  const wizardLayout = useMemo(
-    () => ({ signupOptions, commercial, logistics }),
-    [signupOptions, commercial, logistics]
+  const { extraSteps } = useMemo(
+    () => partitionSignupWizardExtraSlices(extraFields, standardCatalog),
+    [extraFields, standardCatalog]
   );
+  const wizardLayout = useMemo(() => ({ signupOptions, extraSteps }), [signupOptions, extraSteps]);
 
-  const hasC = commercial.length > 0;
-  const hasL = logistics.length > 0;
-  const lastStepIndex = useMemo(() => {
-    if (hasC && hasL) return 4;
-    if (hasC || hasL) return 3;
-    return 2;
-  }, [hasC, hasL]);
+  const lastStepIndex = useMemo(() => 2 + extraSteps.length, [extraSteps.length]);
 
   const cnpjRequired = signupOptions.cnpjRequired !== false;
   const collectCpf = signupOptions.collectCpf === true;
@@ -355,17 +389,10 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
   const wizardCardRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const wizardBodyRef = useRef(/** @type {HTMLDivElement | null} */ (null));
 
-  const stepLabels = useMemo(() => {
-    const labels = ['Empresa', 'Endereço', 'Acesso'];
-    if (hasC && hasL) {
-      labels.push('Informações comerciais', 'Logística e doca');
-    } else if (hasC) {
-      labels.push('Informações comerciais');
-    } else if (hasL) {
-      labels.push('Logística e doca');
-    }
-    return labels;
-  }, [hasC, hasL]);
+  const stepLabels = useMemo(
+    () => ['Empresa', 'Endereço', 'Acesso', ...extraSteps.map((e) => e.label)],
+    [extraSteps]
+  );
 
   const form = useForm({
     defaultValues,
@@ -493,13 +520,18 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
 
   const values = useStore(form.store, (s) => s.values);
 
-  const activeExtraSlice = useMemo(
-    () => extrasSliceForStep(step, commercial, logistics),
-    [step, commercial, logistics]
+  const activeExtraStep = useMemo(
+    () => (step >= 3 ? extraSteps[step - 3] : undefined),
+    [step, extraSteps]
   );
+  const activeExtraSlice = activeExtraStep?.slice ?? [];
 
   useEffect(() => {
-    wizardBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    setStep((s) => Math.min(s, lastStepIndex));
+  }, [lastStepIndex]);
+
+  useEffect(() => {
+    wizardCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step]);
 
   const handleWizardPrimary = useCallback(() => {
@@ -525,14 +557,14 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
 
   return (
     <form
-      className={`flex min-h-0 w-full max-w-none flex-1 flex-col [&_button]:rounded-none [&_input]:rounded-none [&_select]:rounded-none [&_textarea]:rounded-none ${className}`}
+      className={`flex w-full max-w-none flex-col [&_button]:rounded-none [&_input]:rounded-none [&_select]:rounded-none [&_textarea]:rounded-none ${className}`}
       onSubmit={(e) => {
         e.preventDefault();
       }}
     >
       <div
         ref={wizardCardRef}
-        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-2 border-primary bg-white shadow-xl"
+        className="flex flex-col overflow-visible rounded-none border-2 border-primary bg-white shadow-xl"
       >
         <header className="shrink-0 border-b border-outline-variant bg-white px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">
@@ -560,7 +592,7 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
 
         <div
           ref={wizardBodyRef}
-          className="hub-table-scrollbar min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4 sm:space-y-5 sm:px-6 sm:py-5 lg:px-8 lg:py-6"
+          className="space-y-4 overflow-x-hidden overflow-y-visible px-4 py-4 sm:space-y-5 sm:px-6 sm:py-5 lg:px-8 lg:py-6"
         >
           {step === 0 ? (
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
@@ -1060,7 +1092,16 @@ export function PartnerOrgSignupForm({ extraFields = [], signupSettings: signupS
           ) : null}
 
           {step >= 3 && activeExtraSlice.length > 0 ? (
-            <SignupExtraFieldsGrid form={form} slice={activeExtraSlice} stepErrors={stepErrors} />
+            activeExtraStep?.layout === 'commercial-split' ? (
+              <CommercialExtrasStepBody
+                partnerKind={partnerKind}
+                slice={activeExtraSlice}
+                form={form}
+                stepErrors={stepErrors}
+              />
+            ) : (
+              <SignupExtraFieldsGrid form={form} slice={activeExtraSlice} stepErrors={stepErrors} />
+            )
           ) : null}
         </div>
 

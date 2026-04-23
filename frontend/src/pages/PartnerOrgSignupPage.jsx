@@ -85,9 +85,7 @@ export function PartnerOrgSignupPage() {
   const showPaused = loadStatus === 'ready' && Boolean(template) && inviteBlocked;
 
   return (
-    <AuthSplitLayout
-      heroSubtitle="Bem-vindo ao hub de parceiros Obra10+. Ao sair do campo com CNPJ ou CEP válidos, completamos dados da empresa e do endereço automaticamente. As informações servem para criar a sua conta e o contato comercial."
-    >
+    <AuthSplitLayout>
       <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 sm:gap-4">
         <div className="shrink-0 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Homologação</h1>
@@ -112,9 +110,11 @@ export function PartnerOrgSignupPage() {
           </div>
         ) : null}
         {showForm ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex w-full min-w-0 flex-col">
             <PartnerOrgSignupForm
               key={template?.id || tplId || 'sem-template'}
+              partnerKind={template?.partnerKind ?? null}
+              standardCatalog={standardCatalog}
               signupSettings={template?.signupSettings}
               extraFields={mergePartnerOrgExtraFields(
                 template?.fields ?? [],

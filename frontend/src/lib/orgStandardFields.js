@@ -308,7 +308,8 @@ export function mergePartnerOrgExtraFields(templateFields = [], opts = {}, catal
 }
 
 /**
- * Separa campos padrão em duas etapas no wizard: comercial (produto + extras do template) e logística.
+ * Separa campos built-in activos em comercial vs. logística (doca).
+ * Extras definidos no editor do template não entram aqui — vê `partitionSignupWizardExtraSlices`.
  * @param {Array<{ key: string, group?: string }>} mergedFields — resultado de mergePartnerOrgExtraFields
  */
 export function partitionPartnerOrgExtraFields(mergedFields = []) {
@@ -324,6 +325,115 @@ export function partitionPartnerOrgExtraFields(mergedFields = []) {
     else commercial.push(f);
   }
   return { commercial, logistics };
+}
+
+/**
+ * Etapas opcionais do cadastro (após Empresa, Endereço e Acesso): só entram fatias com campos.
+ * Ordem fixa: bloco comercial do catálogo → logística do catálogo → campos extras definidos no template (sempre por último).
+ * @param {Array<{ key: string, group?: string, wizardStep?: string, label?: string }>} mergedFields — `mergePartnerOrgExtraFields`
+ * @param {{ sections?: unknown[], fields?: unknown[] } | null} catalog
+ * @returns {{ extraSteps: Array<{ id: string, label: string, slice: typeof mergedFields, layout: 'commercial-split' | 'grid' }> }}
+ */
+export function partitionSignupWizardExtraSlices(mergedFields = [], catalog = null) {
+  const reservedLc = new Set(listReservedBuiltinPartnerKeys(catalog).map((k) => String(k).toLowerCase()));
+  /** @type {typeof mergedFields} */
+  const builtins = [];
+  /** @type {typeof mergedFields} */
+  const templateExtras = [];
+  for (const f of mergedFields) {
+    if (reservedLc.has(String(f.key).toLowerCase())) builtins.push(f);
+    else templateExtras.push(f);
+  }
+  const { commercial, logistics } = partitionPartnerOrgExtraFields(builtins);
+  /** @type {Array<{ id: string, label: string, slice: typeof mergedFields, layout: 'commercial-split' | 'grid' }>} */
+  const extraSteps = [];
+  if (commercial.length > 0) {
+    extraSteps.push({
+      id: 'builtin-commercial',
+      label: 'Informações comerciais',
+      slice: commercial,
+      layout: 'commercial-split',
+    });
+  }
+  if (logistics.length > 0) {
+    extraSteps.push({
+      id: 'builtin-logistics',
+      label: 'Logística e doca',
+      slice: logistics,
+      layout: 'grid',
+    });
+  }
+  if (templateExtras.length > 0) {
+    extraSteps.push({
+      id: 'template-extras',
+      label: 'Campos adicionais',
+      slice: templateExtras,
+      layout: 'grid',
+    });
+  }
+  return { extraSteps };
+}
+
+/** Slug da secção «Atuação e serviços» (alinhado ao catálogo padrão e a `ORG_BUILTIN_PARTNER_EXTRA_FIELDS`). */
+export const ORG_ATUACAO_SERVICOS_GROUP_SLUG = 'atuacao_servicos';
+
+/**
+ * Separa a fatia «comercial» do wizard em blocos de layout: oferta (produto/serviço) vs. atuação em obra.
+ * Campos do template sem grupo ou com outro slug ficam no bloco de oferta.
+ * @param {Array<{ key: string, group?: string }>} commercial — resultado de `partitionPartnerOrgExtraFields`
+ */
+export function partitionCommercialExtraFields(commercial = []) {
+  /** @type {typeof commercial} */
+  const product = [];
+  /** @type {typeof commercial} */
+  const service = [];
+  const atu = ORG_ATUACAO_SERVICOS_GROUP_SLUG.toLowerCase();
+  for (const f of commercial) {
+    const g = String(f.group || '').toLowerCase();
+    if (g === atu) service.push(f);
+    else product.push(f);
+  }
+  return { commercialProduct: product, commercialService: service };
+}
+
+/** Ordem sugerida na UI (cadastro) — chaves built-in; desconhecidas ordenam por rótulo no fim. */
+const COMMERCIAL_PRODUCT_FIELD_ORDER = [
+  'categoria_produto_servico',
+  'capacidade_produtiva_mensal',
+  'moq_pedido_minimo',
+  'portfolio_catalogo',
+];
+
+const COMMERCIAL_SERVICE_FIELD_ORDER = [
+  'ramo_atuacao_principal',
+  'servicos_realizados',
+  'registro_profissional',
+  'portfolio_obras_midia',
+  'equipamentos_proprios',
+];
+
+/**
+ * @param {Array<{ key: string, label?: string }>} fields
+ * @param {readonly string[]} preferredKeys
+ */
+export function sortPartnerSignupExtraFields(fields = [], preferredKeys) {
+  const pos = new Map(preferredKeys.map((k, i) => [k, i]));
+  return [...fields].sort((a, b) => {
+    const pa = pos.has(a.key) ? /** @type {number} */ (pos.get(a.key)) : 1000;
+    const pb = pos.has(b.key) ? /** @type {number} */ (pos.get(b.key)) : 1000;
+    if (pa !== pb) return pa - pb;
+    return String(a.label ?? a.key).localeCompare(String(b.label ?? b.key), 'pt');
+  });
+}
+
+/** @param {Array<{ key: string, label?: string }>} productFields */
+export function sortCommercialProductFields(productFields) {
+  return sortPartnerSignupExtraFields(productFields, COMMERCIAL_PRODUCT_FIELD_ORDER);
+}
+
+/** @param {Array<{ key: string, label?: string }>} serviceFields */
+export function sortCommercialServiceFields(serviceFields) {
+  return sortPartnerSignupExtraFields(serviceFields, COMMERCIAL_SERVICE_FIELD_ORDER);
 }
 
 /** @type {Record<string, { label: string; hint?: string }>} */
