@@ -1,5 +1,6 @@
 -- =============================================================================
 -- Homologação: etapas operacionais (Kanban HUB) + timeline pública
+-- Documentação: docs/CADASTRO_ORGANIZACOES_E_USUARIOS.md, docs/ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md §5
 -- -----------------------------------------------------------------------------
 -- workflow_etapa: pendente | aguardando_retorno | em_analise | aprovado
 --   (enquanto status ∈ {pendente, aprovado}; limpo em processado/rejeitado)

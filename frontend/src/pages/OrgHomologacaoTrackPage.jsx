@@ -77,6 +77,8 @@ function statusDetail(row) {
     return 'A organização foi criada. O convite pode estar em preparação — aguarde o e-mail ou actualize esta página mais tarde.';
   }
   if (row.status === 'pendente') {
+    const wf = workflowEtapaLabelPt(row.workflow_etapa ?? row.workflowEtapa);
+    if (wf) return `${wf}. Guarde o código e este link para voltar quando quiser.`;
     return 'O seu pedido está na fila de homologação. Guarde o código e este link para voltar quando quiser.';
   }
   if (row.status === 'aprovado') {
@@ -107,8 +109,8 @@ export function OrgHomologacaoTrackPage() {
   });
 
   const row = trackQuery.data;
-  const errMsg = trackQuery.error instanceof Error ? trackQuery.error.message : null;
   const timeline = normalizeTimeline(row?.timeline);
+  const errMsg = trackQuery.error instanceof Error ? trackQuery.error.message : null;
 
   const signupIdForChat = row?.signup_id ?? row?.signupId ?? null;
 
@@ -194,9 +196,36 @@ export function OrgHomologacaoTrackPage() {
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Última actualização</p>
-                <p className="mt-1 text-sm">{formatDatePt(row.processado_em)}</p>
+                <p className="mt-1 text-sm">
+                  {formatDatePt(row.workflow_etapa_em ?? row.workflowEtapaEm ?? row.processado_em)}
+                </p>
               </div>
             </div>
+            {timeline.length > 0 ? (
+              <div className="rounded-lg border border-slate-200/90 bg-slate-50/60 px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-700">Histórico do pedido</p>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Actualizações registadas pela equipa Obra10+ ao longo da homologação.
+                </p>
+                <ol className="relative mt-4 space-y-0 border-l-2 border-slate-200 pl-4">
+                  {timeline.map((ev, i) => {
+                    const id = ev?.id != null ? String(ev.id) : `ev-${i}`;
+                    const rotulo = ev?.rotulo != null ? String(ev.rotulo) : '—';
+                    const quando = formatDatePt(ev?.criado_em ?? ev?.criadoEm);
+                    return (
+                      <li key={id} className="relative pb-5 last:pb-0">
+                        <span
+                          className="absolute -left-[9px] top-1 h-3 w-3 rounded-full border-2 border-tertiary bg-white"
+                          aria-hidden
+                        />
+                        <p className="text-sm font-medium leading-snug text-primary">{rotulo}</p>
+                        <p className="mt-0.5 text-[11px] text-on-surface-variant">{quando}</p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            ) : null}
             <div className="rounded-lg border border-tertiary/25 bg-tertiary/[0.06] px-4 py-3">
               <p className="text-sm font-bold text-primary">{statusHeadline(row)}</p>
               {statusDetail(row) ? (

@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { PartnerOrgSignupForm } from '../components/forms/PartnerOrgSignupForm';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { fetchHubStandardCatalog } from '../lib/hubStandardCatalogApi';
+import { buildHomologacaoTrackingPageUrl, postMakeHomologacaoWebhook } from '../lib/postMakeHomologacaoWebhook';
 import { hubStandardCatalogQueryKey, registrationTemplateDetailQueryKey } from '../lib/queryKeys';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { mergePartnerOrgExtraFields } from '../lib/orgStandardFields';
@@ -18,6 +19,9 @@ export function PartnerOrgSignupPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const tplId = searchParams.get('tpl');
+  const [submitBusy, setSubmitBusy] = useState(false);
+  /** @type {null | { kind: 'tracking', email: string, codigoRastreio: string, trackingUrl: string } | { kind: 'legacy', email: string }} */
+  const [successModal, setSuccessModal] = useState(null);
 
   const templateQuery = useQuery({
     queryKey: registrationTemplateDetailQueryKey(tplId),
@@ -87,7 +91,74 @@ export function PartnerOrgSignupPage() {
 
   return (
     <AuthSplitLayout>
-      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 sm:gap-4">
+      <div className="relative mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 sm:gap-4">
+        {submitBusy ? (
+          <div
+            className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 rounded-sm bg-white/80 backdrop-blur-[2px]"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span className="inline-block h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm font-medium text-primary">A registar o pedido…</p>
+          </div>
+        ) : null}
+
+        {successModal ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="signup-success-title"
+          >
+            <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-xl sm:p-6">
+              <h2 id="signup-success-title" className="text-lg font-black tracking-tight text-primary sm:text-xl">
+                Pedido registado
+              </h2>
+              {successModal.kind === 'tracking' ? (
+                <>
+                  <p className="mt-3 text-sm leading-relaxed text-on-surface-variant">
+                    O link de acompanhamento foi enviado para o e-mail cadastrado (
+                    <span className="font-medium text-primary">{successModal.email}</span>). Verifique a caixa de entrada e o
+                    spam.
+                  </p>
+                  <p className="mt-2 text-xs text-on-surface-variant">
+                    Código do pedido:{' '}
+                    <span className="font-mono text-[13px] text-primary">{successModal.codigoRastreio}</span>
+                  </p>
+                </>
+              ) : (
+                <p className="mt-3 text-sm leading-relaxed text-on-surface-variant">
+                  O pedido foi guardado. O acompanhamento online com código ainda não está disponível neste ambiente — a
+                  equipa Obra10+ pode contactá-lo pelo e-mail indicado.
+                </p>
+              )}
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  className="rounded-sm border-2 border-outline-variant bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-primary hover:bg-surface-container-low"
+                  onClick={() => setSuccessModal(null)}
+                >
+                  Fechar
+                </button>
+                {successModal.kind === 'tracking' ? (
+                  <button
+                    type="button"
+                    className="rounded-sm border-2 border-primary bg-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-white hover:opacity-95"
+                    onClick={() => {
+                      const c = successModal.codigoRastreio;
+                      setSuccessModal(null);
+                      navigate(`/homologacao/organizacao?codigo=${encodeURIComponent(c)}`, { replace: true });
+                    }}
+                  >
+                    Ver acompanhamento
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="shrink-0 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Homologação</h1>
           {!template && !tplId ? (
@@ -126,39 +197,65 @@ export function PartnerOrgSignupPage() {
                 standardCatalog
               )}
               onSubmitSuccess={async (value, consultaMeta = {}) => {
-                const meta = {
-                  templateId: template?.id ?? null,
-                  partnerKind: template?.partnerKind ?? null,
-                  cnpjSnapshot: consultaMeta.cnpjSnapshot ?? null,
-                  consultaFonte: consultaMeta.consultaFonte ?? null,
-                };
-                const r = await submitHubPartnerOrgSignup({ dados: value, meta });
-                if (r.skipped) {
-                  toast(
-                    'Cadastro concluído localmente (servidor não configurado). Os dados não foram guardados na base.',
-                    { variant: 'warning', duration: 6500 }
-                  );
-                  return;
-                }
-                if (!r.ok) {
-                  toast(r.error || 'Não foi possível registar o pedido.', { variant: 'warning', duration: 7000 });
-                  return;
-                }
-                if (r.legacyInsert) {
-                  toast(
-                    'Pedido registado, mas o código de acompanhamento ainda não está disponível. Peça ao administrador para concluir a configuração do servidor.',
-                    { variant: 'warning', duration: 9000 }
-                  );
-                  return;
-                }
-                toast('Pedido enviado. Guarde o código e o link de acompanhamento.', {
-                  variant: 'success',
-                  duration: 6500,
-                });
-                if (r.codigoRastreio) {
-                  navigate(`/homologacao/organizacao?codigo=${encodeURIComponent(r.codigoRastreio)}`, {
-                    replace: true,
+                setSubmitBusy(true);
+                try {
+                  const meta = {
+                    templateId: template?.id ?? null,
+                    partnerKind: template?.partnerKind ?? null,
+                    cnpjSnapshot: consultaMeta.cnpjSnapshot ?? null,
+                    consultaFonte: consultaMeta.consultaFonte ?? null,
+                  };
+                  const email = String(value.email ?? '').trim();
+                  const r = await submitHubPartnerOrgSignup({ dados: value, meta });
+                  if (r.skipped) {
+                    toast(
+                      'Cadastro concluído localmente (servidor não configurado). Os dados não foram guardados na base.',
+                      { variant: 'warning', duration: 6500 }
+                    );
+                    return;
+                  }
+                  if (!r.ok) {
+                    toast(r.error || 'Não foi possível registar o pedido.', { variant: 'warning', duration: 7000 });
+                    return;
+                  }
+                  if (r.legacyInsert) {
+                    postMakeHomologacaoWebhook({
+                      email,
+                      nome_empresa: String(value.nome_empresa ?? '').trim() || null,
+                      template_id: meta.templateId,
+                      partner_kind: meta.partnerKind,
+                      legacy_insert: true,
+                      signup_id: r.signupId ?? null,
+                    });
+                    setSuccessModal({ kind: 'legacy', email });
+                    return;
+                  }
+                  const codigo = r.codigoRastreio ? String(r.codigoRastreio).trim() : '';
+                  const trackingUrl = codigo ? buildHomologacaoTrackingPageUrl(codigo) : '';
+                  postMakeHomologacaoWebhook({
+                    email,
+                    nome_empresa: String(value.nome_empresa ?? '').trim() || null,
+                    codigo_rastreio: codigo || null,
+                    tracking_url: trackingUrl || null,
+                    template_id: meta.templateId,
+                    partner_kind: meta.partnerKind,
+                    signup_id: r.signupId ?? null,
                   });
+                  if (codigo) {
+                    setSuccessModal({
+                      kind: 'tracking',
+                      email,
+                      codigoRastreio: codigo,
+                      trackingUrl,
+                    });
+                  } else {
+                    toast('Pedido enviado, mas o código de acompanhamento não foi devolvido.', {
+                      variant: 'warning',
+                      duration: 8000,
+                    });
+                  }
+                } finally {
+                  setSubmitBusy(false);
                 }
               }}
             />

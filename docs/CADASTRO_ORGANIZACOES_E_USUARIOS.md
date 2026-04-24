@@ -6,7 +6,7 @@ Este documento alinha **produto**, **documentação existente** e **estado atual
 2. Criação e gestão de **administradores do HUB** (nível plataforma).
 3. Depois do primeiro acesso, a **própria organização** poder **criar e convidar utilizadores** (RBAC por papel na org).
 
-**Referências:** [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md), [MODULOS_PERMISSOES_E_HUB.md](./MODULOS_PERMISSOES_E_HUB.md), [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md), [ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md](./ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md) (NEG/OPP/mercados e código `HUB-OPP-*` de rastreio; legado `ORG-*`).
+**Referências:** [SCHEMA_DADOS_V0.md](./SCHEMA_DADOS_V0.md), [MODULOS_PERMISSOES_E_HUB.md](./MODULOS_PERMISSOES_E_HUB.md), [ACESSOS_AUTH_E_GOVERNANCA.md](./ACESSOS_AUTH_E_GOVERNANCA.md), [ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md](./ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md) (NEG/OPP/mercados e código `HUB-OPP-*` de rastreio; legado `ORG-*`). SQL homologação operacional: [database/hub_homologacao_workflow.sql](../database/hub_homologacao_workflow.sql).
 
 **Projeto Supabase de referência:** `OBRA10` (verificado via MCP — tabelas abaixo existem em `public`).
 
@@ -41,7 +41,8 @@ A **auth** continua centralizada em `auth.users`; o vínculo multi-tenant é `or
 | `papel_template` | Papéis base. **No ambiente atual:** `hub_admin` (escopo **plataforma**), `admin_organizacao`, `membro` (escopo **organizacao**). |
 | `papel_template_permissoes` + `permissao_recursos` + `modulos_catalogo` | Catálogo de módulos e permissões finas (ex.: `crm_central`, `campanhas`, …). |
 | `organizacao_modulos` | Liga org ↔ módulo do catálogo (`ativo`, `config` jsonb). |
-| `hub_partner_org_signups` | Pedidos do formulário público `/cadastro/organizacao`: `dados_formulario`, **`cnpja_snapshot`** (JSON **completo** da API CNPJA ou Brasil API), `consulta_fonte`, `status`; após aprovação via RPC: `organizacao_id`, `hub_convite_id`, **`codigo_rastreio`** (espelho do `HUB-OPP-*` em `organizacoes`), `modulos_concedidos`, `processado_em`, `processado_por_user_id` (ver `database/hub_partner_org_approve_and_invite.sql`). |
+| `hub_partner_org_signups` | Pedidos do formulário público `/cadastro/organizacao`: `dados_formulario`, **`cnpja_snapshot`**, `consulta_fonte`, `status`; **`workflow_etapa`** / **`workflow_etapa_em`** (mini-Kanban HUB: `pendente` → `aguardando_retorno` → `em_analise` → `aprovado`, limpos após `processado`); após aprovação: `organizacao_id`, `hub_convite_id`, **`codigo_rastreio`**, `modulos_concedidos`, `processado_*` (ver `hub_partner_org_approve_and_invite.sql`). |
+| `hub_partner_org_signup_timeline` | Histórico de eventos com **rótulo legível para o parceiro**; preenchido no envio do pedido, ao mover etapas (RPC `hub_admin_set_signup_workflow_etapa`) e por trigger em mudanças de `status` (`processado` / `rejeitado`). Leitura pública agregada em `hub_public_homologacao_status`. Ver `database/hub_homologacao_workflow.sql`. |
 
 ### 2.2 Convenção recomendada: `organizacoes.tipo_organizacao`
 
@@ -73,7 +74,17 @@ Valores sugeridos (texto livre ou CHECK futuro), alinhados ao produto:
    - **Opção 1:** criar `organizacao_convites` com `papel_id` = `admin_organizacao`, `criado_por_escopo = hub`, e enviar e-mail (Edge Function ou fluxo manual com link).
    - **Opção 2:** se o admin da org já tiver conta: `INSERT` em `organizacao_membros` + ligação em `perfis`/onboarding.
 
-**Caminho paralelo — cadastro público de parceiro:** o fluxo **Governança → Organizações** usa `hub_partner_org_signups`: o pedido já inclui snapshot CNPJ completo; o admin escolhe **tipo** e **módulos** e executa `hub_approve_partner_org_signup`, que gera `codigo_rastreio`, provisiona módulos e cria o convite. O parceiro aceita em **`#/convite/organizacao?token=...`** (`hub_preview_org_invite` + `hub_claim_org_invite`).
+**Caminho paralelo — cadastro público de parceiro:** o fluxo **Governança → Organizações** usa `hub_partner_org_signups`: o pedido já inclui snapshot CNPJ completo. O admin HUB pode **mover o pedido no mini-Kanban** (separador *Decisão* do sideover) via `hub_admin_set_signup_workflow_etapa`; o parceiro vê o **histórico** na página pública de acompanhamento (`hub_public_homologacao_status` → campo `timeline`, normalizado no front em `OrgHomologacaoTrackPage.jsx`). Para **formalizar**, executa `hub_approve_partner_org_signup`, que provisiona org, módulos e convite. O parceiro aceita em **`#/convite/organizacao?token=...`** (`hub_preview_org_invite` + `hub_claim_org_invite`).
+
+**UX após enviar o formulário público** (`PartnerOrgSignupPage.jsx` → `submitHubPartnerOrgSignup`):
+
+1. **Spinner** de overlay enquanto o pedido é registado.
+2. Em sucesso **com** `codigo_rastreio` (RPC `hub_submit_partner_org_signup`): **modal** a informar que o link de acompanhamento foi enviado para o e-mail cadastrado; opções **Fechar** e **Ver acompanhamento** (`#/homologacao/organizacao?codigo=...`). O envio real do e-mail fica a cargo da automação (ex.: Make) ou de outro canal — o texto do modal alinha a expectativa do utilizador.
+3. **Webhook Make (Integromat):** no sucesso, o front faz `POST` JSON opcional se existir `VITE_MAKE_HOMOLOGACAO_WEBHOOK_URL` no `.env` (ver `frontend/.env.example`). Implementação: `frontend/src/lib/postMakeHomologacaoWebhook.js`. Payload inclui entre outros `email`, `codigo_rastreio`, `tracking_url` (URL completa com hash), `nome_empresa`, `template_id`, `partner_kind`, `signup_id`, `event`, `at`. Em ambiente **legado** (insert directo sem RPC completa), o modal explica limitação e o webhook pode ir com `legacy_insert: true`. **Não** commitar o URL do hook no repositório; definir em local e no Render (variável `VITE_*` — visível no bundle; usar hook dedicado).
+
+**Prefixo `HUB-OPP-{MERCADO}-*`:** o segmento do meio (ex. `PRO`, `ARQ`) vem do mapeamento SQL `partner_kind` → sufixo (`hub_partner_org_codigo_hub_opp_format.sql`) e do **`partner_kind` do template** (`registration_form_template`) enviado no submit. Se o código não refletir o mercado esperado, corrigir o template na base, não só o front.
+
+**Ordem sugerida de SQL no Supabase (homologação):** `hub_homologacao_workflow.sql` **antes** de republicar `hub_submit_partner_org_signup` com insert na timeline; manter coerência com `hub_partner_org_signup_public_rpc.sql` e `hub_partner_org_approve_and_invite.sql` (código `HUB-OPP-*`: `hub_partner_org_codigo_hub_opp_format.sql`).
 
 ### Fase C — Admin da organização convida o restante da equipa
 
@@ -98,7 +109,8 @@ Valores sugeridos (texto livre ou CHECK futuro), alinhados ao produto:
 |------|--------|
 | Wizard / formulário **nova organização** (HUB) | Não existe como fluxo completo |
 | Página **convites pendentes** + aceitar convite (token na URL) | Rota pública `/#/convite/organizacao` + RPCs preview/claim (após aplicar SQL no Supabase) |
-| **Aprovar cadastro público** + módulos + snapshot CNPJ | UI em **Config e governança → Organizações** + RPC `hub_approve_partner_org_signup` |
+| **Aprovar cadastro público** + módulos + snapshot CNPJ + **Kanban / timeline** | UI em **Governança → Organizações** (sideover: fluxo + decisão) + RPCs `hub_admin_set_signup_workflow_etapa`, `hub_approve_partner_org_signup`; página pública `/#/homologacao/organizacao` com histórico (`timeline` da RPC) |
+| **Pós-envio do cadastro público** (spinner, modal, webhook Make) | Implementado: `PartnerOrgSignupPage.jsx` + `postMakeHomologacaoWebhook.js`; configurar `VITE_MAKE_HOMOLOGACAO_WEBHOOK_URL` por ambiente |
 | **Gestão de equipa** por `admin_organizacao` (listar membros, convidar, revogar) | Ausente |
 | `AuthContext`: org **atual** (se multi-org no futuro: `organizacao_id` selecionado) | A consolidar com `organizacao_membros` |
 | Rotas e menu: entrada **por org** vs portal Hub/Imóveis | Já existe portal; falta amarrar **org** ao CRM |
@@ -117,8 +129,9 @@ Valores sugeridos (texto livre ou CHECK futuro), alinhados ao produto:
 
 1. **Migration** única: CHECK ou enum em `tipo_organizacao` (se quiserem restringir valores).
 2. **RPC** `aceitar_convite_organizacao(token, ...)` com validação e transação.
-3. **Edge Function** `send-invite-email` (Resend / SMTP) — opcional na primeira entrega (convite copiado manualmente).
-4. Atualizar **este documento** quando o primeiro fluxo estiver em staging.
+3. **Edge Function** `send-invite-email` (Resend / SMTP) — opcional na primeira entrega (convite copiado manualmente); o fluxo de homologação pode continuar a depender do Make (webhook) para e-mail de acompanhamento até haver função dedicada.
+4. **Make / automação:** cenário que recebe o webhook de homologação, envia e-mail com o `tracking_url` e eventualmente duplica lógica de notificações.
+5. Atualizar **este documento** quando fluxos estiverem validados em staging.
 
 ---
 

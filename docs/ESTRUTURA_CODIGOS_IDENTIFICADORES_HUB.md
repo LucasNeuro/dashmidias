@@ -58,8 +58,8 @@ Códigos **legados** `ORG-*` podem permanecer em linhas antigas; novos pedidos u
 
 ## 5. Relação com o fluxo de cadastro público
 
-1. O formulário `/cadastro/organizacao` grava `hub_partner_org_signups` com `cnpja_snapshot` = **payload completo** da consulta CNPJ (CNPJA ou Brasil API) e `consulta_fonte`.
-2. O administrador HUB revê o snapshot na governança (**Organizações**), escolhe **módulos** e **tipo de organização**, e chama a RPC `hub_approve_partner_org_signup`.
-3. A RPC cria a organização (com `codigo_rastreio`), aplica `organizacao_modulos`, cria `organizacao_convites` e devolve o token do convite (mostrado uma vez na UI).
+1. O formulário `/cadastro/organizacao` grava `hub_partner_org_signups` com `cnpja_snapshot` = **payload completo** da consulta CNPJ (CNPJA ou Brasil API) e `consulta_fonte`; inicia **`workflow_etapa`** (`pendente`) e a **timeline** pública (ver `database/hub_homologacao_workflow.sql`).
+2. O administrador HUB revê o pedido em **Organizações** (sideover): pode **mover etapas** (`hub_admin_set_signup_workflow_etapa`) antes da formalização; o parceiro vê o histórico na página de acompanhamento (`hub_public_homologacao_status` → `timeline`).
+3. Para provisionar, chama-se a RPC `hub_approve_partner_org_signup` (módulos, tipo): cria a organização (com `codigo_rastreio` `HUB-OPP-*`), aplica `organizacao_modulos`, cria `organizacao_convites` e devolve o token do convite (mostrado uma vez na UI).
 
 Detalhes de papéis e tabelas: [CADASTRO_ORGANIZACOES_E_USUARIOS.md](./CADASTRO_ORGANIZACOES_E_USUARIOS.md).
