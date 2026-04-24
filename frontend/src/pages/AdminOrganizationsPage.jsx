@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppSideover } from '../components/AppSideover';
 import { HomologacaoChatThread } from '../components/HomologacaoChatThread';
 import { HomologacaoDocumentosPanel } from '../components/HomologacaoDocumentosPanel';
+import { HomologacaoWorkflowKanban } from '../components/HomologacaoWorkflowKanban';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
 import { fetchPartnerOrgSignups } from '../lib/governanceQueries';
@@ -155,12 +156,12 @@ function HubCodeLegend({ className = '' }) {
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Padrão de códigos (CRM)</p>
       <p className="mt-2 text-[11px] leading-relaxed text-on-surface-variant">
         <strong className="text-primary">NEG</strong> e <strong className="text-primary">OPP</strong> identificam negócios e oportunidades; são imutáveis após criação. Na homologação, a{' '}
-        <strong>organização</strong> recebe <strong className="text-primary">ORG-[mercado]-ano-sequência</strong>, com os mesmos prefixos de mercado (origem da demanda).
+        <strong>organização</strong> recebe <strong className="text-primary">HUB-OPP-[mercado]-data UTC-sufixo aleatório</strong> (par com o padrão OPP), com os mesmos códigos de mercado.
       </p>
       <p className="mt-3 border-t border-slate-200/80 pt-3 text-[11px] leading-relaxed text-on-surface-variant">
         No ciclo de vida do CRM, o <strong className="text-primary">negócio</strong> (<span className="font-mono">NEG-*</span>) agrega a demanda; as{' '}
         <strong className="text-primary">oportunidades</strong> (<span className="font-mono">OPP-*</span>) ligam receita e etapas. A{' '}
-        <strong className="text-primary">organização</strong> homologada (<span className="font-mono">ORG-*</span>) participa desses fluxos como tenant.
+        <strong className="text-primary">organização</strong> homologada (<span className="font-mono">HUB-OPP-*</span>) participa desses fluxos como tenant.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {items.map((m) => (
@@ -266,7 +267,7 @@ function OrgExpandedTabs({ row }) {
               </div>
               {codigoGravado ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG atribuído</dt>
+                  <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código HUB-OPP atribuído</dt>
                   <dd className="mt-0.5 font-mono text-sm font-bold text-tertiary">{codigoGravado}</dd>
                 </div>
               ) : null}
@@ -285,7 +286,8 @@ function OrgExpandedTabs({ row }) {
                   <strong className="font-mono">{hint.exemploOrg}</strong>
                 </p>
                 <p className="mt-2 text-on-surface-variant">
-                  O código definitivo é atribuído quando o pedido for provisionado neste painel.
+                  O código <span className="font-mono">HUB-OPP-*</span> é reservado ao enviar o formulário; após provisionar, mantém-se como identificador da
+                  organização.
                 </p>
               </>
             )}
@@ -370,6 +372,14 @@ export function AdminOrganizationsPage() {
     setApproveBanner(null);
   }, [active?.id]);
 
+  async function refreshSignupRow(id) {
+    if (!supabase || !id) return;
+    await queryClient.invalidateQueries({ queryKey: ['governance', 'partner-org-signups'] });
+    const { data, error } = await supabase.from('hub_partner_org_signups').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return;
+    setPanel((p) => (p.open && p.row?.id === id ? { ...p, row: data } : p));
+  }
+
   async function setSignupStatus(id, status) {
     if (!supabase || !session?.user?.id) return;
     setBusyId(id);
@@ -377,10 +387,7 @@ export function AdminOrganizationsPage() {
     try {
       const { error } = await supabase.from('hub_partner_org_signups').update({ status }).eq('id', id);
       if (error) throw error;
-      await queryClient.invalidateQueries({ queryKey: ['governance', 'partner-org-signups'] });
-      setPanel((p) =>
-        p.open && p.row?.id === id ? { ...p, row: { ...p.row, status } } : p
-      );
+      await refreshSignupRow(id);
     } catch (e) {
       setActionErr(e?.message || 'Erro ao atualizar');
     } finally {
@@ -427,6 +434,7 @@ export function AdminOrganizationsPage() {
                 status: 'processado',
                 organizacao_id: raw.organizacao_id,
                 codigo_rastreio: codigo || p.row.codigo_rastreio,
+                workflow_etapa: null,
               },
             }
           : p
@@ -653,6 +661,12 @@ export function AdminOrganizationsPage() {
                             <dd className="mt-0.5 text-primary">{String(active.status || '—')}</dd>
                           </div>
                           <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Etapa (Kanban)</dt>
+                            <dd className="mt-0.5 text-primary">
+                              {active.workflow_etapa ? String(active.workflow_etapa) : '—'}
+                            </dd>
+                          </div>
+                          <div>
                             <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Organização na base</dt>
                             <dd className="mt-0.5 text-primary" title={active.organizacao_id ? String(active.organizacao_id) : undefined}>
                               {active.organizacao_id
@@ -680,7 +694,7 @@ export function AdminOrganizationsPage() {
                           </div>
                           {active.codigo_rastreio ? (
                             <div className="sm:col-span-2">
-                              <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG (pedido)</dt>
+                              <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código HUB-OPP (pedido)</dt>
                               <dd className="mt-0.5 font-mono text-sm font-bold text-tertiary">{String(active.codigo_rastreio)}</dd>
                             </div>
                           ) : null}
@@ -769,11 +783,20 @@ export function AdminOrganizationsPage() {
                   label: 'Decisão',
                   content: (
                     <div className="space-y-4">
+                      <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm">
+                        <HomologacaoWorkflowKanban
+                          supabase={supabase}
+                          signupId={String(active.id)}
+                          status={active.status}
+                          workflowEtapa={active.workflow_etapa}
+                          onUpdated={() => void refreshSignupRow(String(active.id))}
+                        />
+                      </div>
                       <HubCodeLegend />
                       {active.status === 'pendente' ? (
                         <>
                           <div className="rounded-xl border border-tertiary/20 bg-tertiary/5 p-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Código ORG</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Código HUB-OPP</p>
                             {active.codigo_rastreio ? (
                               <p className="mt-2 font-mono text-lg font-bold text-tertiary">{String(active.codigo_rastreio)}</p>
                             ) : (
@@ -782,8 +805,8 @@ export function AdminOrganizationsPage() {
                               </p>
                             )}
                             <p className="mt-3 text-sm text-primary">
-                              O tipo de cadastro vem do <strong>template de formulário</strong> (ex.: Prestadores de serviço, Imobiliários). O prefixo
-                              ORG segue esse tipo:{' '}
+                              O tipo de cadastro vem do <strong>template de formulário</strong> (ex.: Prestadores de serviço, Imobiliários). O mercado em{' '}
+                              <span className="font-mono">HUB-OPP</span> segue esse tipo:{' '}
                               <strong className="font-mono">
                                 {describeProvisioningCodeHint('', active.partner_kind).prefix}
                               </strong>{' '}
@@ -793,8 +816,9 @@ export function AdminOrganizationsPage() {
                               </strong>
                             </p>
                             <p className="mt-1 text-[11px] text-on-surface-variant">
-                              Os códigos <span className="font-mono">NEG-*</span> e <span className="font-mono">OPP-*</span> pertencem ao CRM; a
-                              organização usa <span className="font-mono">ORG-*</span>.
+                              Os códigos <span className="font-mono">NEG-*</span> e <span className="font-mono">OPP-*</span> pertencem ao CRM; o rastreio da
+                              homologação usa <span className="font-mono">HUB-OPP-*</span> (códigos antigos <span className="font-mono">ORG-*</span> podem
+                              ainda aparecer em pedidos antigos).
                             </p>
                           </div>
                           <div className="rounded-xl border border-slate-200/90 bg-white px-4 py-3">

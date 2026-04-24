@@ -27,14 +27,43 @@ function statusLabelPt(status) {
   return map[s] || status || '—';
 }
 
+function workflowEtapaLabelPt(w) {
+  const x = String(w || '').toLowerCase();
+  const map = {
+    pendente: 'Pedido na fila inicial de homologação',
+    aguardando_retorno: 'Aguardamos a sua resposta ou documentos',
+    em_analise: 'A equipa Obra10+ está a analisar o pedido',
+    aprovado: 'Homologação aprovada — em preparação da formalização',
+  };
+  return map[x] || '';
+}
+
 function statusHeadline(row) {
   const st = row.status;
   if (st === 'rejeitado') return 'Pedido não aprovado';
   if (row.organizacao_criada) return 'Homologação concluída';
   if (st === 'processado') return 'Processamento concluído';
   if (st === 'aprovado') return 'Aprovado — provisionamento em curso';
-  if (st === 'pendente') return 'Em análise pela equipa Obra10+';
+  if (st === 'pendente') {
+    const wf = workflowEtapaLabelPt(row.workflow_etapa ?? row.workflowEtapa);
+    return wf || 'Pedido em homologação';
+  }
   return `Estado: ${st}`;
+}
+
+/** @param {unknown} raw */
+function normalizeTimeline(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const j = JSON.parse(raw);
+      return Array.isArray(j) ? j : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 function statusDetail(row) {
@@ -79,6 +108,7 @@ export function OrgHomologacaoTrackPage() {
 
   const row = trackQuery.data;
   const errMsg = trackQuery.error instanceof Error ? trackQuery.error.message : null;
+  const timeline = normalizeTimeline(row?.timeline);
 
   const signupIdForChat = row?.signup_id ?? row?.signupId ?? null;
 

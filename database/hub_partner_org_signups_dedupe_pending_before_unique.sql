@@ -1,5 +1,6 @@
 -- =============================================================================
--- Corrige erro 23505 ao criar hub_partner_org_signups_one_pending_per_doc
+-- Corrige erro 23505 ao criar índice único parcial em hub_partner_org_signups(cnpj)
+-- (legado: hub_partner_org_signups_one_pending_per_doc; actual: hub_partner_org_signups_one_active_per_doc)
 -- -----------------------------------------------------------------------------
 -- Quando já existem dois (ou mais) pedidos PENDENTES com o mesmo CNPJ/CPF
 -- (coluna cnpj), o índice único não pode ser criado.
@@ -9,7 +10,7 @@
 --
 -- Ordem sugerida:
 --   1) Executar ESTE ficheiro
---   2) Executar de novo o trecho CREATE INDEX em hub_partner_org_signup_public_rpc.sql
+--   2) Executar hub_partner_org_signup_document_uniqueness.sql (ou CREATE INDEX no RPC)
 --      (ou o ficheiro completo, se preferir)
 -- =============================================================================
 

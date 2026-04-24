@@ -457,9 +457,11 @@ export function describeProvisioningCodeHint(tipoOrgSelect, partnerKind) {
   const tipo = String(tipoOrgSelect || '').trim().toLowerCase();
   const prefix = TIPO_ORG_FOR_CODE[tipo] || orgCodePrefixFromPartnerKind(partnerKind);
   const year = new Date().getFullYear();
+  const now = new Date();
+  const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   return {
     prefix,
-    exemploOrg: `ORG-${prefix}-${year}-000001`,
+    exemploOrg: `HUB-OPP-${prefix}-${ymd}-A1B2C3D4`,
     negExemplo: `NEG-${prefix}-${year}-001`,
     oppExemplo: `OPP-${prefix}-${year}-001`,
   };

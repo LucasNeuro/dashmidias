@@ -45,7 +45,7 @@ alter table public.hub_partner_org_signups
   add column if not exists codigo_rastreio text;
 
 comment on column public.hub_partner_org_signups.codigo_rastreio is
-  'Código ORG-[mercado]-ano-seq gerado na aprovação (espelho de organizacoes.codigo_rastreio para auditoria no pedido).';
+  'Código HUB-OPP-[mercado]-dataUTC-sufixo (espelho de organizacoes.codigo_rastreio).';
 
 comment on column public.hub_partner_org_signups.modulos_concedidos is
   'Snapshot dos slugs/códigos de módulos concedidos pelo HUB na aprovação.';
@@ -62,7 +62,7 @@ create unique index if not exists organizacoes_codigo_rastreio_uidx
   where codigo_rastreio is not null;
 
 comment on column public.organizacoes.codigo_rastreio is
-  'Identificador interno legível (ex.: ORG-IMB-2026-000001) — ver docs/ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md';
+  'Identificador interno (ex.: HUB-OPP-ARQ-20260424-A1B2C3D4) — ver docs/ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md';
 
 -- Ligar convite à coluna opcional (se a tabela já existir com PK id uuid)
 do $$
@@ -85,71 +85,72 @@ begin
   end if;
 end $$;
 
--- --- Prefixo ORG-[TIPO]- (IMB, ARQ, SRV, PRO) — espelho de hub_partner_org_signup_public_rpc.sql ---
+-- --- hub_partner_kind_to_org_prefix + _next_org_codigo_rastreio (espelho RPC pública) --
 create or replace function public.hub_partner_kind_to_org_prefix(p_kind text)
 returns text
-language sql
+language plpgsql
 stable
 set search_path = public
 as $$
-  select case lower(coalesce(nullif(trim(p_kind), ''), 'outro'))
-    when 'imobiliaria' then 'IMB'
-    when 'imobiliarios' then 'IMB'
-    when 'parceiros_imobiliario' then 'IMB'
-    when 'arquitetura' then 'ARQ'
-    when 'arquitetos' then 'ARQ'
-    when 'parceiros_arquitetura' then 'ARQ'
-    when 'engenharia' then 'SRV'
-    when 'engenharias' then 'SRV'
-    when 'produtos' then 'PRO'
-    when 'parceiros_produtos' then 'PRO'
-    when 'parceiro_produtos' then 'PRO'
-    when 'prestador_servicos' then 'SRV'
-    when 'prestadores_servico' then 'SRV'
-    when 'servicos' then 'SRV'
-    when 'parceiros_servicos' then 'SRV'
-    when 'outro' then 'SRV'
-    else 'SRV'
-  end;
+declare
+  k text := lower(trim(coalesce(p_kind, '')));
+begin
+  if k = '' or k = 'outro' then
+    return 'SRV';
+  end if;
+
+  if k in ('imobiliaria', 'imobiliarios', 'parceiros_imobiliario') then
+    return 'IMB';
+  end if;
+  if k in ('arquitetura', 'arquitetos', 'parceiros_arquitetura') then
+    return 'ARQ';
+  end if;
+  if k in ('engenharia', 'engenharias') then
+    return 'SRV';
+  end if;
+  if k in ('produtos', 'parceiros_produtos', 'parceiro_produtos') then
+    return 'PRO';
+  end if;
+  if k in ('prestador_servicos', 'prestadores_servico', 'servicos', 'parceiros_servicos') then
+    return 'SRV';
+  end if;
+
+  if k like '%imob%' then
+    return 'IMB';
+  end if;
+  if k like '%arquit%' then
+    return 'ARQ';
+  end if;
+  if k like '%engenh%' or k like '%prestador%' or (k like '%servic%' and k not like '%produt%') then
+    return 'SRV';
+  end if;
+  if k like '%produt%' then
+    return 'PRO';
+  end if;
+
+  return 'SRV';
+end;
 $$;
 
--- --- Função: gera código ORG-{PREFIX}-{ANO}-{seq} (organizações + pedidos em signups) ---
 create or replace function public._next_org_codigo_rastreio(p_prefix text)
 returns text
 language plpgsql
 as $$
 declare
-  v_year text := to_char(timezone('utc', now()), 'YYYY');
-  v_prefix text := upper(regexp_replace(coalesce(nullif(trim(p_prefix), ''), 'SRV'), '[^A-Z0-9]', '', 'g'));
-  v_seq int;
+  v_seg text := upper(regexp_replace(coalesce(nullif(trim(p_prefix), ''), 'SRV'), '[^A-Z0-9]', '', 'g'));
+  v_date text := to_char(timezone('utc', now()), 'YYYYMMDD');
   v_try text;
   v_n int := 0;
-  v_pat text;
+  v_rand text;
 begin
-  if length(v_prefix) < 2 then
-    v_prefix := 'SRV';
+  if length(v_seg) < 2 then
+    v_seg := 'SRV';
   end if;
-  v_prefix := left(v_prefix, 6);
-  v_pat := '^ORG-' || v_prefix || '-' || v_year || '-[0-9]{6}$';
+  v_seg := left(v_seg, 6);
 
   loop
-    select
-      coalesce((
-        select count(*)::int
-        from public.organizacoes o
-        where o.codigo_rastreio is not null
-          and o.codigo_rastreio ~ v_pat
-      ), 0)
-      + coalesce((
-        select count(*)::int
-        from public.hub_partner_org_signups s
-        where s.codigo_rastreio is not null
-          and s.codigo_rastreio ~ v_pat
-      ), 0)
-      + 1
-    into v_seq;
-
-    v_try := format('ORG-%s-%s-%s', v_prefix, v_year, lpad(v_seq::text, 6, '0'));
+    v_rand := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+    v_try := format('HUB-OPP-%s-%s-%s', v_seg, v_date, v_rand);
     exit when not exists (select 1 from public.organizacoes x where x.codigo_rastreio = v_try)
       and not exists (select 1 from public.hub_partner_org_signups y where y.codigo_rastreio = v_try);
     v_n := v_n + 1;
@@ -157,7 +158,12 @@ begin
   end loop;
 
   if v_n > 50 then
-    v_try := format('ORG-%s-%s-%s', v_prefix, v_year, substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
+    v_try := format(
+      'HUB-OPP-%s-%s-%s',
+      v_seg,
+      v_date,
+      substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)
+    );
   end if;
 
   return v_try;
@@ -336,7 +342,9 @@ begin
       codigo_rastreio = v_codigo,
       modulos_concedidos = to_jsonb(coalesce(p_modulo_slugs, array[]::text[])),
       processado_em = timezone('utc', now()),
-      processado_por_user_id = v_uid
+      processado_por_user_id = v_uid,
+      workflow_etapa = null,
+      workflow_etapa_em = timezone('utc', now())
     where id = p_signup_id;
 
     return jsonb_build_object(

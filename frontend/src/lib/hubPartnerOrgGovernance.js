@@ -51,6 +51,27 @@ export async function rpcClaimOrgInvite(supabase, token) {
  * @param {string} corpo
  * @param {Array<Record<string, unknown>>} [anexos]
  */
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} signupId
+ * @param {'pendente'|'aguardando_retorno'|'em_analise'|'aprovado'} etapa
+ */
+export async function rpcHubAdminSetSignupWorkflowEtapa(supabase, signupId, etapa) {
+  const { data, error } = await supabase.rpc('hub_admin_set_signup_workflow_etapa', {
+    p_signup_id: signupId,
+    p_etapa: etapa,
+  });
+  if (error) return { ok: false, error: error.message };
+  const raw = data && typeof data === 'object' ? data : {};
+  if (raw.ok === false) {
+    return {
+      ok: false,
+      error: [raw.error, raw.detail].filter(Boolean).join(': ') || 'Falha ao actualizar etapa',
+    };
+  }
+  return { ok: true, raw: data };
+}
+
 export async function rpcHubHomologacaoReply(supabase, signupId, corpo, anexos = []) {
   const list = Array.isArray(anexos) ? anexos : [];
   const { data, error } = await supabase.rpc('hub_homologacao_hub_reply', {

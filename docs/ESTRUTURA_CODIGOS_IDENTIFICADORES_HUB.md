@@ -41,15 +41,18 @@ Exemplos de prefixos para entidades ao longo do ecossistema (lead, pessoa, clien
 
 ## 4. Organização (tenant) — implementação dashmidias
 
-Para **rastreio interno** e alinhamento visual com NEG/OPP, cada linha em `organizacoes` pode ter `codigo_rastreio` gerado na aprovação do cadastro público:
+Para **rastreio interno** e alinhamento com o padrão comercial (**OPP**), cada linha em `organizacoes` pode ter `codigo_rastreio` gerado ao submeter o cadastro público (e reutilizado na aprovação):
 
-- **Formato:** `ORG-{PREFIXO}-{ANO}-{SEQ6}`
-- **PREFIXO:** derivado de `tipo_organizacao` / `partner_kind` (ex.: imobiliária → `IMB`, arquitetura → `ARQ`, serviços → `SRV`, produtos → `PRO`; caso genérico → `HUB`).
-- **SEQ6:** sequência numérica de 6 dígitos por ano e prefixo (ver função `_next_org_codigo_rastreio` em `database/hub_partner_org_approve_and_invite.sql`).
+- **Formato:** `HUB-OPP-{MERCADO}-{DATA UTC}-{SUFIXO}`
+- **MERCADO:** `IMB` | `ARQ` | `SRV` | `PRO`, derivado de `partner_kind` / `tipo_organizacao` (função `hub_partner_kind_to_org_prefix`).
+- **DATA:** oito dígitos `YYYYMMDD` (UTC).
+- **SUFIXO:** oito caracteres hexadecimais (aleatório; regerado em caso de colisão).
 
-Exemplo: `ORG-IMB-2026-000001`.
+Exemplo (arquitetura): `HUB-OPP-ARQ-20260424-A1B2C3D4`.
 
-**Nota:** isto é um identificador de **organização (tenant)**, não substitui `NEG-*` / `OPP-*` dos negócios no CRM.
+Códigos **legados** `ORG-*` podem permanecer em linhas antigas; novos pedidos usam apenas `HUB-OPP-*`.
+
+**Nota:** identificador de **organização (tenant)**; não substitui `NEG-*` / `OPP-*` dos negócios no CRM.
 
 ---
 

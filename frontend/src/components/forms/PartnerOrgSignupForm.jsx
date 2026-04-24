@@ -28,7 +28,13 @@ import {
   validatePartnerSignupStep,
 } from '../../schemas/partnerOrgSignup';
 import { getPasswordChecks } from '../../lib/passwordPolicy';
-import { isSupabaseConfigured, uploadPartnerSignupExtraFile } from '../../lib/partnerSignupStorage';
+import { rpcCheckPartnerOrgSignupDocument } from '../../lib/hubPartnerOrgPublic';
+import { uploadPartnerSignupExtraFile } from '../../lib/partnerSignupStorage';
+import { getSupabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import { getPartnerOrgSignupDocumentDigits } from '../../lib/submitHubPartnerOrgSignup';
+
+const PARTNER_SIGNUP_DUPLICATE_DOC_MSG =
+  'Este CNPJ ou CPF já consta num cadastro em análise ou já homologado. Utilize o código ORG ou contacte o suporte.';
 
 /** @param {import('zod').ZodType} schema @param {unknown} value */
 function zodFieldMessage(schema, value) {
@@ -384,6 +390,10 @@ export function PartnerOrgSignupForm({
   const lastCnpjLookup = useRef('');
   /** Evita duplo envio (duplo clique) antes da navegação ou toast. */
   const submitGuardRef = useRef(false);
+  const [documentDuplicateError, setDocumentDuplicateError] = useState('');
+  const docCheckTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const docCheckSeqRef = useRef(0);
+
   const [step, setStep] = useState(0);
   const [showSenha, setShowSenha] = useState(false);
   const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
@@ -417,6 +427,70 @@ export function PartnerOrgSignupForm({
       }
     },
   });
+
+  const ensureDocumentAvailableForContinue = useCallback(async (v) => {
+    const doc = getPartnerOrgSignupDocumentDigits(v);
+    if (!doc) {
+      setDocumentDuplicateError('');
+      return true;
+    }
+    if (!isSupabaseConfigured()) {
+      setDocumentDuplicateError('');
+      return true;
+    }
+    const sb = getSupabase();
+    if (!sb) {
+      setDocumentDuplicateError('');
+      return true;
+    }
+    const chk = await rpcCheckPartnerOrgSignupDocument(sb, doc);
+    if (!chk.ok) {
+      setDocumentDuplicateError('');
+      return true;
+    }
+    if (chk.available === false) {
+      setDocumentDuplicateError(PARTNER_SIGNUP_DUPLICATE_DOC_MSG);
+      return false;
+    }
+    setDocumentDuplicateError('');
+    return true;
+  }, []);
+
+  const scheduleDocumentDuplicateCheck = useCallback(() => {
+    if (!isSupabaseConfigured()) return;
+    if (docCheckTimerRef.current) clearTimeout(docCheckTimerRef.current);
+    docCheckTimerRef.current = setTimeout(async () => {
+      docCheckTimerRef.current = null;
+      const seq = ++docCheckSeqRef.current;
+      const doc = getPartnerOrgSignupDocumentDigits({
+        cnpj: form.getFieldValue('cnpj'),
+        cpf: form.getFieldValue('cpf'),
+      });
+      if (!doc) {
+        if (seq === docCheckSeqRef.current) setDocumentDuplicateError('');
+        return;
+      }
+      const sb = getSupabase();
+      if (!sb) {
+        if (seq === docCheckSeqRef.current) setDocumentDuplicateError('');
+        return;
+      }
+      const r = await rpcCheckPartnerOrgSignupDocument(sb, doc);
+      if (seq !== docCheckSeqRef.current) return;
+      if (!r.ok) {
+        setDocumentDuplicateError('');
+        return;
+      }
+      if (r.available === false) setDocumentDuplicateError(PARTNER_SIGNUP_DUPLICATE_DOC_MSG);
+      else setDocumentDuplicateError('');
+    }, 450);
+  }, [form]);
+
+  useEffect(() => {
+    return () => {
+      if (docCheckTimerRef.current) clearTimeout(docCheckTimerRef.current);
+    };
+  }, []);
 
   const runCepLookup = useCallback(
     async (cepRaw) => {
@@ -548,13 +622,17 @@ export function PartnerOrgSignupForm({
     wizardCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step]);
 
-  const handleWizardPrimary = useCallback(() => {
+  const handleWizardPrimary = useCallback(async () => {
     const v = values;
     if (step < lastStepIndex) {
       const r = validatePartnerSignupStep(step, v, wizardLayout);
       if (!r.success) {
         setStepErrors(zodIssuesToStepErrors(r.error?.issues));
         return;
+      }
+      if (step === 0) {
+        const okDoc = await ensureDocumentAvailableForContinue(v);
+        if (!okDoc) return;
       }
       setStepErrors({});
       setStep((x) => x + 1);
@@ -565,9 +643,11 @@ export function PartnerOrgSignupForm({
       setStepErrors(zodIssuesToStepErrors(rFinal.error?.issues));
       return;
     }
+    const okDocFinal = await ensureDocumentAvailableForContinue(v);
+    if (!okDocFinal) return;
     setStepErrors({});
     void form.handleSubmit();
-  }, [values, step, lastStepIndex, wizardLayout, form]);
+  }, [values, step, lastStepIndex, wizardLayout, form, ensureDocumentAvailableForContinue]);
 
   return (
     <form
@@ -610,6 +690,13 @@ export function PartnerOrgSignupForm({
         >
           {step === 0 ? (
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 lg:grid-cols-12">
+              {documentDuplicateError ? (
+                <div className="lg:col-span-12" role="alert">
+                  <p className="rounded-none border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                    {documentDuplicateError}
+                  </p>
+                </div>
+              ) : null}
               <form.Field name="cnpj">
                 {(field) => (
                   <div className="lg:col-span-12">
@@ -628,6 +715,7 @@ export function PartnerOrgSignupForm({
                       value={field.state.value}
                       onChange={(e) => {
                         const v = e.target.value;
+                        setDocumentDuplicateError('');
                         const cur = normalizeCnpj14(v);
                         if (!cur || cur.length < 14) {
                           lastCnpjLookup.current = '';
@@ -642,9 +730,11 @@ export function PartnerOrgSignupForm({
                           lastCnpjLookup.current = '';
                           setCnpjHint('');
                           setCnpjDetailHints({ mainActivity: '', status: '', nature: '' });
+                          scheduleDocumentDuplicateCheck();
                           return;
                         }
                         await runCnpjLookup(e.target.value);
+                        scheduleDocumentDuplicateCheck();
                       }}
                       className="w-full border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0 disabled:opacity-60"
                     />
@@ -696,10 +786,14 @@ export function PartnerOrgSignupForm({
                         placeholder="000.000.000-00"
                         value={formatCpfMask(field.state.value)}
                         onChange={(e) => {
+                          setDocumentDuplicateError('');
                           const d = onlyDigits(e.target.value).slice(0, 11);
                           field.handleChange(d);
                         }}
-                        onBlur={field.handleBlur}
+                        onBlur={() => {
+                          field.handleBlur();
+                          scheduleDocumentDuplicateCheck();
+                        }}
                         className="w-full border border-outline-variant px-3 py-2 font-mono text-sm text-primary outline-none focus:border-primary focus:ring-0"
                       />
                       <FieldError errors={mergeStepErrors(field.state.meta.errors, stepErrors, 'cpf')} />

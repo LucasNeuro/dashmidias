@@ -2,6 +2,13 @@ import { rpcSubmitPartnerOrgSignup } from './hubPartnerOrgPublic';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { normalizeCnpj14, normalizeCpf11 } from './opencnpj';
 
+/** Documento enviado em `hub_partner_org_signups.cnpj`: CNPJ 14 dígitos ou CPF 11 (mesma regra do insert). */
+export function getPartnerOrgSignupDocumentDigits(raw) {
+  const cnpjDigits = normalizeCnpj14(String(raw.cnpj ?? ''));
+  const cpfDigits = normalizeCpf11(String(raw.cpf ?? ''));
+  return cnpjDigits || cpfDigits || null;
+}
+
 /** PostgREST quando a função ainda não existe na base ou a cache não foi recarregada. */
 function isHubSubmitRpcUnavailableMessage(msg) {
   const m = String(msg || '').toLowerCase();
@@ -26,11 +33,15 @@ async function insertPartnerOrgSignupDirect(sb, { email, doc, raw, meta }) {
   const { error } = await sb.from('hub_partner_org_signups').insert(row);
   if (error) {
     const msg = error.message || '';
-    if (/one_pending_per_doc/i.test(msg) || (/duplicate key/i.test(msg) && /\bcnpj\b/i.test(msg))) {
+    if (
+      /one_active_per_doc/i.test(msg) ||
+      /one_pending_per_doc/i.test(msg) ||
+      (/duplicate key/i.test(msg) && /\bcnpj\b/i.test(msg))
+    ) {
       return {
         ok: false,
         error:
-          'Já existe um pedido pendente com este CNPJ/CPF. Aguarde análise ou utilize o código ORG recebido.',
+          'Este CNPJ ou CPF já está cadastrado ou em análise no HUB. Utilize o código ORG ou contacte o suporte.',
       };
     }
     return { ok: false, error: msg || 'Não foi possível guardar o cadastro.' };
@@ -62,10 +73,8 @@ export async function submitHubPartnerOrgSignup(bundle) {
   delete raw.senha;
   delete raw.confirmar_senha;
 
-  const cnpjDigits = normalizeCnpj14(String(raw.cnpj ?? ''));
-  const cpfDigits = normalizeCpf11(String(raw.cpf ?? ''));
   /** Identificador guardado em `cnpj` (coluna legada): 14 dígitos CNPJ ou 11 CPF. */
-  const doc = cnpjDigits || cpfDigits;
+  const doc = getPartnerOrgSignupDocumentDigits(raw);
   const email = String(raw.email ?? '').trim();
 
   if (!doc || !email) {

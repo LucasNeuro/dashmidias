@@ -45,6 +45,31 @@ export async function rpcSubmitPartnerOrgSignup(supabase, p) {
   };
 }
 
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} docDigits — 14 (CNPJ) ou 11 (CPF), só dígitos
+ * @returns {Promise<{ ok: boolean, available?: boolean, error?: string }>}
+ */
+export async function rpcCheckPartnerOrgSignupDocument(supabase, docDigits) {
+  const { data, error } = await supabase.rpc('hub_check_partner_org_signup_document', {
+    p_doc: docDigits,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message || 'check_failed' };
+  }
+
+  const payload = data && typeof data === 'object' ? data : null;
+  if (!payload || payload.ok !== true) {
+    if (payload?.error === 'invalid_document') {
+      return { ok: false, error: 'invalid_document' };
+    }
+    return { ok: false, error: 'check_failed' };
+  }
+
+  return { ok: true, available: payload.available === true };
+}
+
 function mapHubSubmitError(code, detail) {
   switch (code) {
     case 'email_invalid':
@@ -53,8 +78,9 @@ function mapHubSubmitError(code, detail) {
       return 'Documento (CNPJ ou CPF) é obrigatório.';
     case 'dados_required':
       return 'Dados do formulário em falta.';
+    case 'duplicate_document':
     case 'duplicate_pending_signup':
-      return 'Já existe um pedido pendente com este CNPJ/CPF. Aguarde análise ou utilize o código ORG recebido.';
+      return 'Este CNPJ ou CPF já está cadastrado ou em análise no HUB. Utilize o código ORG ou contacte o suporte.';
     case 'duplicate_codigo':
       return 'Conflito ao gerar código de rastreio. Tente novamente.';
     case 'sql_error':
@@ -66,7 +92,7 @@ function mapHubSubmitError(code, detail) {
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- * @param {string} ref — codigo_rastreio (ORG-…) ou UUID do pedido
+ * @param {string} ref — codigo_rastreio (HUB-OPP-… ou legado ORG-…) ou UUID do pedido
  * @returns {Promise<{ ok: boolean, row?: object, error?: string }>}
  */
 export async function rpcPublicHomologacaoStatus(supabase, ref) {
