@@ -59,6 +59,59 @@ export function labelConsultaFonte(f) {
 }
 
 /**
+ * Normaliza `cnpja_snapshot` (objeto, JSON em string, ou payload aninhado em `data`).
+ * @param {unknown} raw
+ * @returns {{ snapshot: Record<string, unknown> | null, inferredFonte: 'cnpja' | 'brasilapi' | null }}
+ */
+export function normalizeHubCnpjSnapshotInput(raw) {
+  let o = raw;
+  if (o == null) return { snapshot: null, inferredFonte: null };
+  if (typeof o === 'string') {
+    const t = o.trim();
+    if (!t) return { snapshot: null, inferredFonte: null };
+    try {
+      o = JSON.parse(t);
+    } catch {
+      return { snapshot: null, inferredFonte: null };
+    }
+  }
+  if (typeof o !== 'object' || o === null) return { snapshot: null, inferredFonte: null };
+  const root = /** @type {Record<string, unknown>} */ (o);
+  if (root._fonte === 'brasilapi' && root.payload && typeof root.payload === 'object') {
+    return { snapshot: root, inferredFonte: 'brasilapi' };
+  }
+  const inner =
+    root.data && typeof root.data === 'object' && !('company' in root) && !('taxId' in root)
+      ? /** @type {Record<string, unknown>} */ (root.data)
+      : root;
+  if (inner._fonte === 'brasilapi' && inner.payload && typeof inner.payload === 'object') {
+    return { snapshot: /** @type {Record<string, unknown>} */ (inner), inferredFonte: 'brasilapi' };
+  }
+  if (
+    'company' in inner ||
+    'taxId' in inner ||
+    'mainActivity' in inner ||
+    ('address' in inner && typeof inner.address === 'object')
+  ) {
+    return { snapshot: /** @type {Record<string, unknown>} */ (inner), inferredFonte: 'cnpja' };
+  }
+  return { snapshot: /** @type {Record<string, unknown>} */ (inner), inferredFonte: null };
+}
+
+/**
+ * Rótulo para UI: usa `consulta_fonte` da linha ou infere pelo formato do snapshot.
+ * @param {string | null | undefined} dbVal
+ * @param {unknown} rawSnap
+ */
+export function resolveConsultaFonteLabel(dbVal, rawSnap) {
+  const direct = labelConsultaFonte(dbVal);
+  if (direct !== '—') return direct;
+  const { inferredFonte } = normalizeHubCnpjSnapshotInput(rawSnap);
+  if (inferredFonte) return labelConsultaFonte(inferredFonte);
+  return 'Não registada';
+}
+
+/**
  * @param {string | null | undefined} id
  */
 export function shortTemplateRef(id) {
@@ -125,16 +178,65 @@ export function buildFormularioGovFields(dados) {
 }
 
 /**
+ * Agrupa campos do formulário em cartões (empresa, endereço, extras).
+ * @param {Record<string, unknown>} dados
+ * @returns {Array<{ id: string, title: string, icon: string, rows: Array<{ label: string, value: string }> }>}
+ */
+export function buildFormularioGroupedSections(dados) {
+  if (!dados || typeof dados !== 'object') return [];
+  const d = /** @type {Record<string, unknown>} */ (dados);
+  const pick = (label, key) => {
+    if (!(key in d) || d[key] == null || String(d[key]).trim() === '') return null;
+    return { label, value: String(d[key]) };
+  };
+  /** @type {Array<{ id: string, title: string, icon: string, rows: Array<{ label: string, value: string }> }>} */
+  const out = [];
+  const empRows = [
+    pick('Razão / nome empresarial', 'nome_empresa'),
+    pick('CNPJ', 'cnpj'),
+    pick('CPF', 'cpf'),
+    pick('E-mail', 'email'),
+    pick('Telefone', 'telefone'),
+  ].filter(Boolean);
+  if (empRows.length) out.push({ id: 'emp', title: 'Empresa e contacto', icon: 'corporate_fare', rows: /** @type {*} */ (empRows) });
+
+  const addrRows = [
+    pick('CEP', 'cep'),
+    pick('Logradouro', 'logradouro'),
+    pick('Número', 'numero'),
+    pick('Complemento', 'complemento'),
+    pick('Bairro', 'bairro'),
+    pick('Cidade', 'cidade'),
+    pick('UF', 'uf'),
+    pick('Código IBGE', 'codigo_ibge'),
+  ].filter(Boolean);
+  if (addrRows.length) out.push({ id: 'addr', title: 'Endereço', icon: 'distance', rows: /** @type {*} */ (addrRows) });
+
+  if (d.extras && typeof d.extras === 'object' && !Array.isArray(d.extras)) {
+    const exRows = Object.entries(d.extras)
+      .filter(([, v]) => v != null && String(v).trim() !== '')
+      .map(([k, v]) => ({
+        label: humanizeSnake(k),
+        value: typeof v === 'object' ? JSON.stringify(v) : String(v),
+      }));
+    if (exRows.length) out.push({ id: 'extras', title: 'Campos adicionais (template)', icon: 'tune', rows: exRows });
+  }
+  return out;
+}
+
+/**
  * @param {unknown} snap
- * @returns {{ title: string, sections: Array<{ id: string, title: string, fields: GovField[] }>, members: string[] }}
+ * @returns {{ title: string, sections: Array<{ id: string, title: string, fields: GovField[] }>, members: string[], suframaLines: string[] }}
  */
 export function buildCnpjSnapshotPresentation(snap) {
-  if (!snap || typeof snap !== 'object') {
-    return { title: 'Sem consulta automática', sections: [], members: [] };
+  const { snapshot } = normalizeHubCnpjSnapshotInput(snap);
+  if (!snapshot) {
+    return { title: 'Sem consulta automática', sections: [], members: [], suframaLines: [] };
   }
-  const o = /** @type {Record<string, unknown>} */ (snap);
+  const o = snapshot;
   if (o._fonte === 'brasilapi' && o.payload && typeof o.payload === 'object') {
-    return buildBrasilApiPresentation(/** @type {Record<string, unknown>} */ (o.payload));
+    const br = buildBrasilApiPresentation(/** @type {Record<string, unknown>} */ (o.payload));
+    return { ...br, suframaLines: [] };
   }
   return buildCnpjaPresentation(o);
 }
@@ -162,7 +264,7 @@ function buildBrasilApiPresentation(p) {
       fields: [{ icon: 'distance', label: 'Endereço completo', value: logr.join(', ') }],
     });
   }
-  return { title, sections, members: [] };
+  return { title, sections, members: [], suframaLines: [] };
 }
 
 function buildCnpjaPresentation(data) {
@@ -183,6 +285,18 @@ function buildCnpjaPresentation(data) {
   if (nat) idFields.push({ icon: 'gavel', label: 'Natureza jurídica', value: String(nat) });
   const size = company?.size && typeof company.size === 'object' ? company.size.text : null;
   if (size) idFields.push({ icon: 'groups', label: 'Porte', value: String(size) });
+  const simples = company?.simples && typeof company.simples === 'object' ? company.simples : null;
+  if (simples) {
+    const opt = simples.optant === true ? 'Optante' : 'Não optante';
+    const since = simples.since != null && simples.since !== '' ? ` · desde ${simples.since}` : '';
+    idFields.push({ icon: 'receipt_long', label: 'Simples Nacional', value: `${opt}${since}` });
+  }
+  const simei = company?.simei && typeof company.simei === 'object' ? company.simei : null;
+  if (simei) {
+    const opt = simei.optant === true ? 'Optante' : 'Não optante';
+    const since = simei.since != null && simei.since !== '' ? ` · desde ${simei.since}` : '';
+    idFields.push({ icon: 'storefront', label: 'MEI / SIMEI', value: `${opt}${since}` });
+  }
   if (company?.equity != null) {
     const eq = fmtMoney(company.equity);
     if (eq) idFields.push({ icon: 'account_balance', label: 'Capital social', value: eq });
@@ -260,6 +374,8 @@ function buildCnpjaPresentation(data) {
   }
 
   const suframa = Array.isArray(data.suframa) ? data.suframa : [];
+  /** @type {string[]} */
+  const suframaLines = [];
   if (suframa.length) {
     const lines = suframa.map((s) => {
       if (!s || typeof s !== 'object') return '';
@@ -272,6 +388,26 @@ function buildCnpjaPresentation(data) {
       title: 'SUFRAMA',
       fields: [{ icon: 'forest', label: 'Registros', value: lines.filter(Boolean).join(' | ') }],
     });
+    for (const s of suframa) {
+      if (!s || typeof s !== 'object') continue;
+      const n = s.number != null ? String(s.number) : '—';
+      const head = [
+        `Cadastro ${n}`,
+        s.approved === true ? 'aprovado' : s.approved === false ? 'não aprovado' : null,
+        s.status && typeof s.status === 'object' ? String(s.status.text) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      suframaLines.push(head);
+      if (s.since) suframaLines.push(`- Vigência: ${String(s.since)}`);
+      if (s.approvalDate) suframaLines.push(`- Data aprovação: ${String(s.approvalDate)}`);
+      const inc = Array.isArray(s.incentives) ? s.incentives : [];
+      for (const it of inc) {
+        if (!it || typeof it !== 'object') continue;
+        const t = [it.basis, it.benefit, it.purpose, it.tribute].filter(Boolean).map(String);
+        if (t.length) suframaLines.push(`- Incentivo: ${t.join(' · ')}`);
+      }
+    }
   }
 
   const members = Array.isArray(company?.members) ? company.members : [];
@@ -286,7 +422,7 @@ function buildCnpjaPresentation(data) {
     })
     .filter(Boolean);
 
-  return { title, sections, members: membersLines };
+  return { title, sections, members: membersLines, suframaLines };
 }
 
 /**

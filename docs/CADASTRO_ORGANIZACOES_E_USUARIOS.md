@@ -41,7 +41,7 @@ A **auth** continua centralizada em `auth.users`; o vínculo multi-tenant é `or
 | `papel_template` | Papéis base. **No ambiente atual:** `hub_admin` (escopo **plataforma**), `admin_organizacao`, `membro` (escopo **organizacao**). |
 | `papel_template_permissoes` + `permissao_recursos` + `modulos_catalogo` | Catálogo de módulos e permissões finas (ex.: `crm_central`, `campanhas`, …). |
 | `organizacao_modulos` | Liga org ↔ módulo do catálogo (`ativo`, `config` jsonb). |
-| `hub_partner_org_signups` | Pedidos do formulário público `/cadastro/organizacao`: `dados_formulario`, **`cnpja_snapshot`** (JSON **completo** da API CNPJA ou Brasil API), `consulta_fonte`, `status`; após aprovação via RPC: `organizacao_id`, `hub_convite_id`, `modulos_concedidos`, `processado_em`, `processado_por_user_id` (ver `database/hub_partner_org_approve_and_invite.sql`). |
+| `hub_partner_org_signups` | Pedidos do formulário público `/cadastro/organizacao`: `dados_formulario`, **`cnpja_snapshot`** (JSON **completo** da API CNPJA ou Brasil API), `consulta_fonte`, `status`; após aprovação via RPC: `organizacao_id`, `hub_convite_id`, **`codigo_rastreio`** (espelho do `ORG-*` gravado em `organizacoes`), `modulos_concedidos`, `processado_em`, `processado_por_user_id` (ver `database/hub_partner_org_approve_and_invite.sql`). |
 
 ### 2.2 Convenção recomendada: `organizacoes.tipo_organizacao`
 

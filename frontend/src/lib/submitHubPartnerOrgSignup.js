@@ -1,5 +1,34 @@
+import { rpcSubmitPartnerOrgSignup } from './hubPartnerOrgPublic';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { normalizeCnpj14, normalizeCpf11 } from './opencnpj';
+
+/** PostgREST quando a função ainda não existe na base ou a cache não foi recarregada. */
+function isHubSubmitRpcUnavailableMessage(msg) {
+  const m = String(msg || '').toLowerCase();
+  return (
+    (m.includes('could not find the function') && m.includes('hub_submit_partner_org_signup')) ||
+    (m.includes('hub_submit_partner_org_signup') && m.includes('schema cache')) ||
+    m.includes('function public.hub_submit_partner_org_signup') && m.includes('does not exist')
+  );
+}
+
+async function insertPartnerOrgSignupDirect(sb, { email, doc, raw, meta }) {
+  const row = {
+    email,
+    cnpj: doc,
+    dados_formulario: raw,
+    cnpja_snapshot: meta?.cnpjSnapshot ?? null,
+    consulta_fonte: meta?.consultaFonte ?? null,
+    template_id: meta?.templateId ?? null,
+    partner_kind: meta?.partnerKind ?? null,
+    status: 'pendente',
+  };
+  const { error } = await sb.from('hub_partner_org_signups').insert(row);
+  if (error) {
+    return { ok: false, error: error.message || 'Não foi possível guardar o cadastro.' };
+  }
+  return { ok: true, legacyInsert: true };
+}
 
 /**
  * @param {{
@@ -11,7 +40,7 @@ import { normalizeCnpj14, normalizeCpf11 } from './opencnpj';
  *     cnpjSnapshot?: unknown,
  *   },
  * }} bundle
- * @returns {Promise<{ ok: boolean, skipped?: boolean, error?: string }>}
+ * @returns {Promise<{ ok: boolean, skipped?: boolean, error?: string, signupId?: string, codigoRastreio?: string, legacyInsert?: boolean }>}
  */
 export async function submitHubPartnerOrgSignup(bundle) {
   if (!isSupabaseConfigured()) {
@@ -35,20 +64,22 @@ export async function submitHubPartnerOrgSignup(bundle) {
     return { ok: false, error: 'E-mail e CNPJ ou CPF são necessários para registar o pedido.' };
   }
 
-  const row = {
+  const payload = {
     email,
     cnpj: doc,
-    dados_formulario: raw,
-    cnpja_snapshot: meta?.cnpjSnapshot ?? null,
-    consulta_fonte: meta?.consultaFonte ?? null,
-    template_id: meta?.templateId ?? null,
-    partner_kind: meta?.partnerKind ?? null,
-    status: 'pendente',
+    dadosFormulario: raw,
+    cnpjaSnapshot: meta?.cnpjSnapshot ?? null,
+    consultaFonte: meta?.consultaFonte ?? null,
+    templateId: meta?.templateId ?? null,
+    partnerKind: meta?.partnerKind ?? null,
   };
 
-  const { error } = await sb.from('hub_partner_org_signups').insert(row);
-  if (error) {
-    return { ok: false, error: error.message || 'Não foi possível guardar o cadastro.' };
+  const rpcResult = await rpcSubmitPartnerOrgSignup(sb, payload);
+  if (rpcResult.ok) {
+    return rpcResult;
   }
-  return { ok: true };
+  if (isHubSubmitRpcUnavailableMessage(rpcResult.error)) {
+    return insertPartnerOrgSignupDirect(sb, { email, doc, raw, meta });
+  }
+  return rpcResult;
 }

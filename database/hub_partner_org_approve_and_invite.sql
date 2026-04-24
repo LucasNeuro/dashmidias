@@ -41,6 +41,12 @@ alter table public.hub_partner_org_signups
 alter table public.hub_partner_org_signups
   add column if not exists processado_por_user_id uuid references auth.users (id) on delete set null;
 
+alter table public.hub_partner_org_signups
+  add column if not exists codigo_rastreio text;
+
+comment on column public.hub_partner_org_signups.codigo_rastreio is
+  'Código ORG-[mercado]-ano-seq gerado na aprovação (espelho de organizacoes.codigo_rastreio para auditoria no pedido).';
+
 comment on column public.hub_partner_org_signups.modulos_concedidos is
   'Snapshot dos slugs/códigos de módulos concedidos pelo HUB na aprovação.';
 
@@ -79,7 +85,7 @@ begin
   end if;
 end $$;
 
--- --- Função: gera código ORG-{PREFIX}-{ANO}-{seq} ---------------------------------------
+-- --- Função: gera código ORG-{PREFIX}-{ANO}-{seq} (organizações + pedidos em signups) ---
 create or replace function public._next_org_codigo_rastreio(p_prefix text)
 returns text
 language plpgsql
@@ -90,20 +96,34 @@ declare
   v_seq int;
   v_try text;
   v_n int := 0;
+  v_pat text;
 begin
   if length(v_prefix) < 2 then
     v_prefix := 'HUB';
   end if;
   v_prefix := left(v_prefix, 6);
+  v_pat := '^ORG-' || v_prefix || '-' || v_year || '-[0-9]{6}$';
 
   loop
-    select count(*) + 1 into v_seq
-    from public.organizacoes o
-    where o.codigo_rastreio is not null
-      and o.codigo_rastreio ~ ('^ORG-' || v_prefix || '-' || v_year || '-[0-9]{6}$');
+    select
+      coalesce((
+        select count(*)::int
+        from public.organizacoes o
+        where o.codigo_rastreio is not null
+          and o.codigo_rastreio ~ v_pat
+      ), 0)
+      + coalesce((
+        select count(*)::int
+        from public.hub_partner_org_signups s
+        where s.codigo_rastreio is not null
+          and s.codigo_rastreio ~ v_pat
+      ), 0)
+      + 1
+    into v_seq;
 
     v_try := format('ORG-%s-%s-%s', v_prefix, v_year, lpad(v_seq::text, 6, '0'));
-    exit when not exists (select 1 from public.organizacoes x where x.codigo_rastreio = v_try);
+    exit when not exists (select 1 from public.organizacoes x where x.codigo_rastreio = v_try)
+      and not exists (select 1 from public.hub_partner_org_signups y where y.codigo_rastreio = v_try);
     v_n := v_n + 1;
     exit when v_n > 50;
   end loop;
@@ -139,7 +159,7 @@ $$;
 
 -- =============================================================================
 -- RPC: Aprovar cadastro (admin HUB)
--- p_modulo_slugs: ex. ARRAY['crm_central','imobiliario'] — deve existir em modulos_catalogo.slug ou .codigo
+-- p_modulo_slugs: text[] com UUID de modulos_catalogo.id (como texto) — o catálogo actual pode não ter coluna codigo/slug
 -- =============================================================================
 create or replace function public.hub_approve_partner_org_signup(
   p_signup_id uuid,
@@ -207,7 +227,11 @@ begin
     else 'HUB'
   end;
 
-  v_codigo := public._next_org_codigo_rastreio(v_prefix);
+  -- Reutilizar código já reservado no pedido (RPC hub_submit_partner_org_signup), se existir.
+  v_codigo := nullif(trim(coalesce(s.codigo_rastreio::text, '')), '');
+  if v_codigo is null then
+    v_codigo := public._next_org_codigo_rastreio(v_prefix);
+  end if;
   v_slug := public._slugify_org_name(v_nome, p_signup_id::text);
 
   select id into v_papel_admin
@@ -244,7 +268,7 @@ begin
         for m in
           select mc.id as mid
           from public.modulos_catalogo mc
-          where mc.codigo = v_mod
+          where mc.id::text = trim(v_mod)
           limit 1
         loop
           begin
@@ -288,6 +312,7 @@ begin
       status = 'processado',
       organizacao_id = v_org_id,
       hub_convite_id = v_convite_id,
+      codigo_rastreio = v_codigo,
       modulos_concedidos = to_jsonb(coalesce(p_modulo_slugs, array[]::text[])),
       processado_em = timezone('utc', now()),
       processado_por_user_id = v_uid

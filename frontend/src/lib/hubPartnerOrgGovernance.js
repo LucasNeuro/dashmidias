@@ -4,7 +4,7 @@
 export async function fetchModulosCatalogoGovernanca(supabase) {
   const { data, error } = await supabase
     .from('modulos_catalogo')
-    .select('id, codigo, nome, descricao')
+    .select('id, nome, descricao')
     .order('nome', { ascending: true });
   if (error) throw error;
   return data || [];

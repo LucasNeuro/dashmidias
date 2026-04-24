@@ -7,40 +7,145 @@ import { fetchPartnerOrgSignups } from '../lib/governanceQueries';
 import { fetchModulosCatalogoGovernanca, rpcApprovePartnerOrgSignup } from '../lib/hubPartnerOrgGovernance';
 import {
   buildCnpjSnapshotPresentation,
-  buildFormularioGovFields,
+  buildFormularioGroupedSections,
   describeProvisioningCodeHint,
   hubMarketLegendItems,
-  labelConsultaFonte,
   labelPartnerKind,
+  normalizeHubCnpjSnapshotInput,
+  resolveConsultaFonteLabel,
   shortTemplateRef,
 } from '../lib/partnerOrgGovernanceDisplay';
 import { onlyDigits } from '../lib/opencnpj';
 
-/** @param {{ fields: import('../lib/partnerOrgGovernanceDisplay').GovField[] }} p */
-function GovernanceFieldGrid({ fields }) {
-  if (!fields.length) {
-    return <p className="text-sm text-on-surface-variant">Sem dados nesta secção.</p>;
-  }
+/** @param {{ icon: string, title: string, children: import('react').ReactNode, className?: string }} p */
+function GovernanceReportCard({ icon, title, children, className = '' }) {
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-      {fields.map((f) => (
-        <div
-          key={`${f.label}-${f.value.slice(0, 24)}`}
-          className="flex gap-3 rounded-xl border border-slate-200/90 bg-white p-3 shadow-sm transition hover:border-tertiary/30"
-        >
-          <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tertiary/15 text-tertiary"
-            aria-hidden
-          >
-            <span className="material-symbols-outlined text-[22px] leading-none">{f.icon}</span>
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{f.label}</p>
-            <p className="mt-1 text-sm font-semibold leading-snug text-primary break-words">{f.value}</p>
-          </div>
-        </div>
-      ))}
+    <div
+      className={`rounded-2xl border border-slate-200/85 bg-gradient-to-b from-white to-slate-50/35 p-5 shadow-sm ${className}`}
+    >
+      <div className="flex items-center gap-3 border-b border-slate-100/90 pb-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-tertiary/12 text-tertiary" aria-hidden>
+          <span className="material-symbols-outlined text-[24px] leading-none">{icon}</span>
+        </span>
+        <h4 className="text-xs font-black uppercase tracking-[0.16em] text-primary">{title}</h4>
+      </div>
+      <div className="mt-4">{children}</div>
     </div>
+  );
+}
+
+/** @param {{ section: { id: string, title: string, icon: string, rows: Array<{ label: string, value: string }> } }} p */
+function GovernanceGroupedCard({ section }) {
+  if (!section.rows.length) return null;
+  return (
+    <GovernanceReportCard icon={section.icon} title={section.title}>
+      <dl className="grid grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2">
+        {section.rows.map((r) => (
+          <div key={`${section.id}-${r.label}`} className="min-w-0">
+            <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">{r.label}</dt>
+            <dd className="mt-0.5 text-sm font-semibold leading-snug text-primary break-words">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </GovernanceReportCard>
+  );
+}
+
+/** @param {{ row: Record<string, unknown> }} p */
+function OrgConsultaReportView({ row }) {
+  const rawSnap = row.cnpja_snapshot;
+  const { snapshot } = normalizeHubCnpjSnapshotInput(rawSnap);
+  const snapEmpty =
+    rawSnap == null ||
+    (typeof rawSnap === 'object' && rawSnap !== null && Object.keys(rawSnap).length === 0);
+  const pres = buildCnpjSnapshotPresentation(rawSnap);
+  const fonte = resolveConsultaFonteLabel(row.consulta_fonte, rawSnap);
+  const hasBody =
+    !snapEmpty &&
+    snapshot &&
+    (pres.sections.length > 0 || pres.members.length > 0 || (pres.suframaLines && pres.suframaLines.length > 0));
+
+  if (!hasBody) {
+    return (
+      <article className="space-y-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-sm leading-relaxed">
+        <h3 className="text-base font-black text-primary">Relatório da consulta CNPJ</h3>
+        <hr className="border-slate-200" />
+        <p className="text-on-surface-variant">
+          <strong className="text-primary">Não há dados de consulta guardados neste pedido.</strong> Situações comuns:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5 text-on-surface-variant">
+          <li>cadastro anterior à gravação do snapshot na base;</li>
+          <li>indisponibilidade da API no momento do envio;</li>
+          <li>CNPJ não consultado na sessão antes de submeter o formulário.</li>
+        </ul>
+        <p className="text-on-surface-variant">
+          Utilize o separador <strong className="text-primary">Formulário</strong> para os dados declarados pelo parceiro. Fonte registada:{' '}
+          <em>{fonte}</em>.
+        </p>
+      </article>
+    );
+  }
+
+  return (
+    <article className="space-y-5 text-sm leading-relaxed text-primary">
+      <header className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-tertiary">Relatório · consulta CNPJ</p>
+        <h3 className="mt-2 text-xl font-black tracking-tight text-primary">{pres.title}</h3>
+        <p className="mt-2 text-on-surface-variant">
+          Fonte: <strong className="text-primary">{fonte}</strong>. Leitura em formato de relatório para homologação (sem JSON bruto).
+        </p>
+      </header>
+
+      {pres.sections.map((sec) => (
+        <section key={sec.id} className="rounded-2xl border border-slate-200/85 bg-white p-5 shadow-sm">
+          <h4 className="flex items-center gap-2 border-b border-slate-100 pb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-600">
+            <span className="material-symbols-outlined text-[20px] text-tertiary" aria-hidden>
+              segment
+            </span>
+            {sec.title}
+          </h4>
+          <dl className="mt-4 space-y-4">
+            {sec.fields.map((f) => (
+              <div key={`${sec.id}-${f.label}`} className="border-l-2 border-tertiary/25 pl-4">
+                <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">{f.label}</dt>
+                <dd className="mt-1 text-sm font-medium text-primary">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
+
+      {pres.members.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200/85 bg-white p-5 shadow-sm">
+          <h4 className="border-b border-slate-100 pb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-600">
+            Quadro societário e administradores
+          </h4>
+          <ol className="mt-4 list-decimal space-y-2.5 pl-5 marker:font-semibold text-primary">
+            {pres.members.map((line, i) => (
+              <li key={i} className="pl-1">
+                {line}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      {pres.suframaLines && pres.suframaLines.length > 0 ? (
+        <section className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/50 to-white p-5">
+          <h4 className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-950">SUFRAMA — detalhe</h4>
+          <ul className="mt-3 space-y-1.5 text-sm text-primary">
+            {pres.suframaLines.map((line, i) => (
+              <li
+                key={i}
+                className={line.startsWith('-') ? 'border-l border-amber-300/60 pl-3 text-on-surface-variant' : 'font-semibold'}
+              >
+                {line}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </article>
   );
 }
 
@@ -55,6 +160,11 @@ function HubCodeLegend({ className = '' }) {
       <p className="mt-2 text-[11px] leading-relaxed text-on-surface-variant">
         <strong className="text-primary">NEG</strong> e <strong className="text-primary">OPP</strong> identificam negócios e oportunidades; são imutáveis após criação. Na homologação, a{' '}
         <strong>organização</strong> recebe <strong className="text-primary">ORG-[mercado]-ano-sequência</strong>, com os mesmos prefixos de mercado (origem da demanda).
+      </p>
+      <p className="mt-3 border-t border-slate-200/80 pt-3 text-[11px] leading-relaxed text-on-surface-variant">
+        No ciclo de vida do CRM, o <strong className="text-primary">negócio</strong> (<span className="font-mono">NEG-*</span>) agrega a demanda; as{' '}
+        <strong className="text-primary">oportunidades</strong> (<span className="font-mono">OPP-*</span>) ligam receita e etapas. A{' '}
+        <strong className="text-primary">organização</strong> homologada (<span className="font-mono">ORG-*</span>) participa desses fluxos como tenant.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {items.map((m) => (
@@ -89,57 +199,12 @@ function HubCodeLegend({ className = '' }) {
 }
 
 /** @param {{ row: Record<string, unknown> }} p */
-function OrgConsultaStructuredView({ row }) {
-  const snap = row.cnpja_snapshot && typeof row.cnpja_snapshot === 'object' ? row.cnpja_snapshot : null;
-  const pres = buildCnpjSnapshotPresentation(snap);
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <h4 className="text-base font-black leading-snug text-primary">{pres.title}</h4>
-        <p className="mt-1 text-[11px] text-on-surface-variant">
-          Fonte: {labelConsultaFonte(row.consulta_fonte)} · leitura homologação
-        </p>
-      </div>
-      {!snap ? (
-        <p className="text-sm text-on-surface-variant">Sem snapshot de CNPJ neste pedido (envio antigo ou consulta indisponível).</p>
-      ) : (
-        pres.sections.map((sec) => (
-          <div key={sec.id} className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">{sec.title}</h4>
-            <div className="mt-3">
-              <GovernanceFieldGrid fields={sec.fields} />
-            </div>
-          </div>
-        ))
-      )}
-      {pres.members.length > 0 ? (
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Quadro societário / administradores</h4>
-          <ul className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-            {pres.members.map((line, i) => (
-              <li
-                key={i}
-                className="flex gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm text-primary"
-              >
-                <span className="material-symbols-outlined mt-0.5 text-[18px] text-tertiary" aria-hidden>
-                  person
-                </span>
-                <span className="leading-snug">{line}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** @param {{ row: Record<string, unknown> }} p */
 function OrgExpandedTabs({ row }) {
   const [tab, setTab] = useState('formulario');
   const dados = stripSensitiveDados(row.dados_formulario);
-  const formFields = buildFormularioGovFields(dados);
+  const formGroups = buildFormularioGroupedSections(dados);
   const hint = describeProvisioningCodeHint('', row.partner_kind);
+  const codigoGravado = row.codigo_rastreio != null && String(row.codigo_rastreio).trim() !== '' ? String(row.codigo_rastreio) : null;
 
   const tabs = [
     { id: 'formulario', label: 'Formulário' },
@@ -165,47 +230,77 @@ function OrgExpandedTabs({ row }) {
       </div>
 
       {tab === 'formulario' ? (
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Dados enviados pelo parceiro</h4>
-          <div className="mt-3">
-            <GovernanceFieldGrid fields={formFields} />
-          </div>
+        <div className="space-y-4">
+          <p className="text-[11px] leading-relaxed text-on-surface-variant">
+            Relatório dos dados declarados no formulário público, agrupados por tema.
+          </p>
+          {formGroups.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">Sem campos de formulário neste pedido.</p>
+          ) : (
+            formGroups.map((g) => <GovernanceGroupedCard key={g.id} section={g} />)
+          )}
         </div>
       ) : null}
 
-      {tab === 'consulta' ? <OrgConsultaStructuredView row={row} /> : null}
+      {tab === 'consulta' ? <OrgConsultaReportView row={row} /> : null}
 
       {tab === 'contexto' ? (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Pedido</h4>
-            <GovernanceFieldGrid
-              fields={[
-                { icon: 'fingerprint', label: 'ID do pedido', value: String(row.id) },
-                { icon: 'mail', label: 'E-mail do pedido', value: String(row.email || '—') },
-                {
-                  icon: 'schedule',
-                  label: 'Recebido em',
-                  value: row.criado_em ? new Date(row.criado_em).toLocaleString('pt-BR') : '—',
-                },
-                { icon: 'dynamic_form', label: 'Formulário', value: shortTemplateRef(row.template_id) },
-                { icon: 'handshake', label: 'Tipo de parceiro', value: labelPartnerKind(row.partner_kind) },
-                { icon: 'travel_explore', label: 'Fonte CNPJ', value: labelConsultaFonte(row.consulta_fonte) },
-              ]}
-            />
-          </div>
-          <div className="rounded-xl border border-tertiary/25 bg-tertiary/5 p-4">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Código interno após aprovação</h4>
-            <p className="mt-2 text-sm text-primary">
-              Prefixo esperado: <strong className="font-mono">{hint.prefix}</strong> · exemplo:{' '}
-              <strong className="font-mono">{hint.exemploOrg}</strong>
-            </p>
-            <p className="mt-1 text-[11px] text-on-surface-variant">
-              O número final é gerado na base de dados aquando clicar em «Provisionar org + convite» no painel.
-            </p>
-          </div>
+        <article className="space-y-5 text-sm leading-relaxed">
+          <GovernanceReportCard icon="receipt_long" title="Relatório de contexto do pedido">
+            <dl className="grid grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">ID do pedido</dt>
+                <dd className="mt-0.5 font-mono text-xs text-primary">{String(row.id)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">E-mail</dt>
+                <dd className="mt-0.5 text-primary">{String(row.email || '—')}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Recebido em</dt>
+                <dd className="mt-0.5 text-primary">{row.criado_em ? new Date(row.criado_em).toLocaleString('pt-BR') : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Formulário</dt>
+                <dd className="mt-0.5 text-primary">{shortTemplateRef(row.template_id)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Tipo de parceiro</dt>
+                <dd className="mt-0.5 text-primary">{labelPartnerKind(row.partner_kind)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Fonte consulta CNPJ</dt>
+                <dd className="mt-0.5 text-primary">{resolveConsultaFonteLabel(row.consulta_fonte, row.cnpja_snapshot)}</dd>
+              </div>
+              {codigoGravado ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG atribuído (base)</dt>
+                  <dd className="mt-0.5 font-mono text-sm font-bold text-tertiary">{codigoGravado}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </GovernanceReportCard>
+          <GovernanceReportCard icon="tag" title="Código da organização (padronização HUB)" className="border-tertiary/20 bg-tertiary/[0.06]">
+            {codigoGravado ? (
+              <p className="text-primary">
+                Este pedido já foi provisionado. Código interno da organização:{' '}
+                <strong className="font-mono text-tertiary">{codigoGravado}</strong>
+              </p>
+            ) : (
+              <>
+                <p className="text-primary">
+                  Prefixo esperado pelo tipo de parceiro: <strong className="font-mono">{hint.prefix}</strong> · exemplo:{' '}
+                  <strong className="font-mono">{hint.exemploOrg}</strong>
+                </p>
+                <p className="mt-2 text-on-surface-variant">
+                  O valor definitivo é gravado em <strong className="text-primary">hub_partner_org_signups.codigo_rastreio</strong> e em{' '}
+                  <strong className="text-primary">organizacoes.codigo_rastreio</strong> ao provisionar no painel.
+                </p>
+              </>
+            )}
+          </GovernanceReportCard>
           <HubCodeLegend />
-        </div>
+        </article>
       ) : null}
     </div>
   );
@@ -350,6 +445,7 @@ export function AdminOrganizationsPage() {
                 ...p.row,
                 status: 'processado',
                 organizacao_id: raw.organizacao_id,
+                codigo_rastreio: codigo || p.row.codigo_rastreio,
               },
             }
           : p
@@ -517,7 +613,7 @@ export function AdminOrganizationsPage() {
                           </span>
                         </td>
                         <td className="hidden align-middle px-3 py-3 text-xs text-on-surface-variant lg:table-cell lg:px-4">
-                          {labelConsultaFonte(row.consulta_fonte)}
+                          {resolveConsultaFonteLabel(row.consulta_fonte, row.cnpja_snapshot)}
                         </td>
                         <td className="hidden align-middle whitespace-nowrap px-3 py-3 text-xs text-on-surface-variant md:table-cell md:px-4">
                           {row.criado_em ? new Date(row.criado_em).toLocaleString('pt-BR') : '—'}
@@ -567,44 +663,64 @@ export function AdminOrganizationsPage() {
                 {
                   id: 'consulta',
                   label: 'Consulta CNPJ',
-                  content: <OrgConsultaStructuredView row={active} />,
+                  content: <OrgConsultaReportView row={active} />,
                 },
                 {
                   id: 'dados',
                   label: 'Dados do pedido',
                   content: (
                     <div className="space-y-4">
-                      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Registo</h4>
-                        <div className="mt-3">
-                          <GovernanceFieldGrid
-                            fields={[
-                              { icon: 'flag', label: 'Status', value: String(active.status || '—') },
-                              {
-                                icon: 'domain',
-                                label: 'Organização na base',
-                                value: active.organizacao_id
-                                  ? `Ref. interna · …${String(active.organizacao_id).slice(-8)}`
-                                  : 'Ainda não provisionada',
-                              },
-                              { icon: 'badge', label: 'CNPJ / documento', value: formatCnpjMask(active.cnpj) },
-                              {
-                                icon: 'schedule',
-                                label: 'Pedido recebido',
-                                value: active.criado_em ? new Date(active.criado_em).toLocaleString('pt-BR') : '—',
-                              },
-                              { icon: 'travel_explore', label: 'Fonte da consulta', value: labelConsultaFonte(active.consulta_fonte) },
-                              { icon: 'dynamic_form', label: 'Formulário', value: shortTemplateRef(active.template_id) },
-                              { icon: 'handshake', label: 'Tipo de parceiro', value: labelPartnerKind(active.partner_kind) },
-                            ]}
-                          />
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Campos do formulário</h4>
-                        <div className="mt-3">
-                          <GovernanceFieldGrid fields={buildFormularioGovFields(stripSensitiveDados(active.dados_formulario))} />
-                        </div>
+                      <GovernanceReportCard icon="assignment_ind" title="Registo do pedido">
+                        <dl className="grid grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Status</dt>
+                            <dd className="mt-0.5 text-primary">{String(active.status || '—')}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Organização na base</dt>
+                            <dd className="mt-0.5 text-primary" title={active.organizacao_id ? String(active.organizacao_id) : undefined}>
+                              {active.organizacao_id
+                                ? `Ref. interna · …${String(active.organizacao_id).slice(-8)}`
+                                : 'Ainda não provisionada'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">CNPJ / documento</dt>
+                            <dd className="mt-0.5 font-mono text-xs">{formatCnpjMask(active.cnpj)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Pedido recebido</dt>
+                            <dd className="mt-0.5 text-primary">
+                              {active.criado_em ? new Date(active.criado_em).toLocaleString('pt-BR') : '—'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Fonte da consulta</dt>
+                            <dd className="mt-0.5 text-primary">
+                              {resolveConsultaFonteLabel(active.consulta_fonte, active.cnpja_snapshot)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Formulário</dt>
+                            <dd className="mt-0.5 text-primary">{shortTemplateRef(active.template_id)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Tipo de parceiro</dt>
+                            <dd className="mt-0.5 text-primary">{labelPartnerKind(active.partner_kind)}</dd>
+                          </div>
+                          {active.codigo_rastreio ? (
+                            <div className="sm:col-span-2">
+                              <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG (pedido)</dt>
+                              <dd className="mt-0.5 font-mono text-sm font-bold text-tertiary">{String(active.codigo_rastreio)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                      </GovernanceReportCard>
+                      <div className="space-y-3">
+                        <p className="text-[11px] text-on-surface-variant">Campos do formulário, agrupados.</p>
+                        {buildFormularioGroupedSections(stripSensitiveDados(active.dados_formulario)).map((g) => (
+                          <GovernanceGroupedCard key={g.id} section={g} />
+                        ))}
                       </div>
                     </div>
                   ),
@@ -663,21 +779,21 @@ export function AdminOrganizationsPage() {
                             ) : (
                               <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto border border-slate-100 p-2">
                                 {(modulosQuery.data || []).map((m) => {
-                                  const cod = String(m.codigo || m.id || '').trim();
-                                  if (!cod) return null;
-                                  const on = selectedModuloCodigos.includes(cod);
+                                  const modId = String(m.id || '').trim();
+                                  if (!modId) return null;
+                                  const on = selectedModuloCodigos.includes(modId);
                                   return (
-                                    <li key={cod}>
+                                    <li key={modId}>
                                       <label className="flex cursor-pointer items-start gap-2 text-xs">
                                         <input
                                           type="checkbox"
                                           checked={on}
-                                          onChange={() => toggleModuloCodigo(cod)}
+                                          onChange={() => toggleModuloCodigo(modId)}
                                           className="mt-0.5"
                                         />
                                         <span>
-                                          <span className="font-bold text-primary">{m.nome || cod}</span>
-                                          <span className="ml-1 font-mono text-[10px] text-slate-500">{cod}</span>
+                                          <span className="font-bold text-primary">{m.nome || modId}</span>
+                                          <span className="ml-1 font-mono text-[10px] text-slate-500">{modId.slice(0, 8)}…</span>
                                         </span>
                                       </label>
                                     </li>
@@ -686,7 +802,7 @@ export function AdminOrganizationsPage() {
                               </ul>
                             )}
                             <p className="mt-1 text-[10px] text-on-surface-variant">
-                              Apenas códigos existentes em <code className="font-mono">modulos_catalogo.codigo</code> são gravados.
+                              São gravados os <strong>IDs</strong> das linhas em <code className="font-mono">modulos_catalogo</code> (coluna <code className="font-mono">id</code>).
                             </p>
                           </div>
                           {approveBanner ? (

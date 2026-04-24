@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { PartnerOrgSignupForm } from '../components/forms/PartnerOrgSignupForm';
 import { useUiFeedback } from '../context/UiFeedbackContext';
@@ -14,6 +14,7 @@ import { submitHubPartnerOrgSignup } from '../lib/submitHubPartnerOrgSignup';
 
 export function PartnerOrgSignupPage() {
   const { toast } = useUiFeedback();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const tplId = searchParams.get('tpl');
@@ -143,10 +144,22 @@ export function PartnerOrgSignupPage() {
                   toast(r.error || 'Não foi possível registar o pedido.', { variant: 'warning', duration: 7000 });
                   return;
                 }
-                toast('Pedido de cadastro enviado. A equipe Obra10+ irá analisar e entrar em contacto.', {
+                if (r.legacyInsert) {
+                  toast(
+                    'Pedido guardado. Ainda falta aplicar a RPC hub_submit_partner_org_signup no Supabase para gerar o código ORG e o link de acompanhamento.',
+                    { variant: 'warning', duration: 9000 }
+                  );
+                  return;
+                }
+                toast('Pedido enviado. Guarde o código e o link de acompanhamento.', {
                   variant: 'success',
                   duration: 6500,
                 });
+                if (r.codigoRastreio) {
+                  navigate(`/homologacao/organizacao?codigo=${encodeURIComponent(r.codigoRastreio)}`, {
+                    replace: true,
+                  });
+                }
               }}
             />
           </div>

@@ -36,6 +36,11 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 | 2026-04-22 | Governança / IA | Edge Function `suggest-template-description` (Mistral via secrets); botão «Sugerir com IA» no sideover de template (`RegistrationTemplateSideover`). |
 | 2026-04-22 | Templates / campos | Revert do modelo «Padrão+» (`asStandard` / etapa em extras): extras simples de novo; catálogo fixo só no separador Padrão (sem badges de âmbito nem coluna `+N`). Próximo passo de produto: tabela dedicada a campos padrão + seed + aba/UI opcional e IA (ver Backlog). |
 | 2026-04-22 | Governança / catálogo padrão | Tabelas `hub_standard_field_section` + `hub_standard_field` (`database/hub_standard_catalog.sql` + seed); página `/adm/catalogo-padrao` (secções, etapa comercial/logística, CRUD de campos); convite público e templates leem da BD com fallback a `orgStandardFields.js` se a BD estiver vazia ou indisponível. |
+| 2026-04-22 | Homologação — cadastro parceiro (backend) | `database/hub_partner_org_approve_and_invite.sql`: RPC `hub_approve_partner_org_signup` (org + `organizacao_modulos` + convite `admin_organizacao`), `hub_preview_org_invite`, `hub_claim_org_invite`; `organizacoes.codigo_rastreio` (`ORG-[mercado]-ano-seq`); colunas em `hub_partner_org_signups` (`organizacao_id`, `hub_convite_id`, `modulos_concedidos`, `processado_*`). |
+| 2026-04-22 | Homologação — convite pós-aprovação | Página `OrgInviteAcceptPage` + rota pública `/#/convite/organizacao?token=`; `PartnerOrgSignupPage` envia `cnpjSnapshot`/`consultaFonte` para `submitHubPartnerOrgSignup` → `cnpja_snapshot` + `consulta_fonte` em `hub_partner_org_signups`. |
+| 2026-04-22 | Homologação — UI governança (v1) | `AdminOrganizationsPage`: métricas, tabela expansível, side-over com abas (consulta / dados / decisão), botão de acção com ícone, provisionar org + convite + rejeitar. |
+| 2026-04-23 | Homologação — UI relatório + rastreio no pedido | `partnerOrgGovernanceDisplay.js`: grupos no formulário, normalização de snapshot (`normalizeHubCnpjSnapshotInput`), `resolveConsultaFonteLabel`, relatório leve consulta CNPJ + SUFRAMA; cartões de contexto e legenda NEG/OPP/ORG (ciclo de vida); coluna **`hub_partner_org_signups.codigo_rastreio`** + `UPDATE` na RPC; painel alinhado após provisionar. |
+| 2026-04-23 | Documentação códigos HUB | `docs/ESTRUTURA_CODIGOS_IDENTIFICADORES_HUB.md` (NEG/OPP/mercados, `ORG-*`); `docs/CADASTRO_ORGANIZACOES_E_USUARIOS.md` atualizado (snapshot, fluxo, checklist). |
 
 ---
 
@@ -51,7 +56,7 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 
 | Item | Ref / contexto |
 |------|------------------|
-| `[ ]` Aprovação HUB coerente | Alinhar UI "aprovar" com `hub_admins` + `hub_solicitacoes_admin` (doc [CADASTRO_ORGANIZACOES_E_USUARIOS.md](./CADASTRO_ORGANIZACOES_E_USUARIOS.md), [PLANEJAMENTO](./PLANEJAMENTO.md) MVP). |
+| `[~]` Aprovação HUB — fila admin | **Parcial:** homologação de **cadastro de organização parceira** (`hub_partner_org_signups` + RPC) na UI de Organizações. **Pendente:** alinhar UI "aprovar" **solicitações admin HUB** com `hub_admins` + `hub_solicitacoes_admin` (doc [CADASTRO_ORGANIZACOES_E_USUARIOS.md](./CADASTRO_ORGANIZACOES_E_USUARIOS.md), [PLANEJAMENTO](./PLANEJAMENTO.md) MVP). |
 | `[ ]` Templates por organização + slugs | Em cima do v1 global: RLS por `organizacao_id`, links estáveis, import opcional de `localStorage` — ver [CRM_HUB_TEMPLATES_E_ESCALA_SUPABASE.md](./CRM_HUB_TEMPLATES_E_ESCALA_SUPABASE.md). |
 | `[ ]` Rotas públicas com slug de org | `organizacoes.slug` global — paths tipo `/o/:orgSlug` (schema §7.3). |
 | `[ ]` CNPJÁ em produção | `VITE_CNPJA_API_KEY` no Render; considerar proxy servidor no futuro (segredo fora do bundle). |
@@ -65,6 +70,8 @@ Documento **vivo**: regista trabalho concluído, em curso e ideias de backlog. A
 
 ## Histórico (changelog curto)
 
+- **2026-04-23** — Homologação parceiros: relatório consulta CNPJ (sem JSON bruto), cartões agrupados no formulário, inferência de fonte quando a coluna vem vazia, `codigo_rastreio` também em `hub_partner_org_signups`; doc de códigos NEG/OPP/ORG.
+- **2026-04-22** — Homologação parceiros (MVP): RPC aprovar + preview/claim convite org; página aceitar convite; snapshot CNPJ no insert do pedido; primeira versão da UI em Governança → Organizações.
 - **2026-04-22** — Templates de cadastro: persistência em `registration_form_template` (+ campos) com RLS; listagem/edição no admin; convite público via `?tpl=`.
 - **2026-04-22** — Backlog e UI de /adm/templates: distinção explícita entre `papel_template` (RBAC) e modelos de formulário de convite (agora em Supabase; `localStorage` só fallback dev).
 - **2026-04-22** — Admin templates: removido envio de convite por e-mail no UI; mantido copiar link; Edge `send-template-invite` conservada no repositório.
