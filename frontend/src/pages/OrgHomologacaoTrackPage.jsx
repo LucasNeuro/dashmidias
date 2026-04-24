@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { HomologacaoChatSideover } from '../components/HomologacaoChatSideover';
-import { HomologacaoDocumentosPanel } from '../components/HomologacaoDocumentosPanel';
-import { useUiFeedback } from '../context/UiFeedbackContext';
 import { rpcPublicHomologacaoStatus } from '../lib/hubPartnerOrgPublic';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
@@ -59,18 +57,11 @@ function statusDetail(row) {
 }
 
 export function OrgHomologacaoTrackPage() {
-  const { toast } = useUiFeedback();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const initialRef = (searchParams.get('codigo') || searchParams.get('ref') || '').trim();
-  const [draftRef, setDraftRef] = useState(initialRef);
+  const [searchParams] = useSearchParams();
+  /** Identificador único do pedido: só vem da URL (?codigo= ou ?ref=), partilhado por ORG. */
+  const ref = (searchParams.get('codigo') || searchParams.get('ref') || '').trim();
   const [chatOpen, setChatOpen] = useState(false);
-
-  useEffect(() => {
-    if (initialRef) setDraftRef(initialRef);
-  }, [initialRef]);
-
-  const ref = initialRef || draftRef.trim();
 
   const trackQuery = useQuery({
     queryKey: ['hubPublicHomologacao', ref],
@@ -86,32 +77,6 @@ export function OrgHomologacaoTrackPage() {
     retry: 0,
   });
 
-  const publicTrackUrl = useMemo(() => {
-    if (!ref) return '';
-    const base = `${window.location.origin}${window.location.pathname || '/'}`;
-    return `${base}#/homologacao/organizacao?codigo=${encodeURIComponent(ref)}`;
-  }, [ref]);
-
-  const copyLink = useCallback(async () => {
-    if (!publicTrackUrl) return;
-    try {
-      await navigator.clipboard.writeText(publicTrackUrl);
-      toast('Link copiado para a área de transferência.', { variant: 'success', duration: 4000 });
-    } catch {
-      toast('Não foi possível copiar. Seleccione o link manualmente.', { variant: 'warning', duration: 5000 });
-    }
-  }, [publicTrackUrl, toast]);
-
-  const onConsultar = (e) => {
-    e.preventDefault();
-    const v = draftRef.trim();
-    if (!v) {
-      toast('Indique o código ORG-… ou o identificador do pedido.', { variant: 'warning' });
-      return;
-    }
-    setSearchParams({ codigo: v }, { replace: true });
-  };
-
   const row = trackQuery.data;
   const errMsg = trackQuery.error instanceof Error ? trackQuery.error.message : null;
 
@@ -120,7 +85,7 @@ export function OrgHomologacaoTrackPage() {
   return (
     <AuthSplitLayout
       heroTitle="Homologação"
-      heroSubtitle="Consulte o pedido com o código ORG que recebeu ao enviar o cadastro."
+      heroSubtitle="Cada link de acompanhamento é único para o seu pedido. Guarde-o ou use o que recebeu após o cadastro."
     >
       <HomologacaoChatSideover
         open={chatOpen}
@@ -135,32 +100,25 @@ export function OrgHomologacaoTrackPage() {
         <div className={`shrink-0 border-l-[3px] border-l-tertiary p-4 sm:p-5 ${cardSurface}`}>
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Acompanhamento do pedido</h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Utilize o código <span className="font-mono text-xs">ORG-…</span> ou o ID do pedido. Com o parâmetro{' '}
-            <span className="font-mono text-xs">codigo</span> na URL, este endereço fica associado ao seu processo.
+            Não é necessário introduzir código aqui: o endereço que abriu já identifica o pedido (parâmetro{' '}
+            <span className="font-mono text-xs">codigo</span> ou <span className="font-mono text-xs">ref</span> na URL).
           </p>
         </div>
 
-        <form
-          onSubmit={onConsultar}
-          className={`flex shrink-0 flex-col gap-2 p-4 sm:flex-row sm:items-end sm:gap-3 ${cardSurface}`}
-        >
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-            Código ou ID
-            <input
-              className="rounded-none border border-outline-variant bg-white px-3 py-2 text-sm font-normal normal-case text-on-surface"
-              value={draftRef}
-              onChange={(e) => setDraftRef(e.target.value)}
-              placeholder="ex.: ORG-HUB-2026-000001"
-              autoComplete="off"
-            />
-          </label>
-          <button
-            type="submit"
-            className="shrink-0 rounded-none bg-tertiary px-5 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-primary hover:bg-tertiary/90"
-          >
-            Consultar
-          </button>
-        </form>
+        {!ref && isSupabaseConfigured() ? (
+          <div className={`p-4 sm:p-5 ${cardSurface}`}>
+            <p className="text-sm font-medium text-primary">Link incompleto</p>
+            <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
+              Abra o acompanhamento pelo link enviado após o cadastro ou pelo botão na página de confirmação — esse link já
+              inclui o identificador da sua organização.
+            </p>
+            <p className="mt-3 text-sm">
+              <Link to="/cadastro/organizacao" className="font-medium text-tertiary underline underline-offset-2">
+                Fazer novo cadastro
+              </Link>
+            </p>
+          </div>
+        ) : null}
 
         {!isSupabaseConfigured() ? (
           <p className="text-sm text-amber-800">Servidor não configurado — consulta indisponível neste ambiente.</p>
@@ -219,41 +177,11 @@ export function OrgHomologacaoTrackPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void copyLink()}
-                className="rounded-none border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-primary hover:bg-surface-container-low"
-              >
-                Copiar link desta página
-              </button>
-              <button
-                type="button"
                 onClick={() => void trackQuery.refetch()}
                 className="rounded-none border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-low"
               >
                 Actualizar
               </button>
-              <button
-                type="button"
-                onClick={() => setChatOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-sm bg-tertiary px-3 py-2 text-xs font-black uppercase tracking-wide text-primary hover:bg-tertiary/90"
-              >
-                <span className="material-symbols-outlined text-[18px] leading-none">forum</span>
-                Chat HUB
-              </button>
-            </div>
-
-            <div className="mt-6 border-t border-slate-200/90 pt-5">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">Documentos</h2>
-              <p className="mt-1 text-xs text-on-surface-variant">
-                Histórico de ficheiros enviados no chat (contratos, imagens, PDF). Use o chat para anexar novos documentos.
-              </p>
-              <div className="mt-4">
-                <HomologacaoDocumentosPanel
-                  supabase={getSupabase()}
-                  refKey={String(row.codigo_rastreio || ref || '').trim()}
-                  cacheQueryId={signupIdForChat != null ? String(signupIdForChat) : String(ref || '').trim()}
-                  pollMs={25_000}
-                />
-              </div>
             </div>
           </div>
         ) : null}

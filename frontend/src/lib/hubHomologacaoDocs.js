@@ -112,10 +112,32 @@ export function homologacaoFileToAnexoRpcPayload(storagePath, file) {
  * @returns {Promise<string | null>}
  */
 export async function homologacaoSignedUrl(supabase, storagePath, expiresSec = 3600) {
+  const r = await homologacaoSignedUrlWithError(supabase, storagePath, expiresSec);
+  return r.url;
+}
+
+/**
+ * @returns {Promise<{ url: string | null, error: string | null }>}
+ */
+export async function homologacaoSignedUrlWithError(supabase, storagePath, expiresSec = 3600) {
   const path = String(storagePath || '').trim();
-  if (!supabase || !path) return null;
+  if (!supabase || !path) return { url: null, error: !supabase ? 'sem_cliente' : 'sem_path' };
   const bucket = hubHomologacaoDocsBucket();
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresSec);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  if (error) {
+    return { url: null, error: error.message || 'signed_url_failed' };
+  }
+  const url = data?.signedUrl ?? null;
+  return { url, error: url ? null : 'sem_url' };
+}
+
+/** @param {string} mime @param {string} [fileName] */
+export function homologacaoLooksLikePdf(mime, fileName = '') {
+  if (String(mime || '').toLowerCase().trim() === 'application/pdf') return true;
+  return /\.pdf$/i.test(String(fileName || '').trim());
+}
+
+/** @param {string} mime @param {string} [fileName] */
+export function homologacaoLooksLikeImage(mime) {
+  return String(mime || '').toLowerCase().trim().startsWith('image/');
 }

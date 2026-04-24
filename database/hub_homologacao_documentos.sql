@@ -39,21 +39,7 @@ with check (
   and name ~ '^homologacao/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/'
 );
 
--- Leitura: ficheiro tem de existir no registo (evita listagem por adivinhação de path)
-drop policy if exists "hub_homolog_docs_select_registered" on storage.objects;
-create policy "hub_homolog_docs_select_registered"
-on storage.objects
-for select
-to anon, authenticated
-using (
-  bucket_id = 'hub_homologacao_documentos'
-  and exists (
-    select 1
-    from public.hub_homologacao_documentos d
-    where d.storage_path = name
-      and d.bucket_id = 'hub_homologacao_documentos'
-  )
-);
+-- NOTA: a política SELECT que referencia hub_homologacao_documentos fica *depois* do CREATE TABLE.
 
 -- --- Tabela documentos -------------------------------------------------------
 create table if not exists public.hub_homologacao_documentos (
@@ -80,7 +66,41 @@ comment on table public.hub_homologacao_documentos is
 
 alter table public.hub_homologacao_documentos enable row level security;
 
--- Sem SELECT directo: listagem via RPC.
+-- Sem SELECT directo na tabela via API: listagem só por RPC.
+-- A política de Storage abaixo precisa de ver linhas em hub_homologacao_documentos; com RLS activo
+-- e sem política SELECT, a subquery EXISTS não via nada e createSignedUrl falhava.
+
+create or replace function public.hub_homologacao_storage_path_is_registered(p_object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.hub_homologacao_documentos d
+    where d.storage_path = p_object_name
+      and d.bucket_id = 'hub_homologacao_documentos'
+  );
+$$;
+
+revoke all on function public.hub_homologacao_storage_path_is_registered(text) from public;
+grant execute on function public.hub_homologacao_storage_path_is_registered(text) to anon, authenticated;
+
+comment on function public.hub_homologacao_storage_path_is_registered(text) is
+  'Usada na política RLS de storage.objects; confirma registo do path sem expor SELECT na tabela à API.';
+
+-- Leitura Storage: ficheiro tem de existir no registo (evita adivinhação de path)
+drop policy if exists "hub_homolog_docs_select_registered" on storage.objects;
+create policy "hub_homolog_docs_select_registered"
+on storage.objects
+for select
+to anon, authenticated
+using (
+  bucket_id = 'hub_homologacao_documentos'
+  and public.hub_homologacao_storage_path_is_registered(name)
+);
 
 -- --- Mensagens: anexos + constraint corpo OU ficheiros ----------------------
 alter table public.hub_homologacao_mensagens

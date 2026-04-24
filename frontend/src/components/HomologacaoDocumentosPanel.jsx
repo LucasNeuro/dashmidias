@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { homologacaoSignedUrl } from '../lib/hubHomologacaoDocs';
+import {
+  homologacaoLooksLikeImage,
+  homologacaoLooksLikePdf,
+  homologacaoSignedUrlWithError,
+} from '../lib/hubHomologacaoDocs';
 import { rpcPublicHomologacaoListDocuments } from '../lib/hubPartnerOrgPublic';
+import { HomologacaoMediaViewerModal } from './HomologacaoMediaViewerModal';
 
 function formatOrigem(o) {
   if (o === 'hub') return 'Equipa HUB';
@@ -88,33 +93,68 @@ function HomologacaoDocCard({ supabase, doc }) {
   const origem = formatOrigem(doc.origem);
   const criado = doc.criado_em ? new Date(String(doc.criado_em)).toLocaleString('pt-BR') : '—';
   const [href, setHref] = useState(/** @type {string | null} */ (null));
+  const [signErr, setSignErr] = useState(/** @type {string | null} */ (null));
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   useEffect(() => {
     if (!supabase || !path) return;
     let cancelled = false;
     (async () => {
-      const u = await homologacaoSignedUrl(supabase, path, 3600);
-      if (!cancelled) setHref(u);
+      setSignErr(null);
+      const { url, error } = await homologacaoSignedUrlWithError(supabase, path, 3600);
+      if (cancelled) return;
+      setHref(url);
+      if (error && !url) setSignErr(error);
     })();
     return () => {
       cancelled = true;
     };
   }, [supabase, path]);
 
-  const isImg = mime.toLowerCase().startsWith('image/');
-  const isPdf = mime.toLowerCase() === 'application/pdf';
+  const isImg = homologacaoLooksLikeImage(mime);
+  const isPdf = homologacaoLooksLikePdf(mime, nome);
+
+  const previewClickable = Boolean(href && (isImg || isPdf));
 
   return (
     <li className="flex flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
-      <div className="flex min-h-[120px] items-center justify-center bg-slate-100/80">
+      <button
+        type="button"
+        disabled={!previewClickable}
+        onClick={() => previewClickable && setViewerOpen(true)}
+        className={`relative flex min-h-[140px] w-full items-stretch justify-center bg-slate-100/80 text-left ${
+          previewClickable ? 'cursor-zoom-in hover:bg-slate-100' : 'cursor-default'
+        }`}
+      >
         {isImg && href ? (
-          <img src={href} alt="" className="max-h-36 w-full object-contain" />
-        ) : (
-          <span className="material-symbols-outlined text-[48px] text-slate-400" aria-hidden>
-            {isPdf ? 'picture_as_pdf' : 'description'}
+          <img src={href} alt="" className="max-h-40 w-full object-contain" />
+        ) : null}
+        {isPdf && href ? (
+          <iframe
+            title=""
+            src={`${href}#page=1&zoom=page-fit`}
+            className="pointer-events-none h-40 w-full border-0 bg-white"
+            loading="lazy"
+          />
+        ) : null}
+        {!href && (isImg || isPdf) ? (
+          <div className="flex w-full items-center justify-center py-8">
+            <span className="material-symbols-outlined animate-pulse text-[40px] text-slate-400">progress_activity</span>
+          </div>
+        ) : null}
+        {!isImg && !isPdf ? (
+          <div className="flex w-full items-center justify-center py-8">
+            <span className="material-symbols-outlined text-[48px] text-slate-400" aria-hidden>
+              description
+            </span>
+          </div>
+        ) : null}
+        {previewClickable ? (
+          <span className="absolute bottom-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+            Ver
           </span>
-        )}
-      </div>
+        ) : null}
+      </button>
       <div className="space-y-1.5 p-3">
         <p className="line-clamp-2 text-xs font-semibold text-primary" title={nome}>
           {nome}
@@ -123,19 +163,31 @@ function HomologacaoDocCard({ supabase, doc }) {
           {origem} · {formatBytes(doc.tamanho_bytes)} · {criado}
         </p>
         {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => setViewerOpen(true)}
             className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-tertiary hover:underline"
           >
-            Abrir / descarregar
-            <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-          </a>
+            Abrir visualizador
+            <span className="material-symbols-outlined text-[14px]">open_in_full</span>
+          </button>
+        ) : signErr ? (
+          <p className="text-[10px] text-amber-800" title={signErr}>
+            Não foi possível gerar o link. Aplique no Supabase o SQL{' '}
+            <span className="font-mono">hub_homologacao_documentos_storage_signedurl_fix.sql</span> e recarregue o schema.
+          </p>
         ) : (
           <p className="text-[10px] text-on-surface-variant">A preparar ligação…</p>
         )}
       </div>
+
+      <HomologacaoMediaViewerModal
+        open={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        url={href}
+        title={nome}
+        mimeType={isPdf ? 'application/pdf' : mime}
+      />
     </li>
   );
 }

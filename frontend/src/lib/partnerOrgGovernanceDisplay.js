@@ -6,12 +6,16 @@
 /** @type {Record<string, string>} */
 export const PARTNER_KIND_LABELS = {
   imobiliaria: 'Imobiliária',
+  imobiliarios: 'Imobiliários',
   arquitetura: 'Arquitetura',
+  arquitetos: 'Arquitetos',
   engenharia: 'Engenharia',
+  engenharias: 'Engenharias',
   prestador_servicos: 'Prestador de serviços',
+  prestadores_servico: 'Prestadores de serviço',
   servicos: 'Serviços',
   produtos: 'Produtos',
-  parceiros_produtos: 'Parceiros — Produtos',
+  parceiros_produtos: 'Parceiros de produtos',
   parceiros_imobiliario: 'Parceiros — Imobiliário',
   parceiros_arquitetura: 'Parceiros — Arquitetura',
   parceiros_servicos: 'Parceiros — Serviços',
@@ -21,11 +25,16 @@ export const PARTNER_KIND_LABELS = {
 /** @type {Record<string, string>} */
 export const TIPO_ORG_FOR_CODE = {
   imobiliaria: 'IMB',
+  imobiliarios: 'IMB',
   arquitetura: 'ARQ',
+  arquitetos: 'ARQ',
+  engenharias: 'SRV',
   produtos: 'PRO',
   prestador_servicos: 'SRV',
+  prestadores_servico: 'SRV',
   servicos: 'SRV',
-  outro: 'HUB',
+  parceiros_produtos: 'PRO',
+  outro: 'SRV',
 };
 
 const MKT = [
@@ -429,12 +438,15 @@ function buildCnpjaPresentation(data) {
  * @param {string | null | undefined} partnerKind
  */
 export function orgCodePrefixFromPartnerKind(partnerKind) {
-  const k = String(partnerKind || '').toLowerCase();
+  const k = String(partnerKind || '').trim().toLowerCase();
+  if (!k) return 'SRV';
+  if (TIPO_ORG_FOR_CODE[k]) return TIPO_ORG_FOR_CODE[k];
   if (k.includes('imob')) return 'IMB';
   if (k.includes('arq')) return 'ARQ';
+  if (k.includes('engenh')) return 'SRV';
   if (k.includes('prod')) return 'PRO';
   if (k.includes('serv') || k.includes('prestador')) return 'SRV';
-  return 'HUB';
+  return 'SRV';
 }
 
 /**

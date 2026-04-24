@@ -334,7 +334,6 @@ export function AdminOrganizationsPage() {
   const [busyId, setBusyId] = useState(null);
   const [busyApprove, setBusyApprove] = useState(false);
   const [actionErr, setActionErr] = useState(null);
-  const [tipoOrgOverride, setTipoOrgOverride] = useState('');
   const [approveBanner, setApproveBanner] = useState(/** @type {{ link: string, codigo: string } | null} */ (null));
 
   const orgQuery = useQuery({
@@ -369,7 +368,6 @@ export function AdminOrganizationsPage() {
 
   useEffect(() => {
     if (!active) return;
-    setTipoOrgOverride(String(active.partner_kind || '').trim());
     setApproveBanner(null);
   }, [active?.id]);
 
@@ -400,7 +398,8 @@ export function AdminOrganizationsPage() {
       const r = await rpcApprovePartnerOrgSignup(supabase, {
         signupId: row.id,
         moduloSlugs: [],
-        tipoOrganizacao: tipoOrgOverride.trim() || null,
+        /** Sempre o tipo do template (`partner_kind` no pedido); a RPC usa coalesce com este campo. */
+        tipoOrganizacao: null,
       });
       if (!r.ok) {
         setActionErr(r.error || 'RPC falhou');
@@ -784,18 +783,19 @@ export function AdminOrganizationsPage() {
                               <p className="mt-2 font-mono text-lg font-bold text-tertiary">{String(active.codigo_rastreio)}</p>
                             ) : (
                               <p className="mt-2 text-sm text-on-surface-variant">
-                                Sem código reservado neste pedido (cadastro anterior à RPC pública). Ao provisionar, será gerado conforme o tipo
-                                abaixo.
+                                Sem código reservado neste pedido (cadastro anterior à RPC pública). Ao provisionar, será gerado conforme o tipo de
+                                parceiro do template.
                               </p>
                             )}
                             <p className="mt-3 text-sm text-primary">
-                              Com o tipo seleccionado abaixo, o prefixo é{' '}
+                              O tipo de cadastro vem do <strong>template de formulário</strong> (ex.: Prestadores de serviço, Imobiliários). O prefixo
+                              ORG segue esse tipo:{' '}
                               <strong className="font-mono">
-                                {describeProvisioningCodeHint(tipoOrgOverride, active.partner_kind).prefix}
+                                {describeProvisioningCodeHint('', active.partner_kind).prefix}
                               </strong>{' '}
                               · exemplo:{' '}
                               <strong className="font-mono">
-                                {describeProvisioningCodeHint(tipoOrgOverride, active.partner_kind).exemploOrg}
+                                {describeProvisioningCodeHint('', active.partner_kind).exemploOrg}
                               </strong>
                             </p>
                             <p className="mt-1 text-[11px] text-on-surface-variant">
@@ -803,34 +803,23 @@ export function AdminOrganizationsPage() {
                               organização usa <span className="font-mono">ORG-*</span>.
                             </p>
                           </div>
-                          <div>
-                            <label htmlFor="tipo-org-override" className="text-[10px] font-black uppercase text-on-surface-variant">
-                              Tipo de organização (HUB)
-                            </label>
-                            <select
-                              id="tipo-org-override"
-                              value={tipoOrgOverride}
-                              onChange={(e) => setTipoOrgOverride(e.target.value)}
-                              className="mt-1.5 w-full border border-slate-200 bg-white px-3 py-2 text-sm text-primary"
-                            >
-                              <option value="imobiliaria">Imobiliária</option>
-                              <option value="arquitetura">Arquitetura</option>
-                              <option value="produtos">Produtos</option>
-                              <option value="prestador_servicos">Prestador de serviços</option>
-                              <option value="servicos">Serviços</option>
-                              <option value="outro">Outro</option>
-                            </select>
-                            <p className="mt-1 text-[10px] text-on-surface-variant">
-                              Define o prefixo do código interno (<span className="font-mono">ORG-IMB-…</span>, <span className="font-mono">ORG-ARQ-…</span>) e{' '}
-                              <code className="font-mono">tipo_organizacao</code> na base.
+                          <div className="rounded-xl border border-slate-200/90 bg-white px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tipo de parceiro (template)</p>
+                            <p className="mt-2 text-sm font-semibold text-primary">
+                              {active.partner_kind ? labelPartnerKind(active.partner_kind) : '— não registado no pedido'}
+                            </p>
+                            <p className="mt-2 text-[11px] leading-relaxed text-on-surface-variant">
+                              Este valor é definido na criação do template de cadastro e gravado em{' '}
+                              <code className="font-mono text-[10px]">partner_kind</code>. Não é necessário escolher de novo na homologação. Quem envia o
+                              formulário pelo link público será o contacto convidado a aceitar o convite e assumir a administração da organização.
                             </p>
                           </div>
                           <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-4">
                             <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Funções e módulos</p>
                             <p className="mt-2 text-sm leading-relaxed text-on-surface">
                               Por agora o provisionamento <strong>não</strong> associa módulos por checkbox: cria-se a organização e o convite com o{' '}
-                              <strong>tipo HUB</strong> definido acima. Depois do CRM Central, voltamos a expor aqui as funções que cada organização pode
-                              usar.
+                              <strong>tipo de parceiro do template</strong>. Depois do CRM Central, voltamos a expor aqui as funções que cada organização
+                              pode usar.
                             </p>
                           </div>
                           {approveBanner ? (

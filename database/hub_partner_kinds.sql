@@ -18,3 +18,6 @@
 --   ('parceiros_produtos', 'Parceiros de produtos', 'Marcas, distribuidores e fornecedores', 4),
 --   ('imobiliarios', 'Imobiliários', 'Incorporadoras, imobiliárias e correlatos', 5)
 -- ON CONFLICT (slug) DO NOTHING;
+--
+-- Código ORG público: ORG-[TIPO]-ANO-###### com TIPO = IMB | ARQ | SRV | PRO (alinhado a NEG/OPP).
+-- Mapeamento: hub_partner_kind_to_org_prefix em hub_partner_org_signup_public_rpc.sql.

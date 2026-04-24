@@ -85,6 +85,34 @@ begin
   end if;
 end $$;
 
+-- --- Prefixo ORG-[TIPO]- (IMB, ARQ, SRV, PRO) — espelho de hub_partner_org_signup_public_rpc.sql ---
+create or replace function public.hub_partner_kind_to_org_prefix(p_kind text)
+returns text
+language sql
+stable
+set search_path = public
+as $$
+  select case lower(coalesce(nullif(trim(p_kind), ''), 'outro'))
+    when 'imobiliaria' then 'IMB'
+    when 'imobiliarios' then 'IMB'
+    when 'parceiros_imobiliario' then 'IMB'
+    when 'arquitetura' then 'ARQ'
+    when 'arquitetos' then 'ARQ'
+    when 'parceiros_arquitetura' then 'ARQ'
+    when 'engenharia' then 'SRV'
+    when 'engenharias' then 'SRV'
+    when 'produtos' then 'PRO'
+    when 'parceiros_produtos' then 'PRO'
+    when 'parceiro_produtos' then 'PRO'
+    when 'prestador_servicos' then 'SRV'
+    when 'prestadores_servico' then 'SRV'
+    when 'servicos' then 'SRV'
+    when 'parceiros_servicos' then 'SRV'
+    when 'outro' then 'SRV'
+    else 'SRV'
+  end;
+$$;
+
 -- --- Função: gera código ORG-{PREFIX}-{ANO}-{seq} (organizações + pedidos em signups) ---
 create or replace function public._next_org_codigo_rastreio(p_prefix text)
 returns text
@@ -92,14 +120,14 @@ language plpgsql
 as $$
 declare
   v_year text := to_char(timezone('utc', now()), 'YYYY');
-  v_prefix text := upper(regexp_replace(coalesce(nullif(trim(p_prefix), ''), 'HUB'), '[^A-Z0-9]', '', 'g'));
+  v_prefix text := upper(regexp_replace(coalesce(nullif(trim(p_prefix), ''), 'SRV'), '[^A-Z0-9]', '', 'g'));
   v_seq int;
   v_try text;
   v_n int := 0;
   v_pat text;
 begin
   if length(v_prefix) < 2 then
-    v_prefix := 'HUB';
+    v_prefix := 'SRV';
   end if;
   v_prefix := left(v_prefix, 6);
   v_pat := '^ORG-' || v_prefix || '-' || v_year || '-[0-9]{6}$';
@@ -218,14 +246,7 @@ begin
   end if;
 
   v_tipo := coalesce(nullif(trim(p_tipo_organizacao), ''), nullif(trim(s.partner_kind), ''), 'outro');
-  v_prefix := case lower(v_tipo)
-    when 'imobiliaria' then 'IMB'
-    when 'arquitetura' then 'ARQ'
-    when 'produtos' then 'PRO'
-    when 'prestador_servicos' then 'SRV'
-    when 'servicos' then 'SRV'
-    else 'HUB'
-  end;
+  v_prefix := public.hub_partner_kind_to_org_prefix(v_tipo);
 
   -- Reutilizar código já reservado no pedido (RPC hub_submit_partner_org_signup), se existir.
   v_codigo := nullif(trim(coalesce(s.codigo_rastreio::text, '')), '');
