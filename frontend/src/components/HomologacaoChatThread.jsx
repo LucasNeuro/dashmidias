@@ -182,10 +182,7 @@ export function HomologacaoChatThread({
         >
           {errMsg}
           {/function public\.hub_public_homologacao_list_messages|schema cache|Could not find/i.test(errMsg) ? (
-            <p className="mt-1 text-on-surface-variant">
-              Aplique o SQL <span className="font-mono text-[11px]">hub_homologacao_chat.sql</span> e{' '}
-              <span className="font-mono text-[11px]">hub_homologacao_documentos.sql</span> no Supabase e recarregue o schema.
-            </p>
+            <p className="mt-1 text-on-surface-variant">O chat ainda não está disponível no servidor. Contacte o suporte se precisar de ajuda.</p>
           ) : null}
         </div>
       ) : null}

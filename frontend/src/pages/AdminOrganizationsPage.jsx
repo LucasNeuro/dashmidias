@@ -266,7 +266,7 @@ function OrgExpandedTabs({ row }) {
               </div>
               {codigoGravado ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG atribuído (base)</dt>
+                  <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG atribuído</dt>
                   <dd className="mt-0.5 font-mono text-sm font-bold text-tertiary">{codigoGravado}</dd>
                 </div>
               ) : null}
@@ -285,8 +285,7 @@ function OrgExpandedTabs({ row }) {
                   <strong className="font-mono">{hint.exemploOrg}</strong>
                 </p>
                 <p className="mt-2 text-on-surface-variant">
-                  O valor definitivo é gravado em <strong className="text-primary">hub_partner_org_signups.codigo_rastreio</strong> e em{' '}
-                  <strong className="text-primary">organizacoes.codigo_rastreio</strong> ao provisionar no painel.
+                  O código definitivo é atribuído quando o pedido for provisionado neste painel.
                 </p>
               </>
             )}
@@ -465,7 +464,7 @@ export function AdminOrganizationsPage() {
             footer={
               <>
                 <span className="material-symbols-outlined text-sm">domain</span>
-                hub_partner_org_signups
+                Pedidos de cadastro
               </>
             }
           />
@@ -722,10 +721,6 @@ export function AdminOrganizationsPage() {
                             </p>
                           </div>
                         </div>
-                        <p className="mt-3 text-xs leading-relaxed text-on-surface-variant">
-                          Mesmo fio da página pública de acompanhamento. Mensagens persistidas na base (
-                          <span className="font-mono text-[10px]">hub_homologacao_mensagens</span>).
-                        </p>
                       </div>
                       <div className="flex max-h-[min(65vh,560px)] min-h-[320px] flex-col">
                         <HomologacaoChatThread
@@ -755,7 +750,7 @@ export function AdminOrganizationsPage() {
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Documentos da homologação</p>
                             <p className="mt-0.5 text-xs text-on-surface-variant">
-                              Contratos e anexos enviados no chat; após provisionar, ficam ligados à organização na base.
+                              Contratos e anexos enviados no chat; após aprovar o pedido, ficam associados à organização.
                             </p>
                           </div>
                         </div>
@@ -783,8 +778,7 @@ export function AdminOrganizationsPage() {
                               <p className="mt-2 font-mono text-lg font-bold text-tertiary">{String(active.codigo_rastreio)}</p>
                             ) : (
                               <p className="mt-2 text-sm text-on-surface-variant">
-                                Sem código reservado neste pedido (cadastro anterior à RPC pública). Ao provisionar, será gerado conforme o tipo de
-                                parceiro do template.
+                                Este pedido ainda não tem código reservado. Ao provisionar, será gerado conforme o tipo de parceiro do template.
                               </p>
                             )}
                             <p className="mt-3 text-sm text-primary">
@@ -809,17 +803,15 @@ export function AdminOrganizationsPage() {
                               {active.partner_kind ? labelPartnerKind(active.partner_kind) : '— não registado no pedido'}
                             </p>
                             <p className="mt-2 text-[11px] leading-relaxed text-on-surface-variant">
-                              Este valor é definido na criação do template de cadastro e gravado em{' '}
-                              <code className="font-mono text-[10px]">partner_kind</code>. Não é necessário escolher de novo na homologação. Quem envia o
-                              formulário pelo link público será o contacto convidado a aceitar o convite e assumir a administração da organização.
+                              Este tipo é definido ao criar o template de cadastro; não precisa ser escolhido de novo aqui. Quem envia o formulário pelo
+                              link público será o contacto convidado a aceitar o convite e assumir a administração da organização.
                             </p>
                           </div>
                           <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-4">
                             <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Funções e módulos</p>
                             <p className="mt-2 text-sm leading-relaxed text-on-surface">
-                              Por agora o provisionamento <strong>não</strong> associa módulos por checkbox: cria-se a organização e o convite com o{' '}
-                              <strong>tipo de parceiro do template</strong>. Depois do CRM Central, voltamos a expor aqui as funções que cada organização
-                              pode usar.
+                              Por agora o provisionamento cria a organização e o convite com o tipo definido no template, sem escolha adicional de módulos
+                              aqui.
                             </p>
                           </div>
                           {approveBanner ? (

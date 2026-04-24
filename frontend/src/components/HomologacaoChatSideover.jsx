@@ -72,7 +72,7 @@ export function HomologacaoChatSideover({
           <div className="shrink-0 border-b border-slate-200/90 bg-white px-4 py-2.5 sm:px-5">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">Mensagens</p>
             <p className="mt-0.5 text-xs leading-relaxed text-on-surface-variant">
-              A lista abaixo tem rolagem própria. O mesmo histórico aparece para a equipa no painel de organizações.
+              A lista de mensagens tem rolagem própria.
             </p>
           </div>
 

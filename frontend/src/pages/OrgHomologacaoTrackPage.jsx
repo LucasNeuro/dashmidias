@@ -100,8 +100,7 @@ export function OrgHomologacaoTrackPage() {
         <div className={`shrink-0 border-l-[3px] border-l-tertiary p-4 sm:p-5 ${cardSurface}`}>
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Acompanhamento do pedido</h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Não é necessário introduzir código aqui: o endereço que abriu já identifica o pedido (parâmetro{' '}
-            <span className="font-mono text-xs">codigo</span> ou <span className="font-mono text-xs">ref</span> na URL).
+            Utilize o link completo que recebeu — ele já identifica o seu pedido.
           </p>
         </div>
 

@@ -173,8 +173,7 @@ function HomologacaoDocCard({ supabase, doc }) {
           </button>
         ) : signErr ? (
           <p className="text-[10px] text-amber-800" title={signErr}>
-            Não foi possível gerar o link. Aplique no Supabase o SQL{' '}
-            <span className="font-mono">hub_homologacao_documentos_storage_signedurl_fix.sql</span> e recarregue o schema.
+            Não foi possível abrir a pré-visualização. Tente mais tarde ou contacte o suporte.
           </p>
         ) : (
           <p className="text-[10px] text-on-surface-variant">A preparar ligação…</p>

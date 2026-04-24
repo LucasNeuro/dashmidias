@@ -146,7 +146,7 @@ export function PartnerOrgSignupPage() {
                 }
                 if (r.legacyInsert) {
                   toast(
-                    'Pedido guardado. Ainda falta aplicar a RPC hub_submit_partner_org_signup no Supabase para gerar o código ORG e o link de acompanhamento.',
+                    'Pedido registado, mas o código de acompanhamento ainda não está disponível. Peça ao administrador para concluir a configuração do servidor.',
                     { variant: 'warning', duration: 9000 }
                   );
                   return;
