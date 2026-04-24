@@ -2,15 +2,30 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
+import { HomologacaoCommentsPanel } from '../components/HomologacaoCommentsPanel';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { rpcPublicHomologacaoStatus } from '../lib/hubPartnerOrgPublic';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
+
+const cardSurface =
+  'rounded-lg border border-slate-200/90 bg-white shadow-[inset_0_1px_0_rgba(15,23,42,0.04)]';
 
 function formatDatePt(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function statusLabelPt(status) {
+  const s = String(status || '').toLowerCase();
+  const map = {
+    pendente: 'Pendente',
+    processado: 'Processado',
+    aprovado: 'Aprovado',
+    rejeitado: 'Rejeitado',
+  };
+  return map[s] || status || '—';
 }
 
 function statusHeadline(row) {
@@ -46,6 +61,7 @@ export function OrgHomologacaoTrackPage() {
   const { toast } = useUiFeedback();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const initialRef = (searchParams.get('codigo') || searchParams.get('ref') || '').trim();
   const [draftRef, setDraftRef] = useState(initialRef);
 
@@ -100,26 +116,33 @@ export function OrgHomologacaoTrackPage() {
 
   return (
     <AuthSplitLayout
-      heroTitle="Acompanhamento"
-      heroSubtitle="Consulte o estado da homologação com o código recebido após o cadastro."
+      heroTitle="Homologação"
+      heroSubtitle="Consulte o pedido com o código ORG que recebeu ao enviar o cadastro."
     >
-      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-4 sm:gap-5">
-        <div className="shrink-0 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
-          <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Homologação — acompanhamento</h1>
+      <HomologacaoCommentsPanel
+        open={commentsOpen}
+        onClose={() => setCommentsOpen(false)}
+        codigoRastreio={row?.codigo_rastreio || ref || ''}
+        nomeEmpresa={row?.nome_empresa || ''}
+      />
+
+      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 sm:gap-4">
+        <div className={`shrink-0 border-l-[3px] border-l-tertiary p-4 sm:p-5 ${cardSurface}`}>
+          <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Acompanhamento do pedido</h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Utilize o código <span className="font-mono text-xs">ORG-…</span> ou o ID do pedido. O link desta página é
-            específico do seu processo quando inclui o parâmetro <span className="font-mono text-xs">codigo</span>.
+            Utilize o código <span className="font-mono text-xs">ORG-…</span> ou o ID do pedido. Com o parâmetro{' '}
+            <span className="font-mono text-xs">codigo</span> na URL, este endereço fica associado ao seu processo.
           </p>
         </div>
 
         <form
           onSubmit={onConsultar}
-          className="flex shrink-0 flex-col gap-2 rounded-none border border-outline-variant bg-surface-container-low/40 p-4 sm:flex-row sm:items-end sm:gap-3"
+          className={`flex shrink-0 flex-col gap-2 p-4 sm:flex-row sm:items-end sm:gap-3 ${cardSurface}`}
         >
           <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-bold uppercase tracking-wide text-on-surface-variant">
             Código ou ID
             <input
-              className="rounded border border-outline-variant bg-white px-3 py-2 text-sm font-normal normal-case text-on-surface"
+              className="rounded-none border border-outline-variant bg-white px-3 py-2 text-sm font-normal normal-case text-on-surface"
               value={draftRef}
               onChange={(e) => setDraftRef(e.target.value)}
               placeholder="ex.: ORG-HUB-2026-000001"
@@ -128,7 +151,7 @@ export function OrgHomologacaoTrackPage() {
           </label>
           <button
             type="submit"
-            className="shrink-0 rounded bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:opacity-95"
+            className="shrink-0 rounded-none bg-tertiary px-5 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-primary hover:bg-tertiary/90"
           >
             Consultar
           </button>
@@ -145,14 +168,23 @@ export function OrgHomologacaoTrackPage() {
         ) : null}
 
         {trackQuery.isError && ref ? (
-          <div className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{errMsg}</div>
+          <div className="rounded-lg border border-amber-200/90 bg-amber-50 px-4 py-3 text-sm text-amber-950">{errMsg}</div>
         ) : null}
 
         {row ? (
-          <div className="space-y-4 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Organização</p>
-              <p className="mt-1 text-lg font-bold text-primary">{row.nome_empresa}</p>
+          <div className={`space-y-4 border-l-[3px] border-l-tertiary p-4 sm:p-5 ${cardSurface}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Organização</p>
+                <p className="mt-1 text-lg font-bold text-primary">{row.nome_empresa}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommentsOpen(true)}
+                className="shrink-0 rounded-none border-2 border-primary bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-primary hover:bg-surface-container-low"
+              >
+                Abrir comentários
+              </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
@@ -160,8 +192,8 @@ export function OrgHomologacaoTrackPage() {
                 <p className="mt-1 font-mono text-sm">{row.codigo_rastreio || '—'}</p>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Estado (raw)</p>
-                <p className="mt-1 text-sm capitalize">{row.status}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Estado</p>
+                <p className="mt-1 text-sm font-medium text-on-surface">{statusLabelPt(row.status)}</p>
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Pedido recebido</p>
@@ -172,24 +204,33 @@ export function OrgHomologacaoTrackPage() {
                 <p className="mt-1 text-sm">{formatDatePt(row.processado_em)}</p>
               </div>
             </div>
-            <div className="rounded border border-sky-100 bg-sky-50/80 px-4 py-3">
-              <p className="text-sm font-bold text-sky-950">{statusHeadline(row)}</p>
-              {statusDetail(row) ? <p className="mt-2 text-sm leading-relaxed text-sky-900/90">{statusDetail(row)}</p> : null}
+            <div className="rounded-lg border border-tertiary/25 bg-tertiary/[0.06] px-4 py-3">
+              <p className="text-sm font-bold text-primary">{statusHeadline(row)}</p>
+              {statusDetail(row) ? (
+                <p className="mt-2 text-sm leading-relaxed text-on-surface">{statusDetail(row)}</p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void copyLink()}
-                className="rounded border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-primary hover:bg-surface-container-low"
+                className="rounded-none border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-primary hover:bg-surface-container-low"
               >
                 Copiar link desta página
               </button>
               <button
                 type="button"
                 onClick={() => void trackQuery.refetch()}
-                className="rounded border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-low"
+                className="rounded-none border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-low"
               >
                 Actualizar
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommentsOpen(true)}
+                className="rounded-none bg-tertiary px-3 py-2 text-xs font-black uppercase tracking-wide text-primary hover:bg-tertiary/90"
+              >
+                Comentários
               </button>
             </div>
           </div>
