@@ -133,13 +133,13 @@ export function HomologacaoChatThread({
     }
   }, [draft, pendingFiles, enabled, mode, sendHub, sendPublic]);
 
-  const onPickFiles = useCallback(
-    (e) => {
-      const input = e.target;
-      const fl = input.files ? Array.from(input.files) : [];
-      input.value = '';
-      if (!fl.length) return;
-      const next = [...pendingFiles];
+  const onPickFiles = useCallback((e) => {
+    const input = e.target;
+    const fl = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!fl.length) return;
+    setPendingFiles((prev) => {
+      const next = [...prev];
       for (const f of fl) {
         if (f.size > HUB_HOMOLOG_DOCS_MAX_BYTES) {
           toast(`«${f.name}» excede o tamanho máximo.`, { variant: 'warning', duration: 5000 });
@@ -151,10 +151,9 @@ export function HomologacaoChatThread({
         }
         next.push(f);
       }
-      setPendingFiles(next);
-    },
-    [pendingFiles, toast],
-  );
+      return next;
+    });
+  }, [toast]);
 
   const removePendingAt = useCallback((idx) => {
     setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
