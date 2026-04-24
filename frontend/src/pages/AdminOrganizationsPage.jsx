@@ -1,10 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppSideover } from '../components/AppSideover';
+import { HomologacaoChatThread } from '../components/HomologacaoChatThread';
+import { HomologacaoDocumentosPanel } from '../components/HomologacaoDocumentosPanel';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
 import { fetchPartnerOrgSignups } from '../lib/governanceQueries';
-import { fetchModulosCatalogoGovernanca, rpcApprovePartnerOrgSignup } from '../lib/hubPartnerOrgGovernance';
+import { rpcApprovePartnerOrgSignup } from '../lib/hubPartnerOrgGovernance';
 import {
   buildCnpjSnapshotPresentation,
   buildFormularioGroupedSections,
@@ -12,7 +14,6 @@ import {
   hubMarketLegendItems,
   labelPartnerKind,
   normalizeHubCnpjSnapshotInput,
-  resolveConsultaFonteLabel,
   shortTemplateRef,
 } from '../lib/partnerOrgGovernanceDisplay';
 import { onlyDigits } from '../lib/opencnpj';
@@ -59,7 +60,6 @@ function OrgConsultaReportView({ row }) {
     rawSnap == null ||
     (typeof rawSnap === 'object' && rawSnap !== null && Object.keys(rawSnap).length === 0);
   const pres = buildCnpjSnapshotPresentation(rawSnap);
-  const fonte = resolveConsultaFonteLabel(row.consulta_fonte, rawSnap);
   const hasBody =
     !snapEmpty &&
     snapshot &&
@@ -79,8 +79,7 @@ function OrgConsultaReportView({ row }) {
           <li>CNPJ não consultado na sessão antes de submeter o formulário.</li>
         </ul>
         <p className="text-on-surface-variant">
-          Utilize o separador <strong className="text-primary">Formulário</strong> para os dados declarados pelo parceiro. Fonte registada:{' '}
-          <em>{fonte}</em>.
+          Utilize o separador <strong className="text-primary">Formulário</strong> para os dados declarados pelo parceiro.
         </p>
       </article>
     );
@@ -91,9 +90,6 @@ function OrgConsultaReportView({ row }) {
       <header className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-tertiary">Relatório · consulta CNPJ</p>
         <h3 className="mt-2 text-xl font-black tracking-tight text-primary">{pres.title}</h3>
-        <p className="mt-2 text-on-surface-variant">
-          Fonte: <strong className="text-primary">{fonte}</strong>. Leitura em formato de relatório para homologação (sem JSON bruto).
-        </p>
       </header>
 
       {pres.sections.map((sec) => (
@@ -268,10 +264,6 @@ function OrgExpandedTabs({ row }) {
                 <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Tipo de parceiro</dt>
                 <dd className="mt-0.5 text-primary">{labelPartnerKind(row.partner_kind)}</dd>
               </div>
-              <div>
-                <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Fonte consulta CNPJ</dt>
-                <dd className="mt-0.5 text-primary">{resolveConsultaFonteLabel(row.consulta_fonte, row.cnpja_snapshot)}</dd>
-              </div>
               {codigoGravado ? (
                 <div className="sm:col-span-2">
                   <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Código ORG atribuído (base)</dt>
@@ -342,8 +334,6 @@ export function AdminOrganizationsPage() {
   const [busyId, setBusyId] = useState(null);
   const [busyApprove, setBusyApprove] = useState(false);
   const [actionErr, setActionErr] = useState(null);
-  /** @type {[string[], React.Dispatch<React.SetStateAction<string[]>>]} */
-  const [selectedModuloCodigos, setSelectedModuloCodigos] = useState([]);
   const [tipoOrgOverride, setTipoOrgOverride] = useState('');
   const [approveBanner, setApproveBanner] = useState(/** @type {{ link: string, codigo: string } | null} */ (null));
 
@@ -351,13 +341,6 @@ export function AdminOrganizationsPage() {
     queryKey: ['governance', 'partner-org-signups'],
     queryFn: () => fetchPartnerOrgSignups(supabase),
     enabled: Boolean(supabase),
-  });
-
-  const modulosQuery = useQuery({
-    queryKey: ['governance', 'modulos-catalogo'],
-    queryFn: () => fetchModulosCatalogoGovernanca(supabase),
-    enabled: Boolean(supabase),
-    staleTime: 120_000,
   });
 
   const rows = orgQuery.data ?? [];
@@ -387,7 +370,6 @@ export function AdminOrganizationsPage() {
   useEffect(() => {
     if (!active) return;
     setTipoOrgOverride(String(active.partner_kind || '').trim());
-    setSelectedModuloCodigos([]);
     setApproveBanner(null);
   }, [active?.id]);
 
@@ -417,7 +399,7 @@ export function AdminOrganizationsPage() {
     try {
       const r = await rpcApprovePartnerOrgSignup(supabase, {
         signupId: row.id,
-        moduloSlugs: selectedModuloCodigos,
+        moduloSlugs: [],
         tipoOrganizacao: tipoOrgOverride.trim() || null,
       });
       if (!r.ok) {
@@ -437,6 +419,7 @@ export function AdminOrganizationsPage() {
       const link = token ? `${origin}#/convite/organizacao?token=${encodeURIComponent(token)}` : '';
       setApproveBanner(link ? { link, codigo } : null);
       await queryClient.invalidateQueries({ queryKey: ['governance', 'partner-org-signups'] });
+      void queryClient.invalidateQueries({ queryKey: ['homologacaoChat'] });
       setPanel((p) =>
         p.open && p.row?.id === row.id
           ? {
@@ -457,17 +440,11 @@ export function AdminOrganizationsPage() {
     }
   }
 
-  function toggleModuloCodigo(codigo) {
-    const c = String(codigo || '').trim();
-    if (!c) return;
-    setSelectedModuloCodigos((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
-  }
-
   return (
     <div className="w-full min-w-0 space-y-6">
-      {(err || actionErr || modulosQuery.isError) && (
+      {(err || actionErr) && (
         <p className="text-sm font-semibold text-red-600" role="alert">
-          {err || actionErr || (modulosQuery.error ? String(modulosQuery.error.message) : '')}
+          {err || actionErr}
         </p>
       )}
 
@@ -567,7 +544,6 @@ export function AdminOrganizationsPage() {
                     <th className="hidden px-3 py-3 sm:table-cell sm:px-4">CNPJ</th>
                     <th className="min-w-[10rem] px-3 py-3 sm:px-4">E-mail</th>
                     <th className="px-3 py-3 sm:px-4">Status</th>
-                    <th className="hidden px-3 py-3 lg:table-cell lg:px-4">Fonte CNPJ</th>
                     <th className="hidden px-3 py-3 md:table-cell md:px-4">Quando</th>
                     <th className="px-3 py-3 text-right sm:px-4">Ações</th>
                   </tr>
@@ -575,7 +551,7 @@ export function AdminOrganizationsPage() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-sm text-on-surface-variant">
+                      <td colSpan={7} className="px-5 py-12 text-center text-sm text-on-surface-variant">
                         Nenhum cadastro de organização.
                       </td>
                     </tr>
@@ -598,7 +574,12 @@ export function AdminOrganizationsPage() {
                         </td>
                         <td className="align-top px-3 py-3 sm:px-4">
                           <div className="font-bold text-primary leading-snug">{orgNameFromRow(row)}</div>
-                          <div className="mt-0.5 font-mono text-[11px] text-slate-500">ID: {String(row.id).slice(0, 8)}…</div>
+                          {row.codigo_rastreio ? (
+                            <div className="mt-0.5 font-mono text-[11px] font-semibold text-tertiary">{String(row.codigo_rastreio)}</div>
+                          ) : null}
+                          <div className="mt-0.5 font-mono text-[10px] text-slate-400">
+                            Pedido · {String(row.id).slice(0, 8)}…
+                          </div>
                         </td>
                         <td className="hidden align-middle px-3 py-3 font-mono text-xs sm:table-cell sm:px-4">
                           {formatCnpjMask(row.cnpj)}
@@ -611,9 +592,6 @@ export function AdminOrganizationsPage() {
                             ) : null}
                             {row.status}
                           </span>
-                        </td>
-                        <td className="hidden align-middle px-3 py-3 text-xs text-on-surface-variant lg:table-cell lg:px-4">
-                          {resolveConsultaFonteLabel(row.consulta_fonte, row.cnpja_snapshot)}
                         </td>
                         <td className="hidden align-middle whitespace-nowrap px-3 py-3 text-xs text-on-surface-variant md:table-cell md:px-4">
                           {row.criado_em ? new Date(row.criado_em).toLocaleString('pt-BR') : '—'}
@@ -632,7 +610,7 @@ export function AdminOrganizationsPage() {
                       </tr>
                       {open ? (
                         <tr key={`${row.id}-detail`} className="bg-slate-50/90">
-                          <td colSpan={8} className="border-t border-slate-200 px-4 py-4 sm:px-6">
+                          <td colSpan={7} className="border-t border-slate-200 px-4 py-4 sm:px-6">
                             <OrgExpandedTabs key={row.id} row={row} />
                           </td>
                         </tr>
@@ -695,12 +673,6 @@ export function AdminOrganizationsPage() {
                             </dd>
                           </div>
                           <div>
-                            <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Fonte da consulta</dt>
-                            <dd className="mt-0.5 text-primary">
-                              {resolveConsultaFonteLabel(active.consulta_fonte, active.cnpja_snapshot)}
-                            </dd>
-                          </div>
-                          <div>
                             <dt className="text-[10px] font-bold uppercase text-on-surface-variant">Formulário</dt>
                             <dd className="mt-0.5 text-primary">{shortTemplateRef(active.template_id)}</dd>
                           </div>
@@ -726,6 +698,79 @@ export function AdminOrganizationsPage() {
                   ),
                 },
                 {
+                  id: 'chat',
+                  label: 'Chat',
+                  content: (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-slate-200/85 bg-gradient-to-b from-white to-slate-50/35 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 border-b border-slate-100/90 pb-2">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tertiary/12 text-tertiary" aria-hidden>
+                            <span className="material-symbols-outlined text-[20px] leading-none">forum</span>
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Chat de homologação</p>
+                            <p className="mt-0.5 text-xs text-on-surface-variant">
+                              Pedido{' '}
+                              <span className="font-mono text-[11px] text-primary" title={String(active.id)}>
+                                {String(active.id).slice(0, 8)}…
+                              </span>
+                              {active.codigo_rastreio ? (
+                                <>
+                                  {' · '}
+                                  <span className="font-mono font-semibold text-tertiary">{String(active.codigo_rastreio)}</span>
+                                </>
+                              ) : null}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs leading-relaxed text-on-surface-variant">
+                          Mesmo fio da página pública de acompanhamento. Mensagens persistidas na base (
+                          <span className="font-mono text-[10px]">hub_homologacao_mensagens</span>).
+                        </p>
+                      </div>
+                      <div className="flex max-h-[min(65vh,560px)] min-h-[320px] flex-col">
+                        <HomologacaoChatThread
+                          supabase={supabase}
+                          refKey={active.codigo_rastreio ? String(active.codigo_rastreio) : String(active.id)}
+                          chatQueryId={String(active.id)}
+                          mode="hub"
+                          signupId={String(active.id)}
+                          readOnly={false}
+                          stacked
+                          pollMs={8000}
+                        />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  id: 'documentos',
+                  label: 'Documentos',
+                  content: (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-slate-200/85 bg-gradient-to-b from-white to-slate-50/35 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 border-b border-slate-100/90 pb-2">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tertiary/12 text-tertiary" aria-hidden>
+                            <span className="material-symbols-outlined text-[20px] leading-none">folder_special</span>
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Documentos da homologação</p>
+                            <p className="mt-0.5 text-xs text-on-surface-variant">
+                              Contratos e anexos enviados no chat; após provisionar, ficam ligados à organização na base.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <HomologacaoDocumentosPanel
+                        supabase={supabase}
+                        refKey={active.codigo_rastreio ? String(active.codigo_rastreio) : String(active.id)}
+                        cacheQueryId={String(active.id)}
+                        pollMs={12_000}
+                      />
+                    </div>
+                  ),
+                },
+                {
                   id: 'decisao',
                   label: 'Decisão',
                   content: (
@@ -734,9 +779,17 @@ export function AdminOrganizationsPage() {
                       {active.status === 'pendente' ? (
                         <>
                           <div className="rounded-xl border border-tertiary/20 bg-tertiary/5 p-4">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Pré-visualização (código da org)</p>
-                            <p className="mt-2 text-sm text-primary">
-                              Com o tipo selecionado abaixo, o prefixo será{' '}
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Código ORG</p>
+                            {active.codigo_rastreio ? (
+                              <p className="mt-2 font-mono text-lg font-bold text-tertiary">{String(active.codigo_rastreio)}</p>
+                            ) : (
+                              <p className="mt-2 text-sm text-on-surface-variant">
+                                Sem código reservado neste pedido (cadastro anterior à RPC pública). Ao provisionar, será gerado conforme o tipo
+                                abaixo.
+                              </p>
+                            )}
+                            <p className="mt-3 text-sm text-primary">
+                              Com o tipo seleccionado abaixo, o prefixo é{' '}
                               <strong className="font-mono">
                                 {describeProvisioningCodeHint(tipoOrgOverride, active.partner_kind).prefix}
                               </strong>{' '}
@@ -747,7 +800,7 @@ export function AdminOrganizationsPage() {
                             </p>
                             <p className="mt-1 text-[11px] text-on-surface-variant">
                               Os códigos <span className="font-mono">NEG-*</span> e <span className="font-mono">OPP-*</span> pertencem ao CRM; a
-                              organização usa <span className="font-mono">ORG-*</span> na aprovação.
+                              organização usa <span className="font-mono">ORG-*</span>.
                             </p>
                           </div>
                           <div>
@@ -772,37 +825,12 @@ export function AdminOrganizationsPage() {
                               <code className="font-mono">tipo_organizacao</code> na base.
                             </p>
                           </div>
-                          <div>
-                            <p className="text-[10px] font-black uppercase text-on-surface-variant">Módulos licenciados</p>
-                            {modulosQuery.isPending ? (
-                              <p className="mt-2 text-xs text-on-surface-variant">A carregar catálogo…</p>
-                            ) : (
-                              <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto border border-slate-100 p-2">
-                                {(modulosQuery.data || []).map((m) => {
-                                  const modId = String(m.id || '').trim();
-                                  if (!modId) return null;
-                                  const on = selectedModuloCodigos.includes(modId);
-                                  return (
-                                    <li key={modId}>
-                                      <label className="flex cursor-pointer items-start gap-2 text-xs">
-                                        <input
-                                          type="checkbox"
-                                          checked={on}
-                                          onChange={() => toggleModuloCodigo(modId)}
-                                          className="mt-0.5"
-                                        />
-                                        <span>
-                                          <span className="font-bold text-primary">{m.nome || modId}</span>
-                                          <span className="ml-1 font-mono text-[10px] text-slate-500">{modId.slice(0, 8)}…</span>
-                                        </span>
-                                      </label>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                            <p className="mt-1 text-[10px] text-on-surface-variant">
-                              São gravados os <strong>IDs</strong> das linhas em <code className="font-mono">modulos_catalogo</code> (coluna <code className="font-mono">id</code>).
+                          <div className="rounded-lg border border-slate-200/90 bg-slate-50/90 p-4">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Funções e módulos</p>
+                            <p className="mt-2 text-sm leading-relaxed text-on-surface">
+                              Por agora o provisionamento <strong>não</strong> associa módulos por checkbox: cria-se a organização e o convite com o{' '}
+                              <strong>tipo HUB</strong> definido acima. Depois do CRM Central, voltamos a expor aqui as funções que cada organização pode
+                              usar.
                             </p>
                           </div>
                           {approveBanner ? (

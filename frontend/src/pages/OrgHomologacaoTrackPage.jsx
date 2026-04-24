@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
-import { HomologacaoCommentsPanel } from '../components/HomologacaoCommentsPanel';
+import { HomologacaoChatSideover } from '../components/HomologacaoChatSideover';
+import { HomologacaoDocumentosPanel } from '../components/HomologacaoDocumentosPanel';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { rpcPublicHomologacaoStatus } from '../lib/hubPartnerOrgPublic';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
@@ -61,9 +62,9 @@ export function OrgHomologacaoTrackPage() {
   const { toast } = useUiFeedback();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [commentsOpen, setCommentsOpen] = useState(false);
   const initialRef = (searchParams.get('codigo') || searchParams.get('ref') || '').trim();
   const [draftRef, setDraftRef] = useState(initialRef);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     if (initialRef) setDraftRef(initialRef);
@@ -114,16 +115,20 @@ export function OrgHomologacaoTrackPage() {
   const row = trackQuery.data;
   const errMsg = trackQuery.error instanceof Error ? trackQuery.error.message : null;
 
+  const signupIdForChat = row?.signup_id ?? row?.signupId ?? null;
+
   return (
     <AuthSplitLayout
       heroTitle="Homologação"
       heroSubtitle="Consulte o pedido com o código ORG que recebeu ao enviar o cadastro."
     >
-      <HomologacaoCommentsPanel
-        open={commentsOpen}
-        onClose={() => setCommentsOpen(false)}
+      <HomologacaoChatSideover
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
         codigoRastreio={row?.codigo_rastreio || ref || ''}
-        nomeEmpresa={row?.nome_empresa || ''}
+        signupId={signupIdForChat != null ? String(signupIdForChat) : null}
+        pedidoStatus={row?.status ?? null}
+        supabase={isSupabaseConfigured() ? getSupabase() : null}
       />
 
       <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 sm:gap-4">
@@ -180,10 +185,11 @@ export function OrgHomologacaoTrackPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setCommentsOpen(true)}
-                className="shrink-0 rounded-none border-2 border-primary bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-primary hover:bg-surface-container-low"
+                onClick={() => setChatOpen(true)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border-2 border-primary bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] text-primary hover:bg-surface-container-low"
               >
-                Abrir comentários
+                <span className="material-symbols-outlined text-[18px] leading-none">forum</span>
+                Abrir chat
               </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -227,11 +233,27 @@ export function OrgHomologacaoTrackPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setCommentsOpen(true)}
-                className="rounded-none bg-tertiary px-3 py-2 text-xs font-black uppercase tracking-wide text-primary hover:bg-tertiary/90"
+                onClick={() => setChatOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-sm bg-tertiary px-3 py-2 text-xs font-black uppercase tracking-wide text-primary hover:bg-tertiary/90"
               >
-                Comentários
+                <span className="material-symbols-outlined text-[18px] leading-none">forum</span>
+                Chat HUB
               </button>
+            </div>
+
+            <div className="mt-6 border-t border-slate-200/90 pt-5">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant">Documentos</h2>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Histórico de ficheiros enviados no chat (contratos, imagens, PDF). Use o chat para anexar novos documentos.
+              </p>
+              <div className="mt-4">
+                <HomologacaoDocumentosPanel
+                  supabase={getSupabase()}
+                  refKey={String(row.codigo_rastreio || ref || '').trim()}
+                  cacheQueryId={signupIdForChat != null ? String(signupIdForChat) : String(ref || '').trim()}
+                  pollMs={25_000}
+                />
+              </div>
             </div>
           </div>
         ) : null}

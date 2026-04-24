@@ -43,3 +43,29 @@ export async function rpcClaimOrgInvite(supabase, token) {
   if (error) return { ok: false, error: error.message, raw: null };
   return { ok: true, raw: data };
 }
+
+/**
+ * Resposta da equipa HUB no chat de homologação (sessão admin).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} signupId — UUID do pedido em hub_partner_org_signups
+ * @param {string} corpo
+ * @param {Array<Record<string, unknown>>} [anexos]
+ */
+export async function rpcHubHomologacaoReply(supabase, signupId, corpo, anexos = []) {
+  const list = Array.isArray(anexos) ? anexos : [];
+  const { data, error } = await supabase.rpc('hub_homologacao_hub_reply', {
+    p_signup_id: signupId,
+    p_corpo: corpo ?? '',
+    p_anexos: list,
+  });
+  if (error) return { ok: false, error: error.message, raw: null };
+  const raw = data && typeof data === 'object' ? data : {};
+  if (raw.ok === false) {
+    return {
+      ok: false,
+      error: [raw.error, raw.detail].filter(Boolean).join(': ') || 'Falha ao enviar',
+      raw,
+    };
+  }
+  return { ok: true, raw: data };
+}

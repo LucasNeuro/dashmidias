@@ -18,6 +18,13 @@ create unique index if not exists hub_partner_org_signups_codigo_rastreio_uidx
   on public.hub_partner_org_signups (codigo_rastreio)
   where codigo_rastreio is not null;
 
+-- Evita dois pedidos pendentes com o mesmo documento (CNPJ/CPF na coluna cnpj).
+-- Se der 23505 por duplicados existentes, execute primeiro:
+--   database/hub_partner_org_signups_dedupe_pending_before_unique.sql
+create unique index if not exists hub_partner_org_signups_one_pending_per_doc
+  on public.hub_partner_org_signups (cnpj)
+  where status = 'pendente';
+
 comment on column public.hub_partner_org_signups.codigo_rastreio is
   'Código ORG-[mercado]-ano-seq: reservado ao submeter o pedido (RPC); repetido em organizacoes.codigo_rastreio após provisionar.';
 
@@ -108,6 +115,15 @@ begin
     return jsonb_build_object('ok', false, 'error', 'dados_required');
   end if;
 
+  if exists (
+    select 1
+    from public.hub_partner_org_signups s
+    where s.cnpj = v_doc
+      and s.status = 'pendente'
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'duplicate_pending_signup');
+  end if;
+
   v_tipo := coalesce(nullif(trim(p_partner_kind), ''), 'outro');
   v_prefix := case lower(v_tipo)
     when 'imobiliaria' then 'IMB'
@@ -151,6 +167,9 @@ begin
   );
 exception
   when unique_violation then
+    if sqlerrm ilike '%hub_partner_org_signups_one_pending_per_doc%' then
+      return jsonb_build_object('ok', false, 'error', 'duplicate_pending_signup', 'detail', sqlerrm);
+    end if;
     return jsonb_build_object('ok', false, 'error', 'duplicate_codigo', 'detail', sqlerrm);
   when others then
     return jsonb_build_object('ok', false, 'error', 'sql_error', 'detail', sqlerrm);

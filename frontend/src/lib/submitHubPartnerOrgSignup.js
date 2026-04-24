@@ -25,7 +25,15 @@ async function insertPartnerOrgSignupDirect(sb, { email, doc, raw, meta }) {
   };
   const { error } = await sb.from('hub_partner_org_signups').insert(row);
   if (error) {
-    return { ok: false, error: error.message || 'Não foi possível guardar o cadastro.' };
+    const msg = error.message || '';
+    if (/one_pending_per_doc/i.test(msg) || (/duplicate key/i.test(msg) && /\bcnpj\b/i.test(msg))) {
+      return {
+        ok: false,
+        error:
+          'Já existe um pedido pendente com este CNPJ/CPF. Aguarde análise ou utilize o código ORG recebido.',
+      };
+    }
+    return { ok: false, error: msg || 'Não foi possível guardar o cadastro.' };
   }
   return { ok: true, legacyInsert: true };
 }

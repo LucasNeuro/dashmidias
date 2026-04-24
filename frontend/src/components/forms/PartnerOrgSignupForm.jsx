@@ -382,6 +382,8 @@ export function PartnerOrgSignupForm({
   );
   const [cnpjBusy, setCnpjBusy] = useState(false);
   const lastCnpjLookup = useRef('');
+  /** Evita duplo envio (duplo clique) antes da navegação ou toast. */
+  const submitGuardRef = useRef(false);
   const [step, setStep] = useState(0);
   const [showSenha, setShowSenha] = useState(false);
   const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
@@ -401,12 +403,18 @@ export function PartnerOrgSignupForm({
       onChange: schema,
     },
     onSubmit: async ({ value }) => {
-      const doc = String(value.cnpj || '').trim();
-      const { snapshot, consultaFonte } = buildConsultaCnpjSnapshotForSubmit(queryClient, doc);
-      await onSubmitSuccess?.(value, {
-        cnpjSnapshot: snapshot,
-        consultaFonte,
-      });
+      if (submitGuardRef.current) return;
+      submitGuardRef.current = true;
+      try {
+        const doc = String(value.cnpj || '').trim();
+        const { snapshot, consultaFonte } = buildConsultaCnpjSnapshotForSubmit(queryClient, doc);
+        await onSubmitSuccess?.(value, {
+          cnpjSnapshot: snapshot,
+          consultaFonte,
+        });
+      } finally {
+        submitGuardRef.current = false;
+      }
     },
   });
 
