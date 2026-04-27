@@ -16,6 +16,7 @@ const SELECT_TEMPLATE_COLUMNS = [
   'name',
   'description',
   'partner_kind',
+  'template_purpose',
   'invite_link_enabled',
   'invite_slug',
   'fields',
@@ -122,6 +123,7 @@ function parseFieldsFromJsonb(raw) {
         required: f.required === true,
         options: parseOptions(f.options),
         lookupCnpj: f.lookupCnpj === true || f.lookup_cnpj === true,
+        inactive: f.inactive === true,
       };
     })
     .filter(Boolean);
@@ -141,6 +143,7 @@ function templateFieldsToJsonb(t) {
       options: Array.isArray(f.options) ? f.options.map((o) => String(o)) : [],
     };
     if (f.lookupCnpj === true) row.lookupCnpj = true;
+    if (f.inactive === true) row.inactive = true;
     return row;
   });
 }
@@ -191,11 +194,14 @@ export function mapRowToClientTemplate(row) {
   if (signupSettings == null) {
     signupSettings = { cnpjRequired: true, collectCpf: false };
   }
+  const templatePurpose =
+    row.template_purpose === 'lead_capture' ? 'lead_capture' : 'partner_homologacao';
   return normalizeTemplate({
     id: row.id,
     name: row.name,
     description: row.description ?? '',
     partnerKind: row.partner_kind,
+    templatePurpose,
     inviteLinkEnabled: row.invite_link_enabled !== false,
     inviteSlug: row.invite_slug != null && String(row.invite_slug).trim() ? String(row.invite_slug).trim() : '',
     standardFieldsDisabled: parseStandardFieldsDisabled(row.standard_fields_disabled),
@@ -217,12 +223,23 @@ function templateToParentRow(t, userId, o) {
   const fieldsJson = templateFieldsToJsonb(t);
   const su = normalizeSignupOptions(t.signupSettings);
   const dbg = normalizeDisabledBuiltinGroups(t.disabledBuiltinGroups, t.partnerKind);
+  const purpose = t.templatePurpose === 'lead_capture' ? 'lead_capture' : 'partner_homologacao';
+  /** @type {Record<string, unknown>} */
+  const signupBlob = {
+    cnpjRequired: su.cnpjRequired,
+    collectCpf: su.collectCpf,
+    disabledBuiltinGroups: dbg,
+  };
+  if (purpose === 'lead_capture' || su.leadSegmentSlug) {
+    signupBlob.leadSegmentSlug = su.leadSegmentSlug || '';
+  }
   const base = {
     id: t.id,
     organization_id: null,
     name: t.name?.trim() || 'Sem nome',
     description: t.description?.trim() ?? '',
     partner_kind: t.partnerKind,
+    template_purpose: purpose,
     invite_link_enabled: t.inviteLinkEnabled !== false,
     invite_slug:
       typeof t.inviteSlug === 'string' && t.inviteSlug.trim()
@@ -230,11 +247,7 @@ function templateToParentRow(t, userId, o) {
         : null,
     fields: fieldsJson,
     standard_fields_disabled: Array.isArray(t.standardFieldsDisabled) ? t.standardFieldsDisabled : [],
-    signup_settings: {
-      cnpjRequired: su.cnpjRequired,
-      collectCpf: su.collectCpf,
-      disabledBuiltinGroups: dbg,
-    },
+    signup_settings: signupBlob,
     updated_at: now,
   };
   if (o.isNew) {
@@ -252,28 +265,79 @@ function templateToParentRow(t, userId, o) {
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate[]>}
  */
-export async function listHubRegistrationTemplates(supabase) {
-  let sel = SELECT_TEMPLATE;
-  let { data, error } = await supabase
+/**
+ * Convite público ativo para um `partner_kind` (modelo HUB). Usado no pré-cadastro quando o fluxo não tem etapas de formulário.
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} partnerKindRaw
+ */
+export async function fetchPublicInviteTemplateByPartnerKind(supabase, partnerKindRaw) {
+  const kind = normalizePartnerKindSlug(partnerKindRaw);
+  if (!kind) return null;
+  let q = supabase
     .from('registration_form_template')
-    .select(sel)
+    .select('id, invite_slug, invite_link_enabled, partner_kind')
+    .eq('invite_link_enabled', true)
     .is('organization_id', null)
-    .order('updated_at', { ascending: false });
-  if (error && isMissingDbColumnError(error, 'invite_slug')) {
-    sel = SELECT_TEMPLATE_WITHOUT_INVITE_SLUG;
+    .eq('partner_kind', kind)
+    .neq('template_purpose', 'lead_capture')
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  let { data, error } = await q;
+  if (error && isMissingDbColumnError(error, 'template_purpose')) {
     ({ data, error } = await supabase
       .from('registration_form_template')
-      .select(sel)
+      .select('id, invite_slug, invite_link_enabled, partner_kind')
+      .eq('invite_link_enabled', true)
       .is('organization_id', null)
-      .order('updated_at', { ascending: false }));
+      .eq('partner_kind', kind)
+      .order('updated_at', { ascending: false })
+      .limit(1));
+  }
+  if (error) throw error;
+  const row = Array.isArray(data) && data[0] ? data[0] : null;
+  return row;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ purpose?: 'partner_homologacao' | 'lead_capture' }} [opts]
+ */
+export async function listHubRegistrationTemplates(supabase, opts = {}) {
+  const purpose = opts.purpose;
+
+  async function runList(/** @type {string} */ sel) {
+    let q = supabase.from('registration_form_template').select(sel).is('organization_id', null);
+    if (purpose === 'lead_capture') {
+      q = q.eq('template_purpose', 'lead_capture');
+    } else if (purpose === 'partner_homologacao') {
+      q = q.or('template_purpose.eq.partner_homologacao,template_purpose.is.null');
+    }
+    return q.order('updated_at', { ascending: false });
+  }
+
+  let sel = SELECT_TEMPLATE;
+  let { data, error } = await runList(sel);
+  if (error && isMissingDbColumnError(error, 'invite_slug')) {
+    sel = SELECT_TEMPLATE_WITHOUT_INVITE_SLUG;
+    ({ data, error } = await runList(sel));
   }
   if (error && isMissingDbColumnError(error, 'signup_settings')) {
     sel = sel === SELECT_TEMPLATE ? SELECT_TEMPLATE_WITHOUT_SIGNUP : SELECT_TEMPLATE_MINIMAL;
+    ({ data, error } = await runList(sel));
+  }
+  if (error && isMissingDbColumnError(error, 'template_purpose')) {
+    const selNoPurpose = sel
+      .split(', ')
+      .filter((c) => c.trim() !== 'template_purpose')
+      .join(', ');
     ({ data, error } = await supabase
       .from('registration_form_template')
-      .select(sel)
+      .select(selNoPurpose)
       .is('organization_id', null)
       .order('updated_at', { ascending: false }));
+    if (!error && purpose === 'lead_capture') {
+      data = [];
+    }
   }
   if (error) throw error;
   return (data || []).map((row) => mapRowToClientTemplate(row));
@@ -329,6 +393,11 @@ export async function upsertRegistrationTemplate(supabase, template, userId, isN
   let { error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' });
   if (error && isMissingDbColumnError(error, 'invite_slug')) {
     const { invite_slug: _drop, ...rest } = parent;
+    parent = rest;
+    ({ error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' }));
+  }
+  if (error && isMissingDbColumnError(error, 'template_purpose')) {
+    const { template_purpose: _tp, ...rest } = parent;
     parent = rest;
     ({ error } = await supabase.from('registration_form_template').upsert(parent, { onConflict: 'id' }));
   }

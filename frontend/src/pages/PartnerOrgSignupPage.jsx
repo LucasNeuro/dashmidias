@@ -22,9 +22,8 @@ export function PartnerOrgSignupPage() {
 
   const intakeStepHint = useMemo(() => {
     try {
-      const flow = searchParams.get('flow');
       const stepRaw = searchParams.get('step');
-      if (!flow || stepRaw == null || !searchParams.get('from')?.includes('intake')) return null;
+      if (stepRaw == null || !searchParams.get('from')?.includes('intake')) return null;
       const raw = sessionStorage.getItem('ob10_partner_intake_v1');
       if (!raw) return null;
       const j = JSON.parse(raw);

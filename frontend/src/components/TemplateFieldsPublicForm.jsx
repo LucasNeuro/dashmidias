@@ -8,7 +8,7 @@ export function TemplateFieldsPublicForm({ fields, values, onChange, idPrefix })
     <div className="space-y-4">
       {list.map((f) => {
         const key = String(f.key ?? '').trim();
-        if (!key) return null;
+        if (!key || f.inactive === true) return null;
         const label = String(f.label ?? key);
         const type = String(f.type ?? 'text').toLowerCase();
         const required = Boolean(f.required);

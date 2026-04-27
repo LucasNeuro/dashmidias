@@ -47,6 +47,7 @@ export function newFieldId() {
  *   required: boolean,
  *   options?: string[],
  *   lookupCnpj?: boolean,
+ *   inactive?: boolean,
  * }} TemplateField
  */
 /**
@@ -55,22 +56,32 @@ export function newFieldId() {
  *   name: string,
  *   description: string,
  *   partnerKind: string,
+ *   templatePurpose?: 'partner_homologacao' | 'lead_capture',
  *   inviteLinkEnabled?: boolean,
  *   fields: TemplateField[],
  *   standardFieldsDisabled?: string[],
- *   signupSettings?: { cnpjRequired?: boolean, collectCpf?: boolean },
+ *   signupSettings?: { cnpjRequired?: boolean, collectCpf?: boolean, leadSegmentSlug?: string },
  *   disabledBuiltinGroups?: string[],
  *   createdAt: string,
  *   updatedAt: string,
  * }} RegistrationFormTemplate
  */
 
-/** Grupos de campos built-in configuráveis (ver `orgStandardFields.js`). */
+/**
+ * Slugs das seções «clássicas» (fallback em código + seed SQL). Novas seções no catálogo usam o próprio
+ * `hub_standard_field_section.slug` — também válidos em `disabledBuiltinGroups`.
+ * @see `getOrgBuiltinPartnerFieldGroups` / `mergePartnerOrgExtraFields` — `field.group` = slug da seção.
+ */
 export const BUILTIN_TEMPLATE_GROUPS = /** @type {const} */ ([
   'produto_servico',
   'atuacao_servicos',
   'logistica',
 ]);
+
+/** Slug gravado no template: alinhado a `section.slug` no catálogo (ASCII, sem espaços). */
+function isDisabledBuiltinGroupSlug(s) {
+  return /^[a-z0-9_-]{1,80}$/.test(s);
+}
 
 /**
  * Por defeito: prestadores/arquitetos sem logística; parceiros de produto/imobiliário sem bloco de atuação em obra.
@@ -86,24 +97,25 @@ export function defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw) {
 }
 
 /**
+ * Normaliza a lista persistida em `signup_settings.disabledBuiltinGroups`.
+ * Aceita qualquer slug de seção válido (não só os três legados), para coincidir com o interruptor do admin
+ * (`getOrgBuiltinPartnerFieldGroups` → `g.id`).
  * @param {unknown} raw
  * @param {unknown} partnerKindRaw
  * @returns {string[]}
  */
 export function normalizeDisabledBuiltinGroups(raw, partnerKindRaw) {
-  const allowed = new Set(BUILTIN_TEMPLATE_GROUPS);
   if (raw === undefined || raw === null) {
     return defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw);
   }
   if (!Array.isArray(raw)) return defaultDisabledBuiltinGroupsForPartnerKind(partnerKindRaw);
-  const out = [
+  return [
     ...new Set(
       raw
         .map((g) => String(g).trim().toLowerCase())
-        .filter((g) => allowed.has(g))
+        .filter((g) => g && isDisabledBuiltinGroupSlug(g))
     ),
   ];
-  return out;
 }
 
 /** Catálogo do hub — ver `hubPartnerKinds.js` (e SQL espelhado em `database/hub_partner_kinds.sql`). */
@@ -247,6 +259,11 @@ export function normalizeTemplate(t) {
       return { ...f, options: f.options.map((o) => String(o).trim()).filter(Boolean) };
     });
   }
+
+  const rawPurpose = rest.templatePurpose ?? rest.template_purpose;
+  rest.templatePurpose = rawPurpose === 'lead_capture' ? 'lead_capture' : 'partner_homologacao';
+  delete rest.template_purpose;
+
   return rest;
 }
 
@@ -318,17 +335,39 @@ export function loadTemplatesMerged() {
   }
 }
 
-export function createEmptyTemplate() {
+export function createEmptyTemplate(/** @type {Partial<RegistrationFormTemplate>} */ overrides = {}) {
   const now = new Date().toISOString();
   return normalizeTemplate({
     id: newId(),
     name: '',
     description: '',
     partnerKind: DEFAULT_HUB_PARTNER_KIND,
+    templatePurpose: 'partner_homologacao',
     inviteLinkEnabled: true,
     inviteSlug: '',
     standardFieldsDisabled: [],
     signupSettings: { cnpjRequired: false, collectCpf: true },
+    fields: [],
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  });
+}
+
+/** Modelo só para /cadastro/captura → hub_public_leads (CRM). */
+export function createLeadCaptureEmptyTemplate() {
+  const now = new Date().toISOString();
+  return normalizeTemplate({
+    id: newId(),
+    name: '',
+    description: '',
+    partnerKind: DEFAULT_HUB_PARTNER_KIND,
+    templatePurpose: 'lead_capture',
+    inviteLinkEnabled: true,
+    inviteSlug: '',
+    standardFieldsDisabled: [],
+    disabledBuiltinGroups: [],
+    signupSettings: { cnpjRequired: false, collectCpf: true, leadSegmentSlug: '' },
     fields: [],
     createdAt: now,
     updatedAt: now,
@@ -345,8 +384,11 @@ export function inviteUrlForTemplate(templateOrId) {
       ? String(templateOrId.inviteSlug || '').trim() || String(templateOrId.id || '').trim()
       : String(templateOrId || '').trim();
   if (!param) return '';
-  // HashRouter: o servidor só precisa servir `/` (funciona em static hosts sem rewrite SPA, ex.: Render).
-  return `${window.location.origin}/#/cadastro/organizacao?tpl=${encodeURIComponent(param)}`;
+  const base = window.location.origin;
+  if (templateOrId && typeof templateOrId === 'object' && templateOrId.templatePurpose === 'lead_capture') {
+    return `${base}/#/cadastro/captura?tpl=${encodeURIComponent(param)}`;
+  }
+  return `${base}/#/cadastro/organizacao?tpl=${encodeURIComponent(param)}`;
 }
 
 export function getTemplateById(id) {

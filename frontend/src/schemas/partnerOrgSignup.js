@@ -7,21 +7,29 @@ const phoneRe = /^[\d\s().+-]{10,22}$/;
 const ufRe = /^[A-Za-z]{2}$/;
 const urlLooseRe = /^https?:\/\/[^\s]+$/i;
 
-/** @typedef {{ cnpjRequired?: boolean, collectCpf?: boolean }} SignupOptions */
+/** @typedef {{ cnpjRequired?: boolean, collectCpf?: boolean, leadSegmentSlug?: string }} SignupOptions */
 
 /** Opções por defeito (cadastro “empresa” clássica). */
 export const DEFAULT_SIGNUP_OPTIONS = /** @type {const} */ ({
   cnpjRequired: true,
   collectCpf: false,
+  leadSegmentSlug: '',
 });
 
 /** @param {unknown} raw */
 export function normalizeSignupOptions(raw) {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_SIGNUP_OPTIONS };
   const o = /** @type {Record<string, unknown>} */ (raw);
+  const lead =
+    o.leadSegmentSlug != null
+      ? String(o.leadSegmentSlug)
+          .trim()
+          .toLowerCase()
+      : '';
   return {
     cnpjRequired: o.cnpjRequired !== false,
     collectCpf: o.collectCpf === true,
+    leadSegmentSlug: lead,
   };
 }
 

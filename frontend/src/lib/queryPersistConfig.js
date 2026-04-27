@@ -16,7 +16,7 @@ export function createAppQueryPersister() {
 
 /**
  * Só persistimos chaves sem dados sensíveis de auditoria (evita dumps grandes / PII em disco).
- * Fluxos/etapas de cadastro e segmentos públicos são metadados operacionais — aliviam refetch e navegação.
+ * Segmentos públicos são metadados operacionais — aliviam refetch e navegação.
  * @param {{ queryKey: unknown[] }} query
  */
 export function shouldPersistQuery(query) {
@@ -24,7 +24,6 @@ export function shouldPersistQuery(query) {
   if (!Array.isArray(k) || k.length === 0) return false;
   const [root, section] = k;
   if (root === 'registration_form_templates' || root === 'registration_form_template') return true;
-  if (root === 'hub_registration_master_flow' || root === 'hub_registration_master_flow_step') return true;
   if (root === 'hub_lead_segment') return true;
   if (root === 'governance') {
     if (section === 'audit') return false;

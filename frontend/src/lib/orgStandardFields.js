@@ -287,6 +287,12 @@ export function listReservedBuiltinPartnerKeys(catalog = null) {
 }
 
 /**
+ * Junta campos padrão (catálogo ou fallback em código) com extras do template.
+ *
+ * Contrato `disabledBuiltinGroups`: slugs de seção em minúsculas, iguais a `hub_standard_field_section.slug`
+ * quando há catálogo na BD, ou a `ORG_BUILTIN_PARTNER_EXTRA_FIELDS[].group` no fallback (`produto_servico`,
+ * `atuacao_servicos`, `logistica`). O painel grava exatamente `g.id` de `getOrgBuiltinPartnerFieldGroups`.
+ *
  * @param {Array<{ id?: string, key: string, label?: string, type?: string, required?: boolean, options?: string[], group?: string, wizardStep?: string }>} templateFields
  * @param {{ standardFieldsDisabled?: string[], disabledBuiltinGroups?: string[] }} [opts]
  * @param {{ sections: unknown[], fields: unknown[] } | null} [catalog]
@@ -303,7 +309,9 @@ export function mergePartnerOrgExtraFields(templateFields = [], opts = {}, catal
       !disabledGroups.has(String(f.group || '').toLowerCase())
   );
   const reserved = new Set(listReservedBuiltinPartnerKeys(catalog));
-  const rest = (templateFields || []).filter((f) => f?.key && !reserved.has(String(f.key).toLowerCase()));
+  const rest = (templateFields || []).filter(
+    (f) => f?.key && f.inactive !== true && !reserved.has(String(f.key).toLowerCase())
+  );
   return [...builtins, ...rest];
 }
 
@@ -371,7 +379,17 @@ export function partitionSignupWizardExtraSlices(mergedFields = [], catalog = nu
       layout: 'grid',
     });
   }
-  return { extraSteps };
+  /** Só etapas com campos visíveis — coerente com blocos desligados no template. */
+  return {
+    extraSteps: extraSteps.filter((s) => {
+      if (!Array.isArray(s.slice) || s.slice.length === 0) return false;
+      if (s.layout === 'commercial-split') {
+        const { commercialProduct, commercialService } = partitionCommercialExtraFields(s.slice);
+        return commercialProduct.length + commercialService.length > 0;
+      }
+      return true;
+    }),
+  };
 }
 
 /** Slug da seção «Atuação e serviços» (alinhado ao catálogo padrão e a `ORG_BUILTIN_PARTNER_EXTRA_FIELDS`). */

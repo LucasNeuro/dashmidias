@@ -42,6 +42,12 @@ const AdminHubPlaceholderPage = lazy(() =>
 const AdminTemplatesPage = lazy(() =>
   import('./pages/AdminTemplatesPage').then((m) => ({ default: m.AdminTemplatesPage }))
 );
+const AdminLeadCaptureTemplatesPage = lazy(() =>
+  import('./pages/AdminLeadCaptureTemplatesPage').then((m) => ({ default: m.AdminLeadCaptureTemplatesPage }))
+);
+const PublicLeadCapturePage = lazy(() =>
+  import('./pages/PublicLeadCapturePage').then((m) => ({ default: m.PublicLeadCapturePage }))
+);
 const AdminStandardCatalogPage = lazy(() =>
   import('./pages/AdminStandardCatalogPage').then((m) => ({ default: m.AdminStandardCatalogPage }))
 );
@@ -49,10 +55,6 @@ const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((m) => (
 const AdminOrganizationsPage = lazy(() =>
   import('./pages/AdminOrganizationsPage').then((m) => ({ default: m.AdminOrganizationsPage }))
 );
-const AdminRegistrationFlowsPage = lazy(() =>
-  import('./pages/AdminRegistrationFlowsPage').then((m) => ({ default: m.AdminRegistrationFlowsPage }))
-);
-
 function RouteFallback() {
   return (
     <div className="flex min-h-[40vh] items-center justify-center px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">
@@ -118,7 +120,8 @@ function AppRoutes() {
     <Routes>
       {/* Rotas públicas: convites, tpl=, recuperação — sempre registradas (links diretos isolados do painel). */}
       <Route path="/entrada" element={<EntradaPage />} />
-      <Route path="/cadastro/fluxo/:flowSlug" element={withSuspense(<RegistrationEntryPage />)} />
+      <Route path="/cadastro/fluxo/:flowSlug" element={<Navigate to="/cadastro" replace />} />
+      <Route path="/cadastro/captura" element={withSuspense(<PublicLeadCapturePage />)} />
       <Route path="/cadastro/lead" element={withSuspense(<PublicLeadSignupPage />)} />
       <Route path="/cadastro/organizacao" element={withSuspense(<PartnerOrgSignupPage />)} />
       <Route path="/cadastro/inteligente" element={withSuspense(<RegistrationEntryPage />)} />
@@ -155,10 +158,10 @@ function AppRoutes() {
             <Route path="auditoria" element={withSuspense(<AdminAuditPage />)} />
             <Route path="configuracoes" element={withSuspense(<AdminHubPlaceholderPage title="Configurações" />)} />
             <Route path="templates" element={withSuspense(<AdminTemplatesPage />)} />
+            <Route path="captura-leads" element={withSuspense(<AdminLeadCaptureTemplatesPage />)} />
             <Route path="catalogo-padrao" element={withSuspense(<AdminStandardCatalogPage />)} />
             <Route path="usuarios" element={withSuspense(<AdminUsersPage />)} />
             <Route path="organizacoes" element={withSuspense(<AdminOrganizationsPage />)} />
-            <Route path="cadastro-fluxos" element={withSuspense(<AdminRegistrationFlowsPage />)} />
           </Route>
           <Route path="/app" element={<Navigate to="/" replace />} />
           <Route

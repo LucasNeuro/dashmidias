@@ -1,11 +1,12 @@
 import { Suspense, useMemo } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
+import { HorizontalScrollNav } from '../components/HorizontalScrollNav';
 import { useAuth } from '../context/AuthContext';
 import { getAppNavItems } from '../lib/appNavItems';
 
 const TAB_LINK =
-  'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant transition-colors hover:bg-slate-100 hover:text-primary sm:px-3 sm:text-[11px]';
+  'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant transition-colors hover:bg-slate-100 hover:text-primary sm:px-3 sm:text-[11px]';
 const TAB_ACTIVE = 'bg-primary text-white shadow-sm shadow-primary/20';
 
 /** Invólucro mais leve que o card padrão do shell — evita “caixa dentro de caixa” em /adm. */
@@ -23,7 +24,8 @@ export function AdminGovernanceLayout() {
   );
 
   const headerTabs = (
-    <nav className="flex flex-wrap gap-1 rounded-xl bg-slate-50/95 p-1" aria-label="Módulos de governança">
+    <HorizontalScrollNav className="rounded-xl bg-slate-50/95 p-1">
+      <nav className="flex flex-nowrap gap-1" aria-label="Módulos de governança">
       <NavLink
         to="/adm/auditoria"
         end
@@ -50,7 +52,16 @@ export function AdminGovernanceLayout() {
         <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
           widgets
         </span>
-        Templates
+        Cadastro homologação
+      </NavLink>
+      <NavLink
+        to="/adm/captura-leads"
+        className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
+      >
+        <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
+          contact_mail
+        </span>
+        Cadastro geral leads
       </NavLink>
       <NavLink
         to="/adm/catalogo-padrao"
@@ -79,22 +90,14 @@ export function AdminGovernanceLayout() {
         </span>
         Organizações
       </NavLink>
-      <NavLink
-        to="/adm/cadastro-fluxos"
-        className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
-      >
-        <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
-          account_tree
-        </span>
-        Cadastro — fluxos
-      </NavLink>
-    </nav>
+      </nav>
+    </HorizontalScrollNav>
   );
 
   return (
     <AppShell
       title="Config e governança"
-      subtitle="Auditoria, templates, catálogo padrão e organizações — a sessão aparece na barra superior."
+      subtitle="Auditoria, cadastro homologação, cadastro geral leads (CRM), catálogo padrão e organizações — a sessão aparece na barra superior."
       navItems={navItems}
       headerTabs={headerTabs}
       contentClassName={GOVERNANCE_CONTENT_SHELL}

@@ -12,6 +12,7 @@ const cors: Record<string, string> = {
 };
 
 const MAX_DESC = 200;
+const MAX_TITLE = 80;
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -23,6 +24,27 @@ function json(body: Record<string, unknown>, status = 200) {
 function trimDesc(s: string): string {
   const t = s.replace(/\s+/g, " ").trim();
   return t.length <= MAX_DESC ? t : t.slice(0, MAX_DESC).trim();
+}
+
+function trimTitle(s: string): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length <= MAX_TITLE ? t : t.slice(0, MAX_TITLE).trim();
+}
+
+/** Extrai objeto JSON da resposta da IA (pode vir com ```json). */
+function parseTitleDescription(raw: string): { title: string; description: string } | null {
+  let s = raw.trim().replace(/^["']|["']$/g, "");
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) s = fence[1].trim();
+  try {
+    const o = JSON.parse(s) as { title?: unknown; description?: unknown };
+    const title = trimTitle(String(o.title ?? ""));
+    const description = trimDesc(String(o.description ?? ""));
+    if (!title && !description) return null;
+    return { title, description };
+  } catch {
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -95,26 +117,50 @@ Deno.serve(async (req) => {
     return json({ ok: false, mensagem: "Corpo JSON inválido." }, 400);
   }
 
+  const templatePurpose = String(body.templatePurpose ?? "partner_homologacao").trim();
+  const isLeadCapture = templatePurpose === "lead_capture";
+
   const templateName = String(body.templateName ?? "").trim() || "(sem nome)";
   const partnerKind = String(body.partnerKind ?? "").trim() || "—";
   const partnerKindLabel = String(body.partnerKindLabel ?? "").trim() || partnerKind;
   const partnerKindDescription = String(body.partnerKindDescription ?? "").trim() || "—";
+  const leadSegmentSlug = String(body.leadSegmentSlug ?? "").trim() || "—";
+  const leadSegmentLabel = String(body.leadSegmentLabel ?? "").trim() || leadSegmentSlug;
+  const leadSegmentDescription = String(body.leadSegmentDescription ?? "").trim() || "—";
   const cnpjRequired = body.cnpjRequired === true;
   const collectCpf = body.collectCpf === true;
   const inviteLinkEnabled = body.inviteLinkEnabled !== false;
 
-  const userBlock = [
-    `Nome do template: ${templateName}`,
-    `Tipo de parceiro (código): ${partnerKind}`,
-    `Tipo de parceiro (rótulo): ${partnerKindLabel}`,
-    `Contexto do tipo: ${partnerKindDescription}`,
-    `CNPJ obrigatório no cadastro: ${cnpjRequired ? "sim" : "não"}`,
-    `Pedir CPF no cadastro: ${collectCpf ? "sim" : "não"}`,
-    `Convite por link activo: ${inviteLinkEnabled ? "sim" : "não"}`,
-  ].join("\n");
+  const userBlock = isLeadCapture
+    ? [
+        `Rascunho / nome actual do formulário: ${templateName}`,
+        `Finalidade: formulário público de CAPTURA DE LEADS (contactos entram no CRM).`,
+        `Segmento CRM (código): ${leadSegmentSlug}`,
+        `Segmento CRM (rótulo): ${leadSegmentLabel}`,
+        `Contexto do segmento: ${leadSegmentDescription}`,
+        `Pedir CPF no formulário: ${collectCpf ? "sim" : "não"}`,
+        `Convite por link activo: ${inviteLinkEnabled ? "sim" : "não"}`,
+      ].join("\n")
+    : [
+        `Rascunho / nome actual do template: ${templateName}`,
+        `Finalidade: cadastro de parceiro / homologação de organização.`,
+        `Tipo de parceiro (código): ${partnerKind}`,
+        `Tipo de parceiro (rótulo): ${partnerKindLabel}`,
+        `Contexto do tipo: ${partnerKindDescription}`,
+        `CNPJ obrigatório no cadastro: ${cnpjRequired ? "sim" : "não"}`,
+        `Pedir CPF no cadastro: ${collectCpf ? "sim" : "não"}`,
+        `Convite por link activo: ${inviteLinkEnabled ? "sim" : "não"}`,
+      ].join("\n");
 
   const system =
-    "És um assistente da plataforma Obra10+ (B2B, construção e parceiros). Gera UMA descrição curta em português do Brasil para catálogo interno de administradores: clara, profissional, sem markdown, sem aspas, sem emojis. Máximo 200 caracteres. Não inventes dados legais nem compromissos. Responde APENAS com o texto da descrição, numa única linha.";
+    "És um assistente da plataforma Obra10+ (B2B, construção, parceiros e clientes). " +
+    "Responde APENAS com um objeto JSON válido numa única linha ou bloco, sem texto antes ou depois, no formato: " +
+    `{"title":"...","description":"..."}. ` +
+    "Usa português do Brasil. " +
+    "title: frase MUITO curta (ideal ≤55 caracteres), como nome de formulário na lista — sem pormenores de CNPJ/CPF nem convite; só o essencial (ramo ou segmento). " +
+    "description: texto DIFERENTE do title, 1–2 frases para administradores no catálogo (≤200 caracteres): regras (CNPJ, CPF, convite), público-alvo ou segmento. " +
+    "PROIBIDO copiar o title na description ou repetir as mesmas palavras em sequência; a description deve acrescentar informação. " +
+    "Sem markdown, sem emojis. Não inventes dados legais nem compromissos.";
 
   const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
     method: "POST",
@@ -125,10 +171,14 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       model,
       temperature: 0.35,
-      max_tokens: 180,
+      max_tokens: 280,
       messages: [
         { role: "system", content: system },
-        { role: "user", content: `Com base nos dados abaixo, escreve a descrição (máx. ${MAX_DESC} caracteres):\n\n${userBlock}` },
+        {
+          role: "user",
+          content:
+            `Gera title (curto, ≤55 caracteres de preferência) e description (distinta do title, ≤${MAX_DESC} caracteres) com base em:\n\n${userBlock}`,
+        },
       ],
     }),
   });
@@ -157,10 +207,24 @@ Deno.serve(async (req) => {
   }
 
   content = content.replace(/^["']|["']$/g, "").trim();
-  const description = trimDesc(content);
-  if (!description) {
-    return json({ ok: false, mensagem: "A IA devolveu texto vazio. Ajuste o nome do template e tente de novo." }, 502);
+  const parsed = parseTitleDescription(content);
+  if (parsed) {
+    if (!parsed.description) {
+      return json({ ok: false, mensagem: "A IA devolveu JSON sem descrição. Tente de novo." }, 502);
+    }
+    return json({
+      ok: true,
+      title: parsed.title || trimTitle(parsed.description).slice(0, 40),
+      description: parsed.description,
+    });
   }
 
-  return json({ ok: true, description });
+  const description = trimDesc(content);
+  if (!description) {
+    return json({ ok: false, mensagem: "A IA devolveu texto vazio. Ajuste as opções e tente de novo." }, 502);
+  }
+
+  const firstSentence = description.split(/[.!?]\s/)[0]?.trim() || description;
+  const titleFallback = trimTitle(firstSentence.length > 0 ? firstSentence : description);
+  return json({ ok: true, title: titleFallback || trimTitle(description).slice(0, 40), description });
 });

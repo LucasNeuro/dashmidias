@@ -82,7 +82,7 @@ grant select on public.hub_registration_master_flow_step to anon, authenticated;
 grant insert, update, delete on public.hub_registration_master_flow to authenticated;
 grant insert, update, delete on public.hub_registration_master_flow_step to authenticated;
 
--- Fluxo por defeito (sem etapas até configurar no /adm/cadastro-fluxos)
+-- Fluxo por defeito (sem etapas; o painel de fluxos foi removido do front — dados podem permanecer na BD)
 insert into public.hub_registration_master_flow (name, slug, description, is_active, invite_link_enabled)
 values (
   'Entrada inteligente Obra10+',

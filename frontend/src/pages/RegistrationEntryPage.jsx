@@ -1,22 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import { PublicRegistrationShell } from '../components/PublicRegistrationShell';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { fetchActiveLeadSegments } from '../lib/leadSegmentsApi';
 import { FALLBACK_LEAD_SEGMENTS } from '../lib/leadSegmentsFallback';
-import {
-  classifyDocument,
-  cnpjPartnerKindChoices,
-  documentDigitsOnly,
-  filterPartnerStepsWithResolvedTemplate,
-  getBranchStepsPrefix,
-  isBranchStep,
-  parseBranchConfig,
-  templateToTplParam,
-} from '../lib/registrationFlowRules';
-import { fetchPublicMasterFlowWithSteps } from '../lib/registrationMasterFlowApi';
-import { leadSegmentsPublicQueryKey, masterFlowPublicQueryKey } from '../lib/queryKeys';
+import { classifyDocument, documentDigitsOnly } from '../lib/registrationFlowRules';
+import { fetchPublicInviteTemplateByPartnerKind } from '../lib/registrationFormTemplatesApi';
+import { HUB_PARTNER_KINDS } from '../lib/hubPartnerKinds';
+import { leadSegmentsPublicQueryKey } from '../lib/queryKeys';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 /** @type {string | undefined} */
@@ -25,36 +17,24 @@ const defaultPartnerTpl =
 
 const PARTNER_FLOW_STORAGE = 'ob10_partner_intake_v1';
 
-function envFallbackMasterFlowSlug() {
-  return typeof import.meta !== 'undefined' && import.meta.env?.VITE_REGISTRATION_MASTER_FLOW_SLUG
-    ? String(import.meta.env.VITE_REGISTRATION_MASTER_FLOW_SLUG).trim()
-    : 'ob10-intake';
-}
-
 export function RegistrationEntryPage() {
-  const { flowSlug: flowSlugParam } = useParams();
-  const masterFlowSlug = useMemo(() => {
-    const raw = String(flowSlugParam ?? '').trim();
-    if (raw) {
-      try {
-        return decodeURIComponent(raw);
-      } catch {
-        return raw;
-      }
-    }
-    return envFallbackMasterFlowSlug();
-  }, [flowSlugParam]);
-
   const { toast } = useUiFeedback();
   const navigate = useNavigate();
-  /** choose = perguntas do fluxo; doc = CPF/CNPJ; lead = segmentos; partner_ramo = CNPJ + escolha de ramo */
-  const [phase, setPhase] = useState(/** @type {'choose' | 'doc' | 'lead' | 'partner_ramo'} */ ('doc'));
+  /** doc = CPF/CNPJ; lead = segmentos; partner_ramo = CNPJ + escolha de ramo */
+  const [phase, setPhase] = useState(/** @type {'doc' | 'lead' | 'partner_ramo'} */ ('doc'));
   const [pendingCnpjDigits, setPendingCnpjDigits] = useState('');
-  const [branchIdx, setBranchIdx] = useState(0);
   const [docRaw, setDocRaw] = useState('');
   const [busy, setBusy] = useState(false);
-  /** Aplica escolha inicial (pergunta vs documento) uma vez por slug, sem bloquear após retry/refetch. */
-  const intakeInitForSlugRef = useRef(/** @type {string | null} */ (null));
+
+  const ramoPickerOptions = useMemo(
+    () =>
+      HUB_PARTNER_KINDS.map((k) => ({
+        slug: k.value,
+        label: k.label,
+        description: k.description || '',
+      })),
+    []
+  );
 
   const segmentsQuery = useQuery({
     queryKey: leadSegmentsPublicQueryKey(),
@@ -71,122 +51,18 @@ export function RegistrationEntryPage() {
     staleTime: 120_000,
   });
 
-  useEffect(() => {
-    intakeInitForSlugRef.current = null;
-    setBranchIdx(0);
-    setDocRaw('');
-    setPendingCnpjDigits('');
-    setPhase('doc');
-  }, [masterFlowSlug]);
-
-  const masterFlowQuery = useQuery({
-    queryKey: masterFlowPublicQueryKey(masterFlowSlug),
-    queryFn: async () => {
-      const sb = getSupabase();
-      if (!isSupabaseConfigured() || !sb) return null;
-      try {
-        return await fetchPublicMasterFlowWithSteps(sb, masterFlowSlug);
-      } catch {
-        return null;
-      }
-    },
-    enabled: isSupabaseConfigured(),
-    staleTime: 120_000,
-    retry: 1,
-  });
-
-  const sortedFlowSteps = useMemo(() => {
-    const steps = masterFlowQuery.data?.steps ?? [];
-    return [...steps].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
-  }, [masterFlowQuery.data?.steps]);
-
-  const branchQueue = useMemo(() => {
-    const prefix = getBranchStepsPrefix(sortedFlowSteps);
-    return prefix
-      .map((step) => {
-        const config = parseBranchConfig(step.branch_config);
-        return config ? { step, config } : null;
-      })
-      .filter(Boolean);
-  }, [sortedFlowSteps]);
-
-  const flowFetched = !isSupabaseConfigured() || masterFlowQuery.isFetched;
-  /** Só o primeiro carregamento (sem dados em cache): faixa discreta, sem bloquear a página. */
-  const flowInitialLoading = isSupabaseConfigured() && masterFlowQuery.isPending;
-
-  useEffect(() => {
-    if (!flowFetched) return;
-    if (intakeInitForSlugRef.current === masterFlowSlug) return;
-    intakeInitForSlugRef.current = masterFlowSlug;
-    if (branchQueue.length > 0) {
-      setPhase('choose');
-      setBranchIdx(0);
-    } else {
-      setPhase('doc');
-    }
-  }, [flowFetched, masterFlowSlug, branchQueue.length]);
-
-  const safeBranchIdx =
-    branchQueue.length === 0 ? 0 : Math.min(Math.max(0, branchIdx), branchQueue.length - 1);
-
-  useEffect(() => {
-    if (phase !== 'choose' || branchQueue.length === 0) return;
-    if (safeBranchIdx !== branchIdx) setBranchIdx(safeBranchIdx);
-  }, [phase, branchQueue.length, branchIdx, safeBranchIdx]);
-
   const segments = useMemo(() => segmentsQuery.data ?? FALLBACK_LEAD_SEGMENTS, [segmentsQuery.data]);
-
-  const currentBranch = branchQueue[safeBranchIdx] ?? null;
-
-  function handleBranchOption(option) {
-    const { outcome, segment_slug: segmentSlug } = option;
-    if (outcome === 'advance_branch') {
-      if (safeBranchIdx < branchQueue.length - 1) {
-        setBranchIdx((i) => i + 1);
-        return;
-      }
-      setPhase('doc');
-      return;
-    }
-    if (outcome === 'lead_segments') {
-      setPhase('lead');
-      return;
-    }
-    if (outcome === 'partner_document') {
-      setPhase('doc');
-      return;
-    }
-    if (outcome === 'lead_direct') {
-      if (segmentSlug) {
-        navigate(
-          `/cadastro/lead?segment=${encodeURIComponent(segmentSlug)}&flow=${encodeURIComponent(masterFlowSlug)}`
-        );
-      } else {
-        setPhase('lead');
-      }
-    }
-  }
-
-  const cnpjKindOptions = useMemo(() => cnpjPartnerKindChoices(sortedFlowSteps), [sortedFlowSteps]);
-
-  function resolveCnpjPartnerSteps(/** @type {string} */ partnerKindSlug) {
-    const templateOnly = sortedFlowSteps.filter((s) => !isBranchStep(s));
-    const ctx =
-      partnerKindSlug.trim().length > 0
-        ? { docType: /** @type {'cnpj'} */ ('cnpj'), audience: /** @type {'partner'} */ ('partner'), partnerKind: partnerKindSlug.trim() }
-        : { docType: /** @type {'cnpj'} */ ('cnpj'), audience: /** @type {'partner'} */ ('partner') };
-    return filterPartnerStepsWithResolvedTemplate(templateOnly, ctx);
-  }
 
   async function continueWithCnpj(/** @type {string} */ digits, /** @type {string} */ partnerKindSlug = '') {
     setBusy(true);
     try {
-      let steps = resolveCnpjPartnerSteps(partnerKindSlug);
-      if (steps.length === 0 && !partnerKindSlug.trim()) {
-        const choices = cnpjKindOptions;
-        if (choices.length === 1) {
-          steps = resolveCnpjPartnerSteps(choices[0].slug);
-        } else if (choices.length > 1) {
+      let kind = String(partnerKindSlug || '').trim();
+
+      if (!kind) {
+        const cat = HUB_PARTNER_KINDS;
+        if (cat.length === 1) {
+          kind = cat[0].value;
+        } else {
           setPendingCnpjDigits(digits);
           setPhase('partner_ramo');
           setBusy(false);
@@ -194,40 +70,55 @@ export function RegistrationEntryPage() {
         }
       }
 
-      const first = steps[0];
-      const tpl =
-        first != null ? templateToTplParam(first.template) : typeof defaultPartnerTpl === 'string' ? defaultPartnerTpl.trim() : '';
+      const sb = getSupabase();
+      if (isSupabaseConfigured() && sb) {
+        try {
+          const row = await fetchPublicInviteTemplateByPartnerKind(sb, kind);
+          if (row?.id) {
+            const tpl = String(row.invite_slug ?? '').trim() || String(row.id);
+            try {
+              sessionStorage.setItem(
+                PARTNER_FLOW_STORAGE,
+                JSON.stringify({
+                  docDigits: digits,
+                  steps: [
+                    {
+                      stepId: null,
+                      templateId: row.id,
+                      tplParam: tpl,
+                      sortOrder: 0,
+                    },
+                  ],
+                  currentIndex: 0,
+                })
+              );
+            } catch {
+              /* ignore */
+            }
+            navigate(
+              `/cadastro/organizacao?tpl=${encodeURIComponent(tpl)}&step=0&from=intake`,
+              { replace: false }
+            );
+            return;
+          }
+        } catch {
+          /* fallthrough */
+        }
+      }
 
-      if (!tpl) {
-        toast(
-          'Não há etapa de parceiro com formulário válido para este CNPJ e ramo. Em Cadastro — fluxos, associe um template com condição CNPJ e parceiro (e ramo, se usar ramos).',
-          { variant: 'warning', duration: 11000 }
-        );
+      const fallbackTpl = typeof defaultPartnerTpl === 'string' ? defaultPartnerTpl.trim() : '';
+      if (fallbackTpl) {
+        navigate(`/cadastro/organizacao?tpl=${encodeURIComponent(fallbackTpl)}&step=0&from=intake`, {
+          replace: false,
+        });
         return;
       }
 
-      try {
-        sessionStorage.setItem(
-          PARTNER_FLOW_STORAGE,
-          JSON.stringify({
-            flowSlug: masterFlowSlug,
-            docDigits: digits,
-            steps: steps.map((s) => ({
-              stepId: s.id,
-              templateId: s.template_id,
-              tplParam: templateToTplParam(s.template),
-              sortOrder: s.sort_order,
-            })),
-            currentIndex: 0,
-          })
-        );
-      } catch {
-        /* ignore */
-      }
-
-      navigate(
-        `/cadastro/organizacao?tpl=${encodeURIComponent(tpl)}&flow=${encodeURIComponent(masterFlowSlug)}&step=0&from=intake`,
-        { replace: false }
+      toast(
+        kind
+          ? `Não há modelo de cadastro público com convite aberto para o ramo «${kind}». Crie um modelo com esse tipo de parceiro e convite público ativo em Cadastro homologação.`
+          : 'Não há modelo de parceiro configurado. Crie modelos por ramo com convite público em Cadastro homologação.',
+        { variant: 'warning', duration: 14000 }
       );
     } finally {
       setBusy(false);
@@ -244,10 +135,7 @@ export function RegistrationEntryPage() {
 
     if (kind === 'cpf') {
       try {
-        sessionStorage.setItem(
-          'ob10_lead_intake_v1',
-          JSON.stringify({ docDigits: digits, at: Date.now(), flow: masterFlowSlug })
-        );
+        sessionStorage.setItem('ob10_lead_intake_v1', JSON.stringify({ docDigits: digits, at: Date.now() }));
       } catch {
         /* ignore */
       }
@@ -264,87 +152,36 @@ export function RegistrationEntryPage() {
       setPendingCnpjDigits('');
       return;
     }
-    if (branchQueue.length > 0) {
-      setPhase('choose');
-      setBranchIdx(Math.max(0, safeBranchIdx));
-      return;
-    }
     setPhase('doc');
   }
 
   function goBackFromLead() {
-    if (branchQueue.length > 0) {
-      setPhase('choose');
-      setBranchIdx(Math.max(0, branchQueue.length - 1));
-      return;
-    }
     setPhase('doc');
   }
 
   return (
     <PublicRegistrationShell>
-      {flowInitialLoading ? (
-        <p className="mb-2 text-center text-[11px] font-medium text-on-surface-variant" role="status">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="material-symbols-outlined animate-pulse text-base text-sky-700">progress_activity</span>
-            Atualizando fluxo…
-          </span>
-        </p>
-      ) : null}
       <div className="flex w-full flex-col gap-4">
-        {phase === 'choose' && branchQueue.length > 0 && !currentBranch ? (
-          <p className="text-center text-sm text-on-surface-variant">Carregando pergunta…</p>
-        ) : null}
-
-        {phase === 'choose' && currentBranch ? (
-          <div className="space-y-3 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
-            <h1 className="text-lg font-black tracking-tight text-primary sm:text-xl">{currentBranch.config.prompt}</h1>
-            {currentBranch.config.subtitle ? (
-              <p className="text-sm text-on-surface-variant">{currentBranch.config.subtitle}</p>
-            ) : null}
-            <ul className="flex flex-col gap-2">
-              {currentBranch.config.options.map((opt) => (
-                <li key={opt.id}>
-                  <button
-                    type="button"
-                    className="flex w-full items-start gap-3 rounded-sm border-2 border-outline-variant bg-white px-4 py-3 text-left text-sm font-bold text-primary hover:border-primary hover:bg-surface-container-low"
-                    onClick={() => handleBranchOption(opt)}
-                  >
-                    <span className="material-symbols-outlined mt-0.5 shrink-0 text-[22px] text-tertiary" aria-hidden>
-                      arrow_circle_right
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      {opt.label}
-                      {opt.description ? (
-                        <span className="mt-1 block text-xs font-normal text-on-surface-variant">{opt.description}</span>
-                      ) : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {phase === 'partner_ramo' && cnpjKindOptions.length > 0 ? (
-          <div className="space-y-3 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
-            <h1 className="text-lg font-black tracking-tight text-primary sm:text-xl">Ramo de atuação</h1>
-            <p className="text-sm text-on-surface-variant">
-              Escolha o tipo de parceiro para abrir o formulário certo.
+        {phase === 'partner_ramo' && ramoPickerOptions.length > 0 ? (
+          <div className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-md sm:p-7">
+            <h1 className="text-lg font-black tracking-tight text-primary sm:text-xl">Tipo de parceiro</h1>
+            <p className="text-sm text-slate-600">
+              Escolha o ramo para abrir o formulário de homologação certo (cada tipo usa o modelo configurado em Cadastro
+              homologação).
             </p>
-            <ul className="flex flex-col gap-2">
-              {cnpjKindOptions.map((opt) => (
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {ramoPickerOptions.map((opt) => (
                 <li key={opt.slug}>
                   <button
                     type="button"
                     disabled={busy}
-                    className="flex w-full items-start gap-3 rounded-sm border-2 border-outline-variant bg-white px-4 py-3 text-left text-sm font-bold text-primary hover:border-primary hover:bg-surface-container-low disabled:opacity-60"
+                    className="flex h-full min-h-[4.5rem] w-full flex-col items-start gap-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-left transition-colors hover:border-primary hover:bg-slate-50 disabled:opacity-60"
                     onClick={() => void continueWithCnpj(pendingCnpjDigits, opt.slug)}
                   >
-                    <span className="material-symbols-outlined mt-0.5 shrink-0 text-[22px] text-tertiary" aria-hidden>
-                      business_center
-                    </span>
-                    <span className="min-w-0 flex-1">{opt.label}</span>
+                    <span className="text-sm font-bold text-primary">{opt.label}</span>
+                    {opt.description ? (
+                      <span className="text-xs font-normal leading-snug text-slate-600">{opt.description}</span>
+                    ) : null}
                   </button>
                 </li>
               ))}
@@ -363,30 +200,32 @@ export function RegistrationEntryPage() {
         ) : null}
 
         {phase === 'doc' ? (
-          <div className="space-y-3 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
-            <h1 className="flex items-center gap-2 text-lg font-black tracking-tight text-primary sm:text-xl">
-              <span className="material-symbols-outlined text-2xl text-primary" aria-hidden>
+          <div className="space-y-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-md sm:p-7">
+            <h1 className="flex items-center gap-2 text-xl font-black tracking-tight text-primary sm:text-2xl">
+              <span className="material-symbols-outlined text-[28px] text-sky-700" aria-hidden>
                 badge
               </span>
               Cadastro
             </h1>
-            <p className="text-sm text-on-surface-variant">Informe o CPF ou o CNPJ (apenas números).</p>
+            <p className="text-sm leading-relaxed text-slate-600">
+              Informe o CPF (11 dígitos) ou o CNPJ (14 dígitos). Pode colar com pontuação — limpamos automaticamente.
+            </p>
             <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-primary" htmlFor="doc-intake">
               CPF ou CNPJ
             </label>
             <input
               id="doc-intake"
-              className="w-full border-b-2 border-outline-variant bg-transparent py-2 text-sm text-on-surface outline-none focus:border-primary"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-3 text-base text-slate-900 outline-none ring-primary/20 transition-shadow focus:border-primary focus:bg-white focus:ring-2"
               inputMode="numeric"
               autoComplete="off"
-              placeholder="Somente números"
+              placeholder="Somente números ou cole o documento"
               value={docRaw}
               onChange={(e) => setDocRaw(e.target.value)}
             />
             <button
               type="button"
               disabled={busy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-sm border-2 border-primary bg-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-white hover:opacity-95 disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary px-4 py-3.5 text-[11px] font-black uppercase tracking-[0.12em] text-white shadow-sm hover:opacity-95 disabled:opacity-60"
               onClick={() => void continueWithDocument()}
             >
               {busy ? (
@@ -405,18 +244,6 @@ export function RegistrationEntryPage() {
                 </>
               )}
             </button>
-            {branchQueue.length > 0 ? (
-              <button
-                type="button"
-                className="inline-flex w-full items-center justify-center gap-1 text-center text-xs font-medium text-on-surface-variant underline"
-                onClick={goBackFromDoc}
-              >
-                <span className="material-symbols-outlined text-[16px]" aria-hidden>
-                  arrow_back
-                </span>
-                Voltar
-              </button>
-            ) : null}
           </div>
         ) : null}
 
@@ -435,8 +262,8 @@ export function RegistrationEntryPage() {
                 {segments.map((s) => (
                   <li key={s.slug}>
                     <Link
-                      to={`/cadastro/lead?segment=${encodeURIComponent(s.slug)}&flow=${encodeURIComponent(masterFlowSlug)}`}
-                      className="flex items-start gap-3 rounded-sm border-2 border-outline-variant bg-white px-4 py-3 text-sm font-bold text-primary hover:border-primary hover:bg-surface-container-low"
+                      to={`/cadastro/lead?segment=${encodeURIComponent(s.slug)}`}
+                      className="flex items-start gap-3 rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-primary transition-colors hover:border-primary hover:bg-slate-50"
                     >
                       <span className="material-symbols-outlined mt-0.5 shrink-0 text-[22px] text-tertiary" aria-hidden>
                         chevron_right

@@ -3,7 +3,5 @@
 .env.*
 !.env.example
 
-./docs
-
-
-
+# Documentação local / rascunhos
+docs/

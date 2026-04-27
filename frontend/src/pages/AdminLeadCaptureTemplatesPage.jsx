@@ -8,42 +8,34 @@ import { HubButton } from '../components/HubButton';
 import { RegistrationTemplateSideover } from '../components/governance/RegistrationTemplateSideover';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
-  createEmptyTemplate,
+  createLeadCaptureEmptyTemplate,
   inviteUrlForTemplate,
   normalizeTemplate,
-  PARTNER_KIND_OPTIONS,
 } from '../lib/registrationFormTemplates';
+import { fetchActiveLeadSegments } from '../lib/leadSegmentsApi';
+import { normalizeSignupOptions } from '../schemas/partnerOrgSignup';
+import { hubStandardCatalogQueryKey, leadSegmentsPublicQueryKey, registrationTemplatesListQueryKey } from '../lib/queryKeys';
 import { fetchHubStandardCatalogAdmin } from '../lib/hubStandardCatalogApi';
-import { getOrgBuiltinPartnerFieldGroups } from '../lib/orgStandardFields';
-import { hubStandardCatalogQueryKey, registrationTemplatesListQueryKey } from '../lib/queryKeys';
 import {
   deleteRegistrationTemplate,
   listHubRegistrationTemplates,
   upsertRegistrationTemplate,
 } from '../lib/registrationFormTemplatesApi';
-import { fetchPartnerOrgSignupAggregatesByTemplate } from '../lib/governanceQueries';
 
 const colHelper = createColumnHelper();
 
-const qk = registrationTemplatesListQueryKey;
+const PURPOSE = 'lead_capture';
 
-/** Erro vindo do PostgREST / Supabase — mensagem legível, sem jargão de implementação. */
 function friendlyDataError(err) {
   const m = String(err?.message || err || '');
   const low = m.toLowerCase();
-  if (low.includes('recursion') && low.includes('hub')) {
-    return 'Não foi possível concluir a operação: falha de permissões na base (admin HUB). Peça a um administrador a rever as regras de acesso na consola e tentar de novo.';
-  }
-  if (low.includes('relationship') && low.includes('schema')) {
-    return 'A base de dados ainda não tem a mesma versão do sistema. Peça a um administrador para aplicar as atualizações de estrutura e tentar de novo.';
-  }
   if (low.includes('does not exist') && low.includes('column')) {
-    return 'A estrutura da base não corresponde a esta versão da aplicação. Peça a um administrador para alinhar o schema ou atualizar o front.';
+    return 'A base de dados deste ambiente está desatualizada em relação a esta versão do painel. Contacte o suporte técnico.';
   }
   return m.length > 200 ? `${m.slice(0, 200)}…` : m;
 }
 
-export function AdminTemplatesPage() {
+export function AdminLeadCaptureTemplatesPage() {
   const { session } = useAuth();
   const userId = session?.user?.id;
   const supabase = useMemo(() => getSupabase(), []);
@@ -51,33 +43,25 @@ export function AdminTemplatesPage() {
   const { toast, alert, confirm } = useUiFeedback();
   const [sideOpen, setSideOpen] = useState(false);
   const [isNew, setIsNew] = useState(true);
-  const [draft, setDraft] = useState(() => createEmptyTemplate());
+  const [draft, setDraft] = useState(() => createLeadCaptureEmptyTemplate());
   const [saving, setSaving] = useState(false);
 
   const listEnabled = Boolean(supabase && userId) && isSupabaseConfigured();
+  const qk = registrationTemplatesListQueryKey(userId, PURPOSE);
 
-  const templatesQuery = useQuery({
-    queryKey: qk(userId, 'partner_homologacao'),
-    queryFn: () => listHubRegistrationTemplates(supabase, { purpose: 'partner_homologacao' }),
+  const { data: templates = [], isLoading, isFetching } = useQuery({
+    queryKey: qk,
+    queryFn: () => listHubRegistrationTemplates(supabase, { purpose: PURPOSE }),
     enabled: listEnabled,
     retry: 1,
     staleTime: 15_000,
   });
-  const templates = useMemo(
-    () => (templatesQuery.data ?? []).filter((t) => t.templatePurpose !== 'lead_capture'),
-    [templatesQuery.data]
-  );
-  const isLoading = templatesQuery.isLoading;
-  const isFetching = templatesQuery.isFetching;
 
-  const aggQueryKey = ['governance', 'partner-org-signup-aggregates', userId];
-
-  const { data: signupAgg = {} } = useQuery({
-    queryKey: aggQueryKey,
-    queryFn: () => fetchPartnerOrgSignupAggregatesByTemplate(supabase),
+  const { data: segmentList = [] } = useQuery({
+    queryKey: leadSegmentsPublicQueryKey(),
+    queryFn: () => (supabase ? fetchActiveLeadSegments(supabase) : []),
     enabled: listEnabled,
-    retry: 1,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 
   const { data: standardCatalog = null } = useQuery({
@@ -90,7 +74,7 @@ export function AdminTemplatesPage() {
 
   const openNew = useCallback(() => {
     setIsNew(true);
-    setDraft(createEmptyTemplate());
+    setDraft(createLeadCaptureEmptyTemplate());
     setSideOpen(true);
   }, []);
 
@@ -102,12 +86,20 @@ export function AdminTemplatesPage() {
 
   const persistDraft = useCallback(async () => {
     if (!supabase || !userId) {
-      await alert('Sessão inválida. Inicie sessão e tente de novo.', { title: 'Cadastro homologação' });
+      await alert('Sessão inválida. Inicie sessão e tente de novo.', { title: 'Cadastro geral leads' });
+      return;
+    }
+    const seg = normalizeSignupOptions(draft.signupSettings).leadSegmentSlug;
+    if (!seg) {
+      await alert('Escolha o segmento CRM na aba Geral — assim classificamos o contacto na base de leads.', {
+        title: 'Segmento obrigatório',
+      });
       return;
     }
     const now = new Date().toISOString();
     const next = normalizeTemplate({
       ...draft,
+      templatePurpose: 'lead_capture',
       updatedAt: now,
       createdAt: draft.createdAt || now,
     });
@@ -115,60 +107,53 @@ export function AdminTemplatesPage() {
     try {
       await upsertRegistrationTemplate(supabase, next, userId, isNew);
       await queryClient.invalidateQueries({ queryKey: ['registration_form_templates', userId] });
-      toast(isNew ? 'Modelo criado e lista atualizada.' : 'Alterações salvas; lista sincronizada.', {
-        variant: 'success',
-        duration: 4500,
-      });
+      toast(isNew ? 'Formulário de captura criado.' : 'Alterações guardadas.', { variant: 'success', duration: 4500 });
       setSideOpen(false);
     } catch (e) {
       await alert(friendlyDataError(e) || 'Não foi possível salvar.', { title: 'Erro' });
     } finally {
       setSaving(false);
     }
-  }, [alert, draft, isNew, queryClient, supabase, toast, userId]);
+  }, [alert, draft, isNew, queryClient, qk, supabase, toast, userId]);
 
   const remove = useCallback(
     async (id) => {
       if (!supabase) return;
-      const ok = await confirm(
-        'Excluir este modelo? O link de convite deixará de funcionar em seguida.',
-        { title: 'Excluir modelo', danger: true }
-      );
+      const ok = await confirm('Excluir este formulário de captura? O link deixa de funcionar.', {
+        title: 'Excluir',
+        danger: true,
+      });
       if (!ok) return;
       setSaving(true);
       try {
         await deleteRegistrationTemplate(supabase, id);
         await queryClient.invalidateQueries({ queryKey: ['registration_form_templates', userId] });
-        toast('Modelo excluído. A tabela foi atualizada.', { variant: 'success', duration: 4500 });
+        toast('Removido.', { variant: 'success', duration: 4500 });
       } catch (e) {
         await alert(friendlyDataError(e) || 'Falha ao excluir.', { title: 'Erro' });
       } finally {
         setSaving(false);
       }
     },
-    [confirm, queryClient, supabase, toast, userId]
+    [confirm, queryClient, qk, supabase, toast]
   );
 
   const copyInviteLink = useCallback(
     async (row) => {
       if (row?.inviteLinkEnabled === false) {
-        await alert('Ative o convite por link na edição do modelo antes de copiar o endereço.', {
-          title: 'Convite pausado',
-        });
+        await alert('Ative o convite na edição antes de copiar o link.', { title: 'Convite pausado' });
         return;
       }
       const url = inviteUrlForTemplate(row);
       if (navigator.clipboard?.writeText) {
         try {
           await navigator.clipboard.writeText(url);
-          toast('Link copiado para a área de transferência.', { variant: 'success' });
+          toast('Link copiado.', { variant: 'success' });
         } catch {
-          await alert(`Não foi possível copiar automaticamente. Copie manualmente:\n\n${url}`, {
-            title: 'Copiar link',
-          });
+          await alert(`Copie manualmente:\n\n${url}`, { title: 'Copiar link' });
         }
       } else {
-        await alert(`Copie o endereço:\n\n${url}`, { title: 'Link do convite' });
+        await alert(`Copie:\n\n${url}`, { title: 'Link' });
       }
     },
     [alert, toast]
@@ -177,76 +162,50 @@ export function AdminTemplatesPage() {
   const columns = useMemo(
     () => [
       colHelper.accessor('name', {
-        header: 'Modelo',
+        header: 'Título',
         cell: (info) => {
           const row = info.row.original;
           const off = row.inviteLinkEnabled === false;
           return (
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-primary">{info.getValue() || '—'}</p>
+            <div className="min-w-0 max-w-[14rem]">
+              <p className="truncate font-semibold text-primary" title={info.getValue() || undefined}>
+                {info.getValue() || '—'}
+              </p>
               {off ? (
                 <span className="mt-0.5 inline-block rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
-                  Convite pausado
+                  Pausado
                 </span>
               ) : null}
             </div>
           );
         },
       }),
-      colHelper.accessor('partnerKind', {
-        header: 'Perfil',
+      colHelper.accessor('description', {
+        header: 'Descrição',
         cell: (info) => {
-          const v = info.getValue();
-          const label = PARTNER_KIND_OPTIONS.find((o) => o.value === v)?.label;
-          return <span className="text-sm text-on-surface-variant">{label ?? '—'}</span>;
+          const v = (info.getValue() || '').trim();
+          return (
+            <span
+              className="line-clamp-2 max-w-[18rem] text-xs leading-snug text-on-surface-variant"
+              title={v || undefined}
+            >
+              {v || '—'}
+            </span>
+          );
+        },
+      }),
+      colHelper.display({
+        id: 'segmento',
+        header: 'Segmento CRM',
+        cell: (info) => {
+          const slug = normalizeSignupOptions(info.row.original.signupSettings).leadSegmentSlug;
+          const label = segmentList.find((s) => s.slug === slug)?.label;
+          return <span className="text-sm text-on-surface-variant">{label || slug || '—'}</span>;
         },
       }),
       colHelper.accessor('fields', {
-        header: 'Extras',
+        header: 'Perguntas',
         cell: (info) => <span className="text-sm text-on-surface-variant">{info.getValue()?.length ?? 0}</span>,
-      }),
-      colHelper.display({
-        id: 'padrao',
-        header: 'Padrão',
-        cell: (info) => {
-          const row = info.row.original;
-          const dis = new Set((row.standardFieldsDisabled || []).map((k) => String(k).toLowerCase()));
-          const groupOff = new Set((row.disabledBuiltinGroups || []).map((x) => String(x).toLowerCase()));
-          const groups = getOrgBuiltinPartnerFieldGroups(standardCatalog);
-          let tot = 0;
-          let on = 0;
-          for (const g of groups) {
-            if (groupOff.has(String(g.id).toLowerCase())) continue;
-            for (const f of g.fields) {
-              tot += 1;
-              if (!dis.has(f.key.toLowerCase())) on += 1;
-            }
-          }
-          return (
-            <span className="whitespace-nowrap font-mono text-xs text-on-surface-variant">
-              {on}/{tot}
-            </span>
-          );
-        },
-      }),
-      colHelper.display({
-        id: 'pedidos',
-        header: 'Pedidos',
-        cell: (info) => {
-          const id = info.row.original.id;
-          const a = signupAgg[id];
-          if (!a || a.total === 0) {
-            return <span className="text-xs text-slate-400">0</span>;
-          }
-          const title = `Total ${a.total}: ${a.pendente} pendente(s), ${a.aprovado} aprovado(s), ${a.rejeitado} rejeitado(s), ${a.processado} processado(s)`;
-          return (
-            <span className="text-xs text-on-surface-variant" title={title}>
-              <span className="font-semibold text-primary">{a.total}</span>
-              {a.pendente ? <span className="text-slate-500"> · {a.pendente} pend.</span> : null}
-              {a.aprovado ? <span className="text-emerald-700"> · {a.aprovado} ok</span> : null}
-            </span>
-          );
-        },
       }),
       colHelper.accessor('updatedAt', {
         header: 'Atualizado',
@@ -277,7 +236,7 @@ export function AdminTemplatesPage() {
               variant="tableSecondary"
               icon="content_copy"
               iconClassName="text-[16px]"
-              title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite no editor para copiar' : 'Copiar link'}
+              title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite para copiar' : 'Copiar link público'}
               onClick={() => copyInviteLink(info.row.original)}
               disabled={info.row.original.inviteLinkEnabled === false}
               className={info.row.original.inviteLinkEnabled === false ? 'opacity-50' : ''}
@@ -297,7 +256,7 @@ export function AdminTemplatesPage() {
         ),
       }),
     ],
-    [copyInviteLink, openEdit, remove, saving, signupAgg, standardCatalog]
+    [copyInviteLink, openEdit, remove, saving, segmentList]
   );
 
   if (!isSupabaseConfigured() || !supabase) {
@@ -312,10 +271,15 @@ export function AdminTemplatesPage() {
     <div className="min-w-0 w-full max-w-none">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Cadastro homologação</h1>
+          <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Cadastro geral leads</h1>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600">
+            Monte formulários públicos com as perguntas que precisar. Cada inscrição entra na lista de contactos do CRM com o segmento que
+            definir aqui. O cadastro completo de empresa ou parceiro (com análise da equipa) continua em{' '}
+            <strong>Cadastro homologação</strong>.
+          </p>
         </div>
         <HubButton variant="primary" icon="add" onClick={openNew} disabled={!listEnabled || isLoading}>
-          Novo modelo
+          Novo formulário
         </HubButton>
       </div>
 
@@ -326,7 +290,7 @@ export function AdminTemplatesPage() {
               <span className="material-symbols-outlined text-[18px] animate-pulse" aria-hidden>
                 sync
               </span>
-              Atualizando dados…
+              Atualizando…
             </p>
           ) : null}
           {isLoading && listEnabled ? (
@@ -337,7 +301,7 @@ export function AdminTemplatesPage() {
               columns={columns}
               getRowId={(row) => row.id}
               searchPlaceholder="Buscar…"
-              emptyLabel="Nenhum modelo"
+              emptyLabel="Nenhum formulário de captura"
             />
           )}
         </div>
@@ -352,6 +316,7 @@ export function AdminTemplatesPage() {
         isNew={isNew}
         isSaving={saving}
         standardCatalog={standardCatalog}
+        mode="lead_capture"
       />
     </div>
   );
