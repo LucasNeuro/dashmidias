@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 const url = import.meta.env.VITE_SUPABASE_URL || '';
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+/** Uma única instância por aba — evita GoTrueClient duplicado (spam no console e comportamento estranho). */
+let supabaseSingleton = null;
+
 export function isSupabaseConfigured() {
   if (!url || !key) return false;
   if (url.includes('seu-projeto') || url.includes('SUBSTITUA')) return false;
@@ -12,7 +15,10 @@ export function isSupabaseConfigured() {
 
 export function getSupabase() {
   if (!isSupabaseConfigured()) return null;
-  return createClient(url, key);
+  if (!supabaseSingleton) {
+    supabaseSingleton = createClient(url, key);
+  }
+  return supabaseSingleton;
 }
 
 export function getReportSlug() {

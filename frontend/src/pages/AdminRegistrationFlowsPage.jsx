@@ -1,13 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { HubButton } from '../components/HubButton';
-
-/** Só carrega o bundle pesado (mutations, editores) quando o painel abre — alivia CPU no Chrome. */
-const MasterFlowSideover = lazy(() =>
-  import('../components/governance/MasterFlowSideover').then((m) => ({ default: m.MasterFlowSideover }))
-);
+import { MasterFlowSideover } from '../components/governance/MasterFlowSideover';
 import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
@@ -22,6 +18,11 @@ import { getPrimaryRegistrationIntakePublicUrl, getRegistrationIntakePublicUrlFo
 import { promiseWithTimeout } from '../lib/promiseWithTimeout';
 
 const colHelper = createColumnHelper();
+
+function flowIdsEqual(a, b) {
+  if (a == null || b == null) return false;
+  return String(a).toLowerCase() === String(b).toLowerCase();
+}
 
 function TableColHeader({ icon, label }) {
   return (
@@ -45,6 +46,8 @@ export function AdminRegistrationFlowsPage() {
   const [isNewMode, setIsNewMode] = useState(false);
   /** Linha recém-criada até a lista refrescar. */
   const [createdFlowRow, setCreatedFlowRow] = useState(/** @type {Record<string, unknown> | null} */ (null));
+  /** Snapshot da linha ao abrir «Gerenciar» — evita painel vazio se o id não casar com a cache da lista. */
+  const [managerFlowRow, setManagerFlowRow] = useState(/** @type {Record<string, unknown> | null} */ (null));
 
   const listEnabled = Boolean(sb && userId) && isSupabaseConfigured();
 
@@ -83,15 +86,18 @@ export function AdminRegistrationFlowsPage() {
   const stepsLoading = Boolean(stepsPanelActive && !stepsQuery.isError && stepsQuery.isPending);
 
   const selectedFlow = useMemo(() => {
-    const fromList = (flowsQuery.data || []).find((f) => f.id === selectedFlowId) ?? null;
+    if (isNewMode || !selectedFlowId) return null;
+    const list = flowsQuery.data || [];
+    const fromList = list.find((f) => flowIdsEqual(f.id, selectedFlowId)) ?? null;
     if (fromList) return fromList;
-    if (createdFlowRow && String(createdFlowRow.id) === String(selectedFlowId)) return createdFlowRow;
+    if (managerFlowRow && flowIdsEqual(managerFlowRow.id, selectedFlowId)) return managerFlowRow;
+    if (createdFlowRow && flowIdsEqual(createdFlowRow.id, selectedFlowId)) return createdFlowRow;
     return null;
-  }, [flowsQuery.data, selectedFlowId, createdFlowRow]);
+  }, [isNewMode, flowsQuery.data, selectedFlowId, managerFlowRow, createdFlowRow]);
 
   useEffect(() => {
     if (!createdFlowRow || !selectedFlowId || !flowsQuery.data?.length) return;
-    if (flowsQuery.data.some((f) => f.id === selectedFlowId)) setCreatedFlowRow(null);
+    if (flowsQuery.data.some((f) => flowIdsEqual(f.id, selectedFlowId))) setCreatedFlowRow(null);
   }, [flowsQuery.data, selectedFlowId, createdFlowRow]);
 
   const primaryIntakeUrl = useMemo(() => getPrimaryRegistrationIntakePublicUrl(), []);
@@ -136,12 +142,14 @@ export function AdminRegistrationFlowsPage() {
 
   const openNew = useCallback(() => {
     setSelectedFlowId(null);
+    setManagerFlowRow(null);
     setIsNewMode(true);
     setSideOpen(true);
   }, []);
 
   const openFlow = useCallback((row) => {
-    setSelectedFlowId(row.id);
+    setManagerFlowRow(row);
+    setSelectedFlowId(row?.id != null ? String(row.id) : null);
     setIsNewMode(false);
     setSideOpen(true);
   }, []);
@@ -149,6 +157,7 @@ export function AdminRegistrationFlowsPage() {
   const closeSide = useCallback(() => {
     setSideOpen(false);
     setIsNewMode(false);
+    setManagerFlowRow(null);
     void qc.invalidateQueries({ queryKey: masterFlowsAdminQueryKey() });
     if (selectedFlowId) {
       void qc.invalidateQueries({ queryKey: masterFlowStepsAdminQueryKey(selectedFlowId) });
@@ -224,6 +233,7 @@ export function AdminRegistrationFlowsPage() {
       toast('Fluxo excluído.', { variant: 'success', duration: 3200 });
       if (String(selectedFlowId) === String(deletedId)) {
         setSelectedFlowId(null);
+        setManagerFlowRow(null);
         setSideOpen(false);
         setIsNewMode(false);
       }
@@ -423,36 +433,22 @@ export function AdminRegistrationFlowsPage() {
       </div>
 
       {sideOpen ? (
-        <Suspense
-          fallback={
-            <div
-              className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/35"
-              role="status"
-              aria-live="polite"
-            >
-              <span className="rounded-lg bg-white px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary shadow-lg">
-                A abrir painel…
-              </span>
-            </div>
-          }
-        >
-          <MasterFlowSideover
-            open
-            onClose={closeSide}
-            flow={isNewMode ? null : selectedFlow}
-            isNewMode={isNewMode}
-            steps={stepsQuery.data ?? []}
-            stepsLoading={stepsLoading}
-            stepsError={stepsQuery.isError ? stepsQuery.error : null}
-            onRetrySteps={() => void stepsQuery.refetch()}
-            templates={templatesQuery.data || []}
-            flowShareUrl={flowShareUrl}
-            onCopyShareUrl={() => void copyFlowShareUrl()}
-            onFlowCreated={onFlowCreated}
-            onDeleteFlow={isNewMode ? undefined : requestDeleteSelectedFlow}
-            deleteFlowBusy={deletePending}
-          />
-        </Suspense>
+        <MasterFlowSideover
+          open
+          onClose={closeSide}
+          flow={isNewMode ? null : selectedFlow}
+          isNewMode={isNewMode}
+          steps={stepsQuery.data ?? []}
+          stepsLoading={stepsLoading}
+          stepsError={stepsQuery.isError ? stepsQuery.error : null}
+          onRetrySteps={() => void stepsQuery.refetch()}
+          templates={templatesQuery.data || []}
+          flowShareUrl={flowShareUrl}
+          onCopyShareUrl={() => void copyFlowShareUrl()}
+          onFlowCreated={onFlowCreated}
+          onDeleteFlow={isNewMode ? undefined : requestDeleteSelectedFlow}
+          deleteFlowBusy={deletePending}
+        />
       ) : null}
     </div>
   );
