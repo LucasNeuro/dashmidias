@@ -1,5 +1,5 @@
 /**
- * Preferências por utilizador em sessionStorage (isoladas por sessão de login).
+ * Preferências por usuário em sessionStorage (isoladas por sessão de login).
  * Útil para cache de UI sem misturar contas no mesmo browser.
  */
 const PREFIX = 'hub_user_sess_v1__';

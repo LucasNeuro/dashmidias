@@ -2,7 +2,7 @@ import { Store } from '@tanstack/store';
 
 /**
  * Estado global da shell autenticada (gaveta, grupos do menu, menu mobile).
- * Persistência em localStorage fica no AppShell, por chave por utilizador.
+ * Persistência em localStorage fica no AppShell, por chave por usuário.
  */
 export const uiShellStore = new Store({
   drawerOpen: true,

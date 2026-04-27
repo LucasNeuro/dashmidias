@@ -31,8 +31,8 @@ function workflowEtapaLabelPt(w) {
   const x = String(w || '').toLowerCase();
   const map = {
     pendente: 'Pedido na fila inicial de homologação',
-    aguardando_retorno: 'Aguardamos a sua resposta ou documentos',
-    em_analise: 'A equipa Obra10+ está a analisar o pedido',
+    aguardando_retorno: 'Aguardamos sua resposta ou documentos',
+    em_analise: 'A equipe Obra10+ está analisando o pedido',
     aprovado: 'Homologação aprovada — em preparação da formalização',
   };
   return map[x] || '';
@@ -43,7 +43,7 @@ function statusHeadline(row) {
   if (st === 'rejeitado') return 'Pedido não aprovado';
   if (row.organizacao_criada) return 'Homologação concluída';
   if (st === 'processado') return 'Processamento concluído';
-  if (st === 'aprovado') return 'Aprovado — provisionamento em curso';
+  if (st === 'aprovado') return 'Aprovado — provisionamento em andamento';
   if (st === 'pendente') {
     const wf = workflowEtapaLabelPt(row.workflow_etapa ?? row.workflowEtapa);
     return wf || 'Pedido em homologação';
@@ -68,18 +68,18 @@ function normalizeTimeline(raw) {
 
 function statusDetail(row) {
   if (row.status === 'rejeitado') {
-    return 'Se tiver dúvidas, contacte a equipa Obra10+ pelo canal que lhe foi indicado.';
+    return 'Se tiver dúvidas, entre em contato com a equipe Obra10+ pelo canal que foi indicado a você.';
   }
   if (row.organizacao_criada && row.convite_gerado) {
-    return 'A organização foi criada e o convite está disponível. Verifique o e-mail registado no cadastro.';
+    return 'A organização foi criada e o convite está disponível. Verifique o e-mail registrado no cadastro.';
   }
   if (row.organizacao_criada) {
-    return 'A organização foi criada. O convite pode estar em preparação — aguarde o e-mail ou actualize esta página mais tarde.';
+    return 'A organização foi criada. O convite pode estar em preparação — aguarde o e-mail ou atualize esta página mais tarde.';
   }
   if (row.status === 'pendente') {
     const wf = workflowEtapaLabelPt(row.workflow_etapa ?? row.workflowEtapa);
-    if (wf) return `${wf}. Guarde o código e este link para voltar quando quiser.`;
-    return 'O seu pedido está na fila de homologação. Guarde o código e este link para voltar quando quiser.';
+    if (wf) return `${wf}. Salve o código e este link para voltar quando quiser.`;
+    return 'Seu pedido está na fila de homologação. Salve o código e este link para voltar quando quiser.';
   }
   if (row.status === 'aprovado') {
     return 'O pedido foi aprovado. A criação da conta e o convite podem levar alguns instantes.';
@@ -90,7 +90,7 @@ function statusDetail(row) {
 export function OrgHomologacaoTrackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  /** Identificador único do pedido: só vem da URL (?codigo= ou ?ref=), partilhado por ORG. */
+  /** Identificador único do pedido: só vem da URL (?codigo= ou ?ref=), compartilhado por ORG. */
   const ref = (searchParams.get('codigo') || searchParams.get('ref') || '').trim();
   const [chatOpen, setChatOpen] = useState(false);
 
@@ -117,7 +117,7 @@ export function OrgHomologacaoTrackPage() {
   return (
     <AuthSplitLayout
       heroTitle="Homologação"
-      heroSubtitle="Cada link de acompanhamento é único para o seu pedido. Guarde-o ou use o que recebeu após o cadastro."
+      heroSubtitle="Cada link de acompanhamento é único para o seu pedido. Guarde-o ou use o recebido após o cadastro."
     >
       <HomologacaoChatSideover
         open={chatOpen}
@@ -132,7 +132,7 @@ export function OrgHomologacaoTrackPage() {
         <div className={`shrink-0 border-l-[3px] border-l-tertiary p-4 sm:p-5 ${cardSurface}`}>
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Acompanhamento do pedido</h1>
           <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-            Utilize o link completo que recebeu — ele já identifica o seu pedido.
+            Use o link completo que recebeu — ele já identifica o seu pedido.
           </p>
         </div>
 
@@ -157,7 +157,7 @@ export function OrgHomologacaoTrackPage() {
 
         {trackQuery.isFetching && ref ? (
           <p className="text-center text-sm text-on-surface-variant" role="status">
-            A carregar…
+            Carregando…
           </p>
         ) : null}
 
@@ -195,7 +195,7 @@ export function OrgHomologacaoTrackPage() {
                 <p className="mt-1 text-sm">{formatDatePt(row.criado_em)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Última actualização</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Última atualização</p>
                 <p className="mt-1 text-sm">
                   {formatDatePt(row.workflow_etapa_em ?? row.workflowEtapaEm ?? row.processado_em)}
                 </p>
@@ -205,7 +205,7 @@ export function OrgHomologacaoTrackPage() {
               <div className="rounded-lg border border-slate-200/90 bg-slate-50/60 px-4 py-4">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-700">Histórico do pedido</p>
                 <p className="mt-1 text-xs text-on-surface-variant">
-                  Actualizações registadas pela equipa Obra10+ ao longo da homologação.
+                  Atualizações registradas pela equipe Obra10+ ao longo da homologação.
                 </p>
                 <ol className="relative mt-4 space-y-0 border-l-2 border-slate-200 pl-4">
                   {timeline.map((ev, i) => {
@@ -238,7 +238,7 @@ export function OrgHomologacaoTrackPage() {
                 onClick={() => void trackQuery.refetch()}
                 className="rounded-none border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-on-surface hover:bg-surface-container-low"
               >
-                Actualizar
+                Atualizar
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { EntityDataTable } from '../components/EntityDataTable';
+import { HubButton, hubButtonClass } from '../components/HubButton';
 import { AppSideover } from '../components/AppSideover';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
@@ -115,13 +116,14 @@ export function AdminUsersPage() {
         id: 'actions',
         header: 'Ações',
         cell: ({ row }) => (
-          <button
-            type="button"
+          <HubButton
+            variant="tableSecondary"
+            icon="open_in_new"
+            iconClassName="text-[16px]"
             onClick={() => setPanel({ open: true, kind: 'solic', row: row.original })}
-            className="text-[10px] font-black uppercase tracking-widest border border-primary text-primary px-2 py-1 hover:bg-primary hover:text-white"
           >
             Abrir
-          </button>
+          </HubButton>
         ),
       }),
     ];
@@ -171,13 +173,14 @@ export function AdminUsersPage() {
         id: 'actions',
         header: 'Ações',
         cell: ({ row }) => (
-          <button
-            type="button"
+          <HubButton
+            variant="tableSecondary"
+            icon="visibility"
+            iconClassName="text-[16px]"
             onClick={() => setPanel({ open: true, kind: 'profile', row: row.original })}
-            className="text-[10px] font-black uppercase tracking-widest border border-primary text-primary px-2 py-1 hover:bg-primary hover:text-white"
           >
             Ver
-          </button>
+          </HubButton>
         ),
       }),
     ];
@@ -205,7 +208,7 @@ export function AdminUsersPage() {
               footer={
                 <>
                   <span className="material-symbols-outlined text-sm">groups</span>
-                  Utilizadores no HUB
+                  Usuários no HUB
                 </>
               }
             />
@@ -252,7 +255,7 @@ export function AdminUsersPage() {
                   data={solicitacoes}
                   columns={solicColumns}
                   getRowId={(r) => r.id}
-                  searchPlaceholder="Buscar solicitações…"
+                  searchPlaceholder="Pesquisar solicitações…"
                   pageSize={8}
                   emptyLabel="Nenhuma solicitação."
                 />
@@ -271,7 +274,7 @@ export function AdminUsersPage() {
                 data={profiles}
                 columns={profileColumns}
                 getRowId={(r) => r.id}
-                searchPlaceholder="Buscar usuários…"
+                searchPlaceholder="Pesquisar usuários…"
                 pageSize={10}
                 emptyLabel="Nenhum usuário."
               />
@@ -284,6 +287,7 @@ export function AdminUsersPage() {
         key={solicRow?.id ?? 'solic'}
         open={panel.open && panel.kind === 'solic' && !!solicRow}
         onClose={() => setPanel({ open: false, kind: null, row: null })}
+        eyebrow="Controle de usuários"
         title="Solicitação HUB"
         subtitle={solicRow?.email}
         tabItems={
@@ -328,22 +332,24 @@ export function AdminUsersPage() {
                     <div className="space-y-4">
                       {solicRow.status === 'pendente' ? (
                         <div className="flex flex-col gap-2 sm:flex-row">
-                          <button
-                            type="button"
+                          <HubButton
+                            variant="primary"
+                            icon="check_circle"
                             disabled={busySolicId === solicRow.id}
                             onClick={() => resolverSolicitacao(solicRow.id, 'aprovado')}
-                            className="bg-tertiary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-tertiary/90 disabled:opacity-50"
+                            className="!text-xs !tracking-wide"
                           >
                             Aprovar
-                          </button>
-                          <button
-                            type="button"
+                          </HubButton>
+                          <HubButton
+                            variant="secondary"
+                            icon="cancel"
                             disabled={busySolicId === solicRow.id}
                             onClick={() => resolverSolicitacao(solicRow.id, 'rejeitado')}
-                            className="border border-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white disabled:opacity-50"
+                            className="!text-xs !tracking-wide"
                           >
                             Rejeitar
-                          </button>
+                          </HubButton>
                         </div>
                       ) : (
                         <p className="text-sm text-on-surface-variant">
@@ -363,6 +369,7 @@ export function AdminUsersPage() {
         key={profileRow?.id ?? 'profile'}
         open={panel.open && panel.kind === 'profile' && !!profileRow}
         onClose={() => setPanel({ open: false, kind: null, row: null })}
+        eyebrow="Controle de usuários"
         title="Perfil"
         subtitle={profileRow?.email}
         tabItems={
@@ -406,15 +413,21 @@ export function AdminUsersPage() {
                         <Link
                           to="/adm/auditoria"
                           onClick={() => setPanel({ open: false, kind: null, row: null })}
-                          className="inline-flex items-center justify-center border border-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white"
+                          className={`${hubButtonClass.secondary} w-full justify-center no-underline`}
                         >
+                          <span className="material-symbols-outlined text-[20px]" aria-hidden>
+                            monitoring
+                          </span>
                           Auditoria
                         </Link>
                         <Link
                           to="/adm/configuracoes"
                           onClick={() => setPanel({ open: false, kind: null, row: null })}
-                          className="inline-flex items-center justify-center border border-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white"
+                          className={`${hubButtonClass.secondary} w-full justify-center no-underline`}
                         >
+                          <span className="material-symbols-outlined text-[20px]" aria-hidden>
+                            settings
+                          </span>
                           Configurações
                         </Link>
                     </div>

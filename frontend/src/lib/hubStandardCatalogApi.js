@@ -77,7 +77,7 @@ export async function fetchHubStandardCatalog(supabase) {
 }
 
 /**
- * Lista completa para /adm (inclui inactivos) — requer sessão admin.
+ * Lista completa para /adm (inclui inativos) — requer sessão admin.
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  */
 export async function fetchHubStandardCatalogAdmin(supabase) {
@@ -207,7 +207,7 @@ export async function insertSignupWizardStep(supabase, row) {
 }
 
 /**
- * Cria ou actualiza a etapa do wizard com o mesmo slug da secção (cadastro público).
+ * Cria ou atualiza a etapa do wizard com o mesmo slug da seção (cadastro público).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {Record<string, unknown>} row — slug, label, partition_bucket, sort_order, is_active
  */
@@ -217,7 +217,7 @@ export async function upsertSignupWizardStep(supabase, row) {
 }
 
 /**
- * Remove metadados de wizard para um slug de secção (após apagar a secção).
+ * Remove metadados de wizard para um slug de seção (após apagar a seção).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} slug
  */

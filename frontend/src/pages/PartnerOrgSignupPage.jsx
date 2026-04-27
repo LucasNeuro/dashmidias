@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { PartnerOrgSignupForm } from '../components/forms/PartnerOrgSignupForm';
@@ -19,6 +19,23 @@ export function PartnerOrgSignupPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const tplId = searchParams.get('tpl');
+
+  const intakeStepHint = useMemo(() => {
+    try {
+      const flow = searchParams.get('flow');
+      const stepRaw = searchParams.get('step');
+      if (!flow || stepRaw == null || !searchParams.get('from')?.includes('intake')) return null;
+      const raw = sessionStorage.getItem('ob10_partner_intake_v1');
+      if (!raw) return null;
+      const j = JSON.parse(raw);
+      const total = Array.isArray(j.steps) ? j.steps.length : 0;
+      const cur = Number(stepRaw) || 0;
+      if (total < 1) return null;
+      return { label: `Etapa ${cur + 1} de ${total} (cadastro parceiro)` };
+    } catch {
+      return null;
+    }
+  }, [searchParams]);
   const [submitBusy, setSubmitBusy] = useState(false);
   /** @type {null | { kind: 'tracking', email: string, codigoRastreio: string, trackingUrl: string } | { kind: 'legacy', email: string }} */
   const [successModal, setSuccessModal] = useState(null);
@@ -72,7 +89,7 @@ export function PartnerOrgSignupPage() {
         },
         () => {
           void queryClient.invalidateQueries({ queryKey: registrationTemplateDetailQueryKey(tplId) });
-          toast('O formulário foi actualizado. Confira os campos antes de enviar.', {
+          toast('O formulário foi atualizado. Confira os campos antes de enviar.', {
             variant: 'info',
             duration: 5200,
           });
@@ -113,7 +130,7 @@ export function PartnerOrgSignupPage() {
           >
             <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-5 shadow-xl sm:p-6">
               <h2 id="signup-success-title" className="text-lg font-black tracking-tight text-primary sm:text-xl">
-                Pedido registado
+                Pedido registrado
               </h2>
               {successModal.kind === 'tracking' ? (
                 <>
@@ -130,7 +147,7 @@ export function PartnerOrgSignupPage() {
               ) : (
                 <p className="mt-3 text-sm leading-relaxed text-on-surface-variant">
                   O pedido foi guardado. O acompanhamento online com código ainda não está disponível neste ambiente — a
-                  equipa Obra10+ pode contactá-lo pelo e-mail indicado.
+                  equipe Obra10+ pode contatá-lo pelo e-mail indicado.
                 </p>
               )}
               <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -161,19 +178,22 @@ export function PartnerOrgSignupPage() {
 
         <div className="shrink-0 rounded-none border border-outline-variant bg-white p-4 shadow-md sm:p-5">
           <h1 className="text-xl font-black tracking-tight text-primary sm:text-2xl">Homologação</h1>
+          {intakeStepHint ? (
+            <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.08em] text-sky-900">{intakeStepHint.label}</p>
+          ) : null}
           {!template && !tplId ? (
             <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
-              Utilize o link de convite completo enviado pela equipe para preencher este formulário.
+              Use o link de convite completo enviado pela equipe para preencher este formulário.
             </p>
           ) : null}
         </div>
 
         {tplId && loadStatus === 'loading' ? (
-          <p className="shrink-0 text-center text-xs text-on-surface-variant sm:text-sm">A carregar formulário de cadastro…</p>
+          <p className="shrink-0 text-center text-xs text-on-surface-variant sm:text-sm">Carregando formulário de cadastro…</p>
         ) : null}
         {tplId && loadStatus === 'ready' && templateQuery.isFetching && template ? (
           <p className="shrink-0 text-center text-[11px] font-medium text-sky-800 sm:text-xs" role="status">
-            A sincronizar a última versão do convite…
+            Sincronizando a última versão do convite…
           </p>
         ) : null}
         {showPaused ? (

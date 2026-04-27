@@ -34,7 +34,7 @@ import { getSupabase, isSupabaseConfigured } from '../../lib/supabaseClient';
 import { getPartnerOrgSignupDocumentDigits } from '../../lib/submitHubPartnerOrgSignup';
 
 const PARTNER_SIGNUP_DUPLICATE_DOC_MSG =
-  'Este CNPJ ou CPF já consta num cadastro em análise ou já homologado. Utilize o código ORG ou contacte o suporte.';
+  'Este CNPJ ou CPF já consta em um cadastro em análise ou já homologado. Use o código ORG ou entre em contato com o suporte.';
 
 /** @param {import('zod').ZodType} schema @param {unknown} value */
 function zodFieldMessage(schema, value) {
@@ -186,7 +186,7 @@ function CommercialExtrasStepBody({ partnerKind, slice, form, stepErrors }) {
           ) : null}
           {isPrestadoresServicoTemplate(partnerKind) ? (
             <p className="text-xs leading-relaxed text-on-surface-variant">
-              Como prestador de serviço, estes dados ajudam a equipa a entender a sua especialidade e disponibilidade em obra.
+              Como prestador de serviço, estes dados ajudam a equipe a entender sua especialidade e disponibilidade em obra.
             </p>
           ) : null}
           <SignupExtraFieldsGrid form={form} slice={serviceSlice} stepErrors={stepErrors} />

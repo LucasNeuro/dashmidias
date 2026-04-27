@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { useAuth } from '../context/AuthContext';
@@ -79,6 +79,15 @@ export function AdminGovernanceLayout() {
         </span>
         Organizações
       </NavLink>
+      <NavLink
+        to="/adm/cadastro-fluxos"
+        className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
+      >
+        <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
+          account_tree
+        </span>
+        Cadastro — fluxos
+      </NavLink>
     </nav>
   );
 
@@ -91,7 +100,15 @@ export function AdminGovernanceLayout() {
       contentClassName={GOVERNANCE_CONTENT_SHELL}
       mainClassName={GOVERNANCE_MAIN_PAD}
     >
-      <Outlet />
+      <Suspense
+        fallback={
+          <div className="flex min-h-[30vh] items-center justify-center px-4 py-8 text-[10px] font-black uppercase tracking-widest text-slate-500">
+            Carregando módulo…
+          </div>
+        }
+      >
+        <Outlet />
+      </Suspense>
     </AppShell>
   );
 }

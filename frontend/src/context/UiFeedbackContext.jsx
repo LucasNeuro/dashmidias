@@ -63,7 +63,7 @@ export function UiFeedbackProvider({ children }) {
 
       {alertPayload ? (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/55 p-4"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) alertPayload.resolve();
@@ -103,7 +103,7 @@ export function UiFeedbackProvider({ children }) {
 
       {confirmPayload ? (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/55 p-4"
           role="presentation"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) confirmPayload.resolve(false);
@@ -147,7 +147,7 @@ export function UiFeedbackProvider({ children }) {
           <div
             key={t.id}
             role="status"
-            className={`pointer-events-auto flex items-start gap-3 border-2 px-4 py-3 shadow-lg ${
+            className={`pointer-events-auto flex items-start gap-3 border-2 px-4 py-3 shadow-lg transition-opacity duration-200 ease-out ${
               t.variant === 'success'
                 ? 'border-tertiary/60 bg-tertiary/10 text-primary'
                 : t.variant === 'warning'

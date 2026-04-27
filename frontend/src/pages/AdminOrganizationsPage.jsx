@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppSideover } from '../components/AppSideover';
+import { HubButton } from '../components/HubButton';
 import { HomologacaoChatThread } from '../components/HomologacaoChatThread';
 import { HomologacaoDocumentosPanel } from '../components/HomologacaoDocumentosPanel';
 import { HomologacaoWorkflowKanban } from '../components/HomologacaoWorkflowKanban';
@@ -80,7 +81,7 @@ function OrgConsultaReportView({ row }) {
           <li>CNPJ não consultado na sessão antes de submeter o formulário.</li>
         </ul>
         <p className="text-on-surface-variant">
-          Utilize o separador <strong className="text-primary">Formulário</strong> para os dados declarados pelo parceiro.
+          Use a aba <strong className="text-primary">Formulário</strong> para os dados declarados pelo parceiro.
         </p>
       </article>
     );
@@ -526,14 +527,14 @@ export function AdminOrganizationsPage() {
           <>
             <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <label className="sr-only" htmlFor="org-search">
-                Buscar organizações
+                Pesquisar organizações
               </label>
               <input
                 id="org-search"
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nome, e-mail, CNPJ, status…"
+                placeholder="Pesquisar por nome, e-mail, CNPJ, status…"
                 className="w-full max-w-lg rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-primary shadow-sm placeholder:text-on-surface-variant/60"
               />
               <p className="shrink-0 text-[10px] font-black uppercase tracking-wider text-on-surface-variant tabular-nums">
@@ -570,12 +571,14 @@ export function AdminOrganizationsPage() {
                         <td className="align-middle px-2 py-3 sm:px-3">
                           <button
                             type="button"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 bg-white text-primary hover:bg-slate-50"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-none border border-sky-300 bg-sky-50 text-primary hover:bg-sky-100"
                             aria-expanded={open}
                             onClick={() => setExpandedId(open ? null : row.id)}
                             title={open ? 'Ocultar detalhes' : 'Ver detalhes'}
                           >
-                            <span className="material-symbols-outlined text-[20px]">{open ? 'expand_less' : 'expand_more'}</span>
+                            <span className="material-symbols-outlined text-[20px]" aria-hidden>
+                              {open ? 'expand_less' : 'expand_more'}
+                            </span>
                           </button>
                         </td>
                         <td className="align-top px-3 py-3 sm:px-4">
@@ -605,12 +608,14 @@ export function AdminOrganizationsPage() {
                         <td className="align-middle px-3 py-3 text-right sm:px-4">
                           <button
                             type="button"
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-primary shadow-sm transition hover:border-tertiary/40 hover:bg-tertiary/5"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-none border border-sky-300 bg-sky-50 text-primary transition hover:bg-sky-100"
                             onClick={() => setPanel({ open: true, row })}
                             title="Abrir painel de homologação"
                             aria-label="Abrir painel de homologação"
                           >
-                            <span className="material-symbols-outlined text-[22px] leading-none">dock_to_right</span>
+                            <span className="material-symbols-outlined text-[22px] leading-none" aria-hidden>
+                              dock_to_right
+                            </span>
                           </button>
                         </td>
                       </tr>
@@ -640,7 +645,7 @@ export function AdminOrganizationsPage() {
         title="Cadastro de organização"
         subtitle={active?.email}
         variant="operational"
-        bodyClassName="p-4 sm:p-5"
+        bodyClassName="p-4 sm:p-5 bg-slate-50"
         tabItems={
           active
             ? [
@@ -824,7 +829,7 @@ export function AdminOrganizationsPage() {
                           <div className="rounded-xl border border-slate-200/90 bg-white px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Tipo de parceiro (template)</p>
                             <p className="mt-2 text-sm font-semibold text-primary">
-                              {active.partner_kind ? labelPartnerKind(active.partner_kind) : '— não registado no pedido'}
+                              {active.partner_kind ? labelPartnerKind(active.partner_kind) : '— não registrado no pedido'}
                             </p>
                             <p className="mt-2 text-[11px] leading-relaxed text-on-surface-variant">
                               Este tipo é definido ao criar o template de cadastro; não precisa ser escolhido de novo aqui. Quem envia o formulário pelo
@@ -852,22 +857,22 @@ export function AdminOrganizationsPage() {
                             </div>
                           ) : null}
                           <div className="flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:flex-wrap">
-                            <button
-                              type="button"
+                            <HubButton
+                              variant="primary"
+                              icon="rocket_launch"
                               disabled={busyApprove || busyId === active.id}
                               onClick={() => void runProvisionSignup(active)}
-                              className="bg-tertiary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-tertiary/90 disabled:opacity-50"
                             >
                               Provisionar org + convite
-                            </button>
-                            <button
-                              type="button"
+                            </HubButton>
+                            <HubButton
+                              variant="secondary"
+                              icon="block"
                               disabled={busyId === active.id || busyApprove}
                               onClick={() => setSignupStatus(active.id, 'rejeitado')}
-                              className="border border-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white disabled:opacity-50"
                             >
                               Rejeitar pedido
-                            </button>
+                            </HubButton>
                           </div>
                         </>
                       ) : (

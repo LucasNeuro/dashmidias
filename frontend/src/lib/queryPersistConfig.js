@@ -3,10 +3,14 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 export const QUERY_CACHE_STORAGE_KEY = 'obra10_hub_query_cache_v1';
 
 /** Persister síncrono (localStorage) para o TanStack Query — cache sobrevive a recargas. */
+/** Escrita no localStorage é síncrona e pode travar a UI se o cache for grande; espaçamos gravações. */
+const PERSIST_THROTTLE_MS = 4000;
+
 export function createAppQueryPersister() {
   return createSyncStoragePersister({
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     key: QUERY_CACHE_STORAGE_KEY,
+    throttleTime: PERSIST_THROTTLE_MS,
   });
 }
 

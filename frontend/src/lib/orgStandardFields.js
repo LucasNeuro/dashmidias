@@ -10,7 +10,7 @@
 import { FALLBACK_SIGNUP_WIZARD_STEPS, hubStandardCatalogHasData } from './hubStandardCatalogApi';
 
 /**
- * Mapeia o slug da secção (hub_standard_field_section.wizard_step) para o bucket do wizard actual.
+ * Mapeia o slug da seção (hub_standard_field_section.wizard_step) para o bucket do wizard atual.
  * @param {string | undefined | null} sectionWizardSlug
  * @param {Array<{ slug?: string, partition_bucket?: string }> | undefined} wizardSteps
  */
@@ -245,7 +245,7 @@ function legacyBuiltinGroups() {
 }
 
 /**
- * Secções e campos padrão para o editor de template (separador Padrão).
+ * Seções e campos padrão para o editor de template (aba Padrão).
  * @param {{ sections: Array<Record<string, unknown>>, fields: Array<Record<string, unknown>> } | null} [catalog]
  */
 export function getOrgBuiltinPartnerFieldGroups(catalog = null) {
@@ -308,7 +308,7 @@ export function mergePartnerOrgExtraFields(templateFields = [], opts = {}, catal
 }
 
 /**
- * Separa campos built-in activos em comercial vs. logística (doca).
+ * Separa campos built-in ativos em comercial vs. logística (doca).
  * Extras definidos no editor do template não entram aqui — vê `partitionSignupWizardExtraSlices`.
  * @param {Array<{ key: string, group?: string }>} mergedFields — resultado de mergePartnerOrgExtraFields
  */
@@ -374,7 +374,7 @@ export function partitionSignupWizardExtraSlices(mergedFields = [], catalog = nu
   return { extraSteps };
 }
 
-/** Slug da secção «Atuação e serviços» (alinhado ao catálogo padrão e a `ORG_BUILTIN_PARTNER_EXTRA_FIELDS`). */
+/** Slug da seção «Atuação e serviços» (alinhado ao catálogo padrão e a `ORG_BUILTIN_PARTNER_EXTRA_FIELDS`). */
 export const ORG_ATUACAO_SERVICOS_GROUP_SLUG = 'atuacao_servicos';
 
 /**

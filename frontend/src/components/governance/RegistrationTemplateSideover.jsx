@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppSideover } from '../AppSideover';
+import { HubButton } from '../HubButton';
 import { useAuth } from '../../context/AuthContext';
 import { useUiFeedback } from '../../context/UiFeedbackContext';
 import { getOrgBuiltinPartnerFieldGroups } from '../../lib/orgStandardFields';
@@ -235,7 +236,7 @@ export function RegistrationTemplateSideover({
   const { supabase, session, isAdmin } = useAuth();
   const { toast } = useUiFeedback();
   const [tab, setTab] = useState('geral');
-  /** Secções do separador «Padrão» expandidas (ids de grupo). */
+  /** Seções da aba «Padrão» expandidas (ids de grupo). */
   const [builtinOpenIds, setBuiltinOpenIds] = useState(/** @type {string[]} */ ([]));
   const [suggestDescBusy, setSuggestDescBusy] = useState(false);
 
@@ -273,7 +274,7 @@ export function RegistrationTemplateSideover({
         inviteLinkEnabled: draft.inviteLinkEnabled !== false,
       });
       onChangeDraft({ ...draft, description: text });
-      toast('Descrição sugerida. Revise antes de guardar.', { variant: 'success', duration: 5200 });
+      toast('Descrição sugerida. Revise antes de salvar.', { variant: 'success', duration: 5200 });
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Não foi possível gerar a descrição.', {
         variant: 'warning',
@@ -519,13 +520,13 @@ export function RegistrationTemplateSideover({
         <div className="space-y-6">
           <p className="text-xs leading-relaxed text-slate-600">
             Ligue ou desligue <strong>blocos inteiros</strong> (ex.: logística para prestadores; atuação em obra para fornecedores de produto).
-            Depois pode refinar campo a campo dentro de cada bloco activo.
+            Depois você pode refinar campo a campo dentro de cada bloco ativo.
           </p>
           <p className="text-xs text-slate-500">
             <Link to="/adm/catalogo-padrao" className="font-semibold text-primary underline-offset-2 hover:underline">
               Catálogo de campos padrão
             </Link>
-            — gerir secções e definições que todos os templates partilham (tabela + formulários em painel lateral).
+            — para gerenciar seções e configurações compartilhadas por todos os templates (tabela + formulários no painel lateral).
           </p>
           {getOrgBuiltinPartnerFieldGroups(standardCatalog).map((g) => {
             const groupOff = new Set((draft.disabledBuiltinGroups || []).map((x) => String(x).toLowerCase()));
@@ -627,14 +628,15 @@ export function RegistrationTemplateSideover({
       label: 'Campos extras',
       content: (
         <div className="space-y-4">
-          <button
+          <HubButton
             type="button"
+            variant="secondaryDashed"
+            icon="add_circle"
             onClick={addField}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-primary transition-colors hover:border-primary hover:bg-emerald-50/50 sm:w-auto sm:justify-start"
+            className="w-full !text-[11px] sm:w-auto"
           >
-            <span className="material-symbols-outlined text-[20px]">add_circle</span>
             Adicionar campo extra
-          </button>
+          </HubButton>
           {draft.fields.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-10 text-center">
               <p className="text-sm text-slate-500">Nenhum campo extra</p>
@@ -694,21 +696,18 @@ export function RegistrationTemplateSideover({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">{active?.content}</div>
         <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-4px_24px_rgba(15,23,42,0.06)] sm:px-6">
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
-            >
+            <HubButton variant="secondary" icon="close" onClick={onClose} className="!text-xs !font-semibold !tracking-wide">
               Cancelar
-            </button>
-            <button
-              type="button"
+            </HubButton>
+            <HubButton
+              variant="primary"
+              icon={isNew ? 'add' : 'save'}
               disabled={!canSave || isSaving}
               onClick={() => void onSave?.()}
-              className="rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40"
+              className="!text-xs !font-semibold !tracking-wide"
             >
-              {isSaving ? 'A guardar…' : isNew ? 'Criar template' : 'Guardar alterações'}
-            </button>
+              {isSaving ? 'Salvando…' : isNew ? 'Criar template' : 'Salvar alterações'}
+            </HubButton>
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
+import { HubButton } from '../components/HubButton';
 import { StandardCatalogFieldSideover } from '../components/governance/StandardCatalogFieldSideover';
 import { StandardCatalogSectionSideover } from '../components/governance/StandardCatalogSectionSideover';
 import {
@@ -171,12 +172,12 @@ export function AdminStandardCatalogPage() {
     if (!supabase) return;
     const title = secTitle.trim();
     if (!title) {
-      await alert('Indique o título da secção.', { title: 'Catálogo' });
+      await alert('Indique o título da seção.', { title: 'Catálogo' });
       return;
     }
     const secSlug = sectionIsNew ? slugifyTitle(title) : String(secSlugReadonly ?? '').trim();
     if (!secSlug) {
-      await alert('Slug da secção em falta.', { title: 'Catálogo' });
+      await alert('Slug da seção em falta.', { title: 'Catálogo' });
       return;
     }
     const partition = secPartition === 'logistics' ? 'logistics' : 'commercial';
@@ -190,7 +191,7 @@ export function AdminStandardCatalogPage() {
           wizard_step: secSlug,
           is_active: secActive,
         });
-        toast('Secção criada.', { variant: 'success', duration: 4000 });
+        toast('Seção criada.', { variant: 'success', duration: 4000 });
       } else if (sectionEditId) {
         await updateHubStandardSection(supabase, sectionEditId, {
           title,
@@ -198,7 +199,7 @@ export function AdminStandardCatalogPage() {
           wizard_step: secSlug,
           is_active: secActive,
         });
-        toast('Secção actualizada.', { variant: 'success', duration: 4000 });
+        toast('Seção atualizada.', { variant: 'success', duration: 4000 });
       }
       await upsertSignupWizardStep(supabase, {
         slug: secSlug,
@@ -210,7 +211,7 @@ export function AdminStandardCatalogPage() {
       invalidate();
       closeSection();
     } catch (e) {
-      await alert(String(e?.message || e || 'Falha ao guardar secção.'), { title: 'Erro' });
+      await alert(String(e?.message || e || 'Falha ao salvar seção.'), { title: 'Erro' });
     } finally {
       setBusy(false);
     }
@@ -234,10 +235,10 @@ export function AdminStandardCatalogPage() {
       if (!supabase) return;
       const n = await countFieldsInSection(supabase, row.id);
       if (n > 0) {
-        await alert(`Remova os ${n} campo(s) desta secção antes de a excluir.`, { title: 'Catálogo' });
+        await alert(`Remova os ${n} campo(s) desta seção antes de a excluir.`, { title: 'Catálogo' });
         return;
       }
-      const ok = await confirm(`Excluir a secção «${row.title}»?`, { title: 'Confirmar', danger: true });
+      const ok = await confirm(`Excluir a seção «${row.title}»?`, { title: 'Confirmar', danger: true });
       if (!ok) return;
       setBusy(true);
       try {
@@ -248,7 +249,7 @@ export function AdminStandardCatalogPage() {
           console.warn(e2);
         }
         invalidate();
-        toast('Secção excluída.', { variant: 'success', duration: 4000 });
+        toast('Seção excluída.', { variant: 'success', duration: 4000 });
       } catch (e) {
         await alert(String(e?.message || e), { title: 'Erro' });
       } finally {
@@ -260,7 +261,7 @@ export function AdminStandardCatalogPage() {
 
   const openNewField = useCallback(async () => {
     if (!sectionsSorted.length) {
-      await alert('Crie primeiro uma secção.', { title: 'Catálogo' });
+      await alert('Crie primeiro uma seção.', { title: 'Catálogo' });
       return;
     }
     setFieldIsNew(true);
@@ -302,7 +303,7 @@ export function AdminStandardCatalogPage() {
     if (!supabase) return;
     const sid = fldSectionId;
     if (!sid) {
-      await alert('Seleccione a secção.', { title: 'Catálogo' });
+      await alert('Selecione a seção.', { title: 'Catálogo' });
       return;
     }
     const label = fldLabel.trim();
@@ -357,12 +358,12 @@ export function AdminStandardCatalogPage() {
           sort_order: Number(fldSort) || 0,
           is_active: fldActive,
         });
-        toast('Campo actualizado.', { variant: 'success', duration: 4000 });
+        toast('Campo atualizado.', { variant: 'success', duration: 4000 });
       }
       invalidate();
       closeField();
     } catch (e) {
-      await alert(String(e?.message || e || 'Falha ao guardar campo.'), { title: 'Erro' });
+      await alert(String(e?.message || e || 'Falha ao salvar campo.'), { title: 'Erro' });
     } finally {
       setBusy(false);
     }
@@ -409,7 +410,7 @@ export function AdminStandardCatalogPage() {
   const sectionColumns = useMemo(
     () => [
       colS.accessor('title', {
-        header: 'Secção',
+        header: 'Seção',
         cell: (info) => <span className="font-semibold text-primary">{info.getValue() || '—'}</span>,
       }),
       colS.accessor('slug', {
@@ -444,7 +445,7 @@ export function AdminStandardCatalogPage() {
               info.getValue() === false ? 'text-amber-800' : 'text-emerald-800'
             }`}
           >
-            {info.getValue() === false ? 'Inactivo' : 'Activo'}
+            {info.getValue() === false ? 'Inativo' : 'Ativo'}
           </span>
         ),
       }),
@@ -455,22 +456,24 @@ export function AdminStandardCatalogPage() {
           const row = info.row.original;
           return (
             <div className="flex flex-wrap justify-end gap-1">
-              <button
-                type="button"
+              <HubButton
+                variant="tableSecondary"
+                icon="edit"
+                iconClassName="text-[16px]"
                 disabled={busy}
                 onClick={() => openEditSection(row)}
-                className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary hover:bg-slate-50 disabled:opacity-50"
               >
                 Editar
-              </button>
-              <button
-                type="button"
+              </HubButton>
+              <HubButton
+                variant="danger"
+                icon="delete"
+                iconClassName="text-[16px]"
                 disabled={busy}
                 onClick={() => void removeSection(row)}
-                className="rounded-sm border border-red-200 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-800 hover:bg-red-50 disabled:opacity-50"
               >
                 Excluir
-              </button>
+              </HubButton>
             </div>
           );
         },
@@ -488,7 +491,7 @@ export function AdminStandardCatalogPage() {
   const wstepSummaryColumns = useMemo(
     () => [
       colW.accessor('label', {
-        header: 'Rótulo (secção)',
+        header: 'Rótulo (seção)',
         cell: (info) => <span className="font-semibold text-primary">{info.getValue() || '—'}</span>,
       }),
       colW.accessor('slug', {
@@ -515,7 +518,7 @@ export function AdminStandardCatalogPage() {
               info.getValue() === false ? 'text-amber-800' : 'text-emerald-800'
             }`}
           >
-            {info.getValue() === false ? 'Inactivo' : 'Activo'}
+            {info.getValue() === false ? 'Inativo' : 'Ativo'}
           </span>
         ),
       }),
@@ -539,7 +542,7 @@ export function AdminStandardCatalogPage() {
       }),
       colF.display({
         id: 'section',
-        header: 'Secção',
+        header: 'Seção',
         cell: (info) => {
           const sid = info.row.original.section_id;
           const sec = catalog.sections.find((s) => s.id === sid);
@@ -558,7 +561,7 @@ export function AdminStandardCatalogPage() {
               info.getValue() === false ? 'text-amber-800' : 'text-emerald-800'
             }`}
           >
-            {info.getValue() === false ? 'Inactivo' : 'Activo'}
+            {info.getValue() === false ? 'Inativo' : 'Ativo'}
           </span>
         ),
       }),
@@ -569,22 +572,24 @@ export function AdminStandardCatalogPage() {
           const row = info.row.original;
           return (
             <div className="flex flex-wrap justify-end gap-1">
-              <button
-                type="button"
+              <HubButton
+                variant="tableSecondary"
+                icon="edit"
+                iconClassName="text-[16px]"
                 disabled={busy}
                 onClick={() => openEditField(row)}
-                className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary hover:bg-slate-50 disabled:opacity-50"
               >
                 Editar
-              </button>
-              <button
-                type="button"
+              </HubButton>
+              <HubButton
+                variant="danger"
+                icon="delete"
+                iconClassName="text-[16px]"
                 disabled={busy}
                 onClick={() => void removeField(row)}
-                className="rounded-sm border border-red-200 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-800 hover:bg-red-50 disabled:opacity-50"
               >
                 Excluir
-              </button>
+              </HubButton>
             </div>
           );
         },
@@ -607,27 +612,21 @@ export function AdminStandardCatalogPage() {
     <div className="min-w-0 w-full max-w-none space-y-8">
       <section className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Secções (blocos)</h2>
-          <button
-            type="button"
-            disabled={busy || isLoading}
-            onClick={openNewSection}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-[#0f2840] disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            Nova secção
-          </button>
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Seções (blocos)</h2>
+          <HubButton variant="primary" icon="add" disabled={busy || isLoading} onClick={openNewSection}>
+            Nova seção
+          </HubButton>
         </div>
         <div className="p-4 sm:p-5">
           {isLoading ? (
-            <p className="text-sm text-on-surface-variant">A carregar…</p>
+            <p className="text-sm text-on-surface-variant">Carregando…</p>
           ) : (
             <EntityDataTable
               data={sectionsSorted}
               columns={sectionColumns}
               getRowId={(r) => r.id}
-              searchPlaceholder="Buscar secções…"
-              emptyLabel="Nenhuma secção"
+              searchPlaceholder="Pesquisar seções…"
+              emptyLabel="Nenhuma seção"
               pageSize={12}
             />
           )}
@@ -640,20 +639,20 @@ export function AdminStandardCatalogPage() {
             Resumo: etapas no cadastro público
           </h2>
           <p className="mt-2 max-w-3xl text-xs leading-relaxed text-on-surface-variant">
-            Gerado automaticamente quando grava uma secção (rótulo, slug e bloco comercial vs. logística). Não precisa criar etapas
+            Gerado automaticamente ao salvar uma seção (rótulo, slug e bloco comercial vs. logística). Não é preciso criar etapas
             manualmente.
           </p>
         </div>
         <div className="p-4 sm:p-5">
           {isLoading ? (
-            <p className="text-sm text-on-surface-variant">A carregar…</p>
+            <p className="text-sm text-on-surface-variant">Carregando…</p>
           ) : (
             <EntityDataTable
               data={wizardStepsSummary}
               columns={wstepSummaryColumns}
               getRowId={(r) => r.id}
               searchPlaceholder="Buscar…"
-              emptyLabel="Crie uma secção para ver o resumo das etapas"
+              emptyLabel="Crie uma seção para ver o resumo das etapas"
               pageSize={12}
             />
           )}
@@ -663,25 +662,24 @@ export function AdminStandardCatalogPage() {
       <section className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Campos do catálogo</h2>
-          <button
-            type="button"
+          <HubButton
+            variant="secondaryDashed"
+            icon="add_circle"
             disabled={busy || isLoading || sectionsSorted.length === 0}
             onClick={() => void openNewField()}
-            className="inline-flex items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-primary hover:border-primary hover:bg-emerald-50/50 disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[18px]">add_circle</span>
             Adicionar campo
-          </button>
+          </HubButton>
         </div>
         <div className="p-4 sm:p-5">
           {isLoading ? (
-            <p className="text-sm text-on-surface-variant">A carregar…</p>
+            <p className="text-sm text-on-surface-variant">Carregando…</p>
           ) : (
             <EntityDataTable
               data={fieldsSorted}
               columns={fieldColumns}
               getRowId={(r) => r.id}
-              searchPlaceholder="Buscar campos…"
+              searchPlaceholder="Pesquisar campos…"
               emptyLabel="Nenhum campo"
               pageSize={12}
             />

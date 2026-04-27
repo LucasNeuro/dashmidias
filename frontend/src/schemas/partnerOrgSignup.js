@@ -121,7 +121,7 @@ const signupStepSenhaSchema = z
   });
 
 /**
- * Etapa Empresa: CNPJ opcional conforme template; CPF quando `collectCpf`; pelo menos um documento se CNPJ não for obrigatório e CPF estiver activo.
+ * Etapa Empresa: CNPJ opcional conforme template; CPF quando `collectCpf`; pelo menos um documento se CNPJ não for obrigatório e CPF estiver ativo.
  * @param {SignupOptions} signupOptions
  */
 export function buildEmpresaStepSchema(signupOptions = {}) {

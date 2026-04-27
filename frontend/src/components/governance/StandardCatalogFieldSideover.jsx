@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { AppSideover } from '../AppSideover';
+import { HubButton } from '../HubButton';
 import {
   FIELD_TYPES,
   FIELD_TYPES_WITH_OPTIONS,
@@ -69,13 +70,13 @@ export function StandardCatalogFieldSideover({
           <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)] ring-1 ring-slate-900/[0.03] sm:p-5">
             <div className="flex flex-wrap items-start gap-3">
               <label className="block min-w-[200px] flex-1">
-                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Secção *</span>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Seção *</span>
                 <select
                   value={sectionId}
                   onChange={(e) => setSectionId(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                 >
-                  <option value="">Seleccione…</option>
+                  <option value="">Selecione…</option>
                   {sections.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.title}
@@ -102,7 +103,7 @@ export function StandardCatalogFieldSideover({
             <div className="mt-4 flex flex-wrap items-start gap-3">
               <label className="min-w-[160px] flex-1">
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Rótulo (o que o utilizador vê) *
+                  Rótulo (o que o usuário vê) *
                 </span>
                 <input
                   type="text"
@@ -195,27 +196,24 @@ export function StandardCatalogFieldSideover({
                 onChange={(e) => setIsActive(e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/30"
               />
-              <span className="text-sm font-medium text-slate-700">Campo activo no catálogo</span>
+              <span className="text-sm font-medium text-slate-700">Campo ativo no catálogo</span>
             </label>
           </div>
         </div>
         <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-4px_24px_rgba(15,23,42,0.06)] sm:px-6">
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:bg-slate-50"
-            >
+            <HubButton variant="secondary" icon="close" onClick={onClose} className="!text-xs !font-semibold !tracking-wide">
               Cancelar
-            </button>
-            <button
-              type="button"
+            </HubButton>
+            <HubButton
+              variant="primary"
+              icon={isNew ? 'add' : 'save'}
               disabled={!canSave || busy}
               onClick={() => void onSave?.()}
-              className="rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40"
+              className="!text-xs !font-semibold !tracking-wide"
             >
-              {busy ? 'A guardar…' : isNew ? 'Adicionar campo' : 'Guardar alterações'}
-            </button>
+              {busy ? 'Salvando…' : isNew ? 'Adicionar campo' : 'Salvar alterações'}
+            </HubButton>
           </div>
         </div>
       </div>

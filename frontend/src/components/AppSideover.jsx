@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Painel lateral (mobile-first: largura total em telas pequenas).
- * tabItems opcional: cada item renderiza conteúdo próprio; sem tabs, use children.
+ * Painel lateral (mobile-first). **Cromado unificado** com o sideover de templates:
+ * cabeçalho em gradiente escuro, abas com realce verde (emerald), corpo claro.
  *
- * variant:
- * - default: cabeçalho branco
- * - governance: gradiente governança (painel padrão)
- * - operational: painel mais largo + cabeçalho denso (fluxos de cadastro, CRM, operações)
+ * `variant` mantém-se por compatibilidade; `operational`, `governance` e `default` usam o mesmo visual.
  */
 export function AppSideover({
   open,
@@ -17,11 +14,12 @@ export function AppSideover({
   children,
   tabItems = null,
   className = '',
-  bodyClassName = 'p-4',
-  variant = 'default',
+  bodyClassName = 'p-4 sm:p-5 bg-slate-50',
+  variant = 'operational',
   eyebrow = null,
   panelClassName = '',
 }) {
+  void variant;
   const [activeTab, setActiveTab] = useState(tabItems?.[0]?.id ?? null);
 
   useEffect(() => {
@@ -49,26 +47,16 @@ export function AppSideover({
   if (!open) return null;
 
   const active = tabItems?.find((t) => t.id === activeTab) ?? tabItems?.[0];
-  const isGov = variant === 'governance';
-  const isOps = variant === 'operational';
-  const isDarkHeader = isGov || isOps;
 
-  const panelWidth =
-    variant === 'operational'
-      ? 'sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-[44rem]'
-      : 'sm:max-w-md md:max-w-lg lg:max-w-xl';
-
-  const headerBg = isOps
-    ? 'border-b border-white/10 bg-gradient-to-br from-[#071018] via-primary to-[#1a3550]'
-    : isGov
-      ? 'border-b border-white/10 bg-gradient-to-r from-primary via-[#1a3050] to-[#24364a]'
-      : 'border-b border-surface-container-high';
+  const panelWidth = 'sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-[44rem]';
+  const headerBg =
+    'border-b border-white/10 bg-gradient-to-br from-[#071018] via-primary to-[#1a3550]';
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="app-sideover-title">
       <button
         type="button"
-        className={`absolute inset-0 backdrop-blur-[2px] ${isOps ? 'bg-black/50' : 'bg-black/40'}`}
+        className="absolute inset-0 bg-black/50"
         aria-label="Fechar painel"
         onClick={onClose}
       />
@@ -78,26 +66,22 @@ export function AppSideover({
         <div className={`shrink-0 flex items-start justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 ${headerBg}`}>
           <div className="min-w-0">
             {eyebrow ? (
-              <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${isDarkHeader ? 'text-white/70' : 'text-on-surface-variant'}`}>{eyebrow}</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/70">{eyebrow}</p>
             ) : null}
             <h2
               id="app-sideover-title"
-              className={`${isOps ? 'text-xl sm:text-2xl' : 'text-lg'} font-black tracking-tight ${isDarkHeader ? 'text-white' : 'text-primary'}`}
+              className="text-xl font-black tracking-tight text-white sm:text-2xl"
             >
               {title}
             </h2>
             {subtitle ? (
-              <p className={`mt-1 font-mono text-xs break-all ${isDarkHeader ? 'text-white/85' : 'text-on-surface-variant'}`}>{subtitle}</p>
+              <p className="mt-1 break-all font-mono text-xs text-white/85">{subtitle}</p>
             ) : null}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={`shrink-0 rounded-sm p-2 ${
-              isDarkHeader
-                ? 'border border-white/25 text-white hover:bg-white/10'
-                : 'border border-surface-container-high text-on-surface-variant hover:bg-surface-container-low'
-            }`}
+            className="shrink-0 rounded-sm border border-white/25 p-2 text-white hover:bg-white/10"
             aria-label="Fechar"
           >
             <span className="material-symbols-outlined text-[22px] leading-none">close</span>
@@ -105,27 +89,27 @@ export function AppSideover({
         </div>
 
         {tabItems?.length ? (
-          <div
-            className={`shrink-0 flex gap-0 overflow-x-auto border-b px-2 no-scrollbar ${
-              isDarkHeader ? 'border-surface-container-high bg-slate-50/90' : 'border-surface-container-high'
-            }`}
-          >
-            {tabItems.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setActiveTab(t.id)}
-                className={`shrink-0 border-b-[3px] px-3 py-2.5 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                  activeTab === t.id ? 'border-tertiary text-primary' : 'border-transparent text-on-surface-variant hover:text-primary'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="shrink-0 border-b border-slate-200/90 bg-white px-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+            <div className="flex gap-0 overflow-x-auto no-scrollbar">
+              {tabItems.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  className={`shrink-0 border-b-[3px] px-5 py-3.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                    activeTab === t.id
+                      ? 'border-emerald-600 text-slate-900'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
 
-        <div className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
+        <div className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
           {tabItems?.length ? active?.content : children}
         </div>
       </div>

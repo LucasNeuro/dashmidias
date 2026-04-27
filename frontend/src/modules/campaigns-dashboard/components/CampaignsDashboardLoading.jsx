@@ -10,7 +10,7 @@ export function CampaignsDashboardLoading() {
     >
       <div className="h-10 w-10 rounded-full border-2 border-slate-200 border-t-tertiary animate-spin" aria-hidden />
       <div className="max-w-md text-center space-y-2">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary">A carregar o painel</p>
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-primary">Carregando o painel</p>
         <p className="text-sm text-on-surface-variant leading-relaxed">
           A sincronizar o relatório e as campanhas. O menu lateral continua disponível.
         </p>

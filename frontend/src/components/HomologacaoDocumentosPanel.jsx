@@ -9,7 +9,7 @@ import { rpcPublicHomologacaoListDocuments } from '../lib/hubPartnerOrgPublic';
 import { HomologacaoMediaViewerModal } from './HomologacaoMediaViewerModal';
 
 function formatOrigem(o) {
-  if (o === 'hub') return 'Equipa HUB';
+  if (o === 'hub') return 'Equipe HUB';
   if (o === 'parceiro') return 'Parceiro';
   return String(o || '—');
 }
@@ -65,7 +65,7 @@ export function HomologacaoDocumentosPanel({ supabase, refKey, cacheQueryId = nu
       {q.isFetching && !q.data?.length ? (
         <p className="flex items-center justify-center gap-2 py-10 text-xs text-on-surface-variant">
           <span className="material-symbols-outlined animate-pulse text-[18px]">progress_activity</span>
-          A carregar documentos…
+          Carregando documentos…
         </p>
       ) : null}
 
@@ -173,7 +173,7 @@ function HomologacaoDocCard({ supabase, doc }) {
           </button>
         ) : signErr ? (
           <p className="text-[10px] text-amber-800" title={signErr}>
-            Não foi possível abrir a pré-visualização. Tente mais tarde ou contacte o suporte.
+            Não foi possível abrir a pré-visualização. Tente mais tarde ou entre em contato com o suporte.
           </p>
         ) : (
           <p className="text-[10px] text-on-surface-variant">A preparar ligação…</p>

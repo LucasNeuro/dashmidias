@@ -182,7 +182,7 @@ export function HomologacaoChatThread({
         >
           {errMsg}
           {/function public\.hub_public_homologacao_list_messages|schema cache|Could not find/i.test(errMsg) ? (
-            <p className="mt-1 text-on-surface-variant">O chat ainda não está disponível no servidor. Contacte o suporte se precisar de ajuda.</p>
+            <p className="mt-1 text-on-surface-variant">O chat ainda não está disponível no servidor. Entre em contato com o suporte se precisar de ajuda.</p>
           ) : null}
         </div>
       ) : null}
@@ -194,7 +194,7 @@ export function HomologacaoChatThread({
         {listQuery.isFetching && !listQuery.data?.length ? (
           <p className="flex items-center justify-center gap-2 py-8 text-center text-xs text-on-surface-variant">
             <span className="material-symbols-outlined animate-pulse text-[18px] text-tertiary">progress_activity</span>
-            A carregar mensagens…
+            Carregando mensagens…
           </p>
         ) : null}
         {!listQuery.isFetching && listQuery.data?.length === 0 ? (
@@ -205,14 +205,14 @@ export function HomologacaoChatThread({
             <p className="max-w-xs text-sm leading-relaxed text-on-surface-variant">
               {mode === 'hub'
                 ? 'Ainda sem mensagens. Escreva ao parceiro quando faltar documentação ou esclarecimentos.'
-                : 'Ainda sem mensagens. A equipa Obra10+ responde aqui durante a homologação.'}
+                : 'Ainda sem mensagens. A equipe Obra10+ responde aqui durante a homologação.'}
             </p>
           </div>
         ) : null}
         {(listQuery.data || []).map((m) => {
           const isHub = m.direcao === 'hub';
           const outgoing = mode === 'public' ? !isHub : isHub;
-          const roleLabel = isHub ? 'Equipa Obra10+' : mode === 'hub' ? 'Parceiro' : 'Você';
+          const roleLabel = isHub ? 'Equipe Obra10+' : mode === 'hub' ? 'Parceiro' : 'Você';
           const anexos = Array.isArray(m.anexos) ? m.anexos : [];
           const hidePlaceholder =
             String(m.corpo || '').trim() === 'Documento anexado.' && anexos.length > 0;

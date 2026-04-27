@@ -12,3 +12,23 @@ export function registrationTemplateDetailQueryKey(tplId) {
 export function hubStandardCatalogQueryKey(scope, userId) {
   return ['hub_standard_catalog', scope, userId ?? null];
 }
+
+/** Segmentos públicos de lead (hub_lead_segment). */
+export function leadSegmentsPublicQueryKey() {
+  return ['hub_lead_segment', 'public_active'];
+}
+
+/** @param {string | null | undefined} flowSlug */
+export function masterFlowPublicQueryKey(flowSlug) {
+  return ['hub_registration_master_flow', 'public', flowSlug ?? null];
+}
+
+/** Admin: todos os fluxos. */
+export function masterFlowsAdminQueryKey() {
+  return ['hub_registration_master_flow', 'admin', 'list'];
+}
+
+/** @param {string | null | undefined} masterFlowId */
+export function masterFlowStepsAdminQueryKey(masterFlowId) {
+  return ['hub_registration_master_flow_step', 'admin', masterFlowId ?? null];
+}

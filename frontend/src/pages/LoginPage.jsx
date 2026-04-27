@@ -59,7 +59,7 @@ export function LoginPage() {
           <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 mb-1">Plataforma Obra10+</p>
           <h2 className="text-2xl font-black text-primary tracking-tight">Acesso ao painel</h2>
           <p className="mt-2 text-sm text-on-surface-variant leading-snug">
-            Utilize o seu e-mail e senha. O destino após entrar (HUB, participante ou pendente de aprovação) é
+            Use seu e-mail e senha. O destino após entrar (HUB, participante ou pendente de aprovação) é
             definido automaticamente conforme o seu perfil.
           </p>
         </div>

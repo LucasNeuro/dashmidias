@@ -16,6 +16,7 @@ description: Antes de implementar ou alterar o projeto dashmidias, orienta a ler
 2. **Inspecionar o código existente** (`grep`, `SemanticSearch`, abrir ficheiros já usados no mesmo domínio): imports, convenções de pastas, hooks, contextos, estilos (`index.css` / tokens `@theme`).
 3. **Escolher a solução mais viável**: reutilizar o que já existe; alinhar com `MKDS.md` e com formulários/layout já usados (ex.: login, `AuthSplitLayout`, `border-2 border-primary`).
 4. **Só depois** escrever ou alterar código. Evitar escopos largos não pedidos.
+5. **Após** entregável: seguir a skill `projeto-tasks-dashmidias` e **atualizar** [TASKS.md](../../../docs/TASKS.md) (tabela Concluído e linha no Histórico, quando fizer sentido), salvo o utilizador proibir o registo.
 
 ## Índice rápido de `docs/`
 
@@ -32,6 +33,7 @@ description: Antes de implementar ou alterar o projeto dashmidias, orienta a ler
 | `docs/CRM_*.md` | CRM, mapa comercial, templates Hub (abrir o ficheiro concreto no repo) |
 | [FLUXO_INICIO_DESENVOLVIMENTO.md](../../../docs/FLUXO_INICIO_DESENVOLVIMENTO.md) | Arranque de dev |
 | [TASKS.md](../../../docs/TASKS.md) | Registo de tarefas concluídas, em curso e backlog (atualizar com a skill `projeto-tasks-dashmidias`) |
+| [INTEGRACAO_MAKE_MCP_E_TASKS.md](../../../docs/INTEGRACAO_MAKE_MCP_E_TASKS.md) | Make MCP + Cursor e alternativa por webhook/CI; opcional após `TASKS.md` |
 
 Se a tarefa for **só governança HUB** (`/adm`, filas admin), usar em conjunto com a skill `hub-governanca-obra10`.
 

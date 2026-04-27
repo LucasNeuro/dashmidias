@@ -74,11 +74,11 @@ const MERCADO_OVERVIEW = {
   arquitetura: {
     title: 'Arquitetura',
     description:
-      'Visão geral do ecossistema de escritórios e projectos no HUB — volume de organizações, pipeline e oportunidades ligadas a arquitectura.',
+      'Visão geral do ecossistema de escritórios e projetos no HUB — volume de organizações, pipeline e oportunidades ligadas à arquitetura.',
     icon: 'architecture',
     kpis: [
       { label: 'Organizações (segmento)', footer: 'Consolidado no HUB quando os dados estiverem ligados.' },
-      { label: 'Projectos activos', footer: '—' },
+      { label: 'Projetos ativos', footer: '—' },
       { label: 'Pipeline qualificado', footer: '—' },
       { label: 'Actividade (30 dias)', footer: '—' },
     ],
@@ -100,7 +100,7 @@ const MERCADO_OVERVIEW = {
       'Prestação de serviços em obra e pós-obra no HUB — contratos, execução, homologações e capacidade operacional.',
     icon: 'design_services',
     kpis: [
-      { label: 'Contratos / OS activos', footer: '—' },
+      { label: 'Contratos / OS ativos', footer: '—' },
       { label: 'Prestadores alocados', footer: '—' },
       { label: 'Cumprimento de prazo', footer: '—' },
       { label: 'Satisfação / retrabalho', footer: '—' },
@@ -520,7 +520,7 @@ export function CampaignsDashboardPage() {
   const usePlatformShell = isSupabaseConfigured();
   const showAsPlatformOwner = isHubOwner || isPlatformOwner;
   const shellSubtitle = loading
-    ? 'A carregar indicadores…'
+    ? 'Carregando indicadores…'
     : showAsPlatformOwner
       ? 'Painel HUB — Imóveis, Arquitetura, Produtos e Serviços; em «Desempenho do HUB», campanhas Meta/Google e funil (dono da plataforma ou owner).'
       : 'Painel HUB — resumo por mercado (Imóveis, Arquitetura, Produtos, Serviços) e, em «Desempenho do HUB», o painel operacional de mídia.';
@@ -633,7 +633,7 @@ export function CampaignsDashboardPage() {
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nome, ID ou canal"
+              placeholder="Pesquisar por nome, ID ou canal"
               className="md:col-span-2 bg-surface border border-outline-variant px-3 py-2 text-sm"
             />
             <select
@@ -733,7 +733,7 @@ export function CampaignsDashboardPage() {
                 footer={
                   <span className="flex items-center gap-2 text-on-surface-variant">
                     <span className="material-symbols-outlined text-sm">bolt</span>
-                    Exclui status pausada
+                    Exclui status pausado
                   </span>
                 }
               />

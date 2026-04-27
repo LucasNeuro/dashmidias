@@ -280,7 +280,7 @@ export async function listHubRegistrationTemplates(supabase) {
 }
 
 /**
- * Convite público ou utilizador: carrega template por id (RLS: convite ativo, ou autenticado e admin, etc.).
+ * Convite público ou usuário: carrega template por id (RLS: convite ativo, ou autenticado e admin, etc.).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} id
  * @returns {Promise<import('./registrationFormTemplates').RegistrationFormTemplate | null>}

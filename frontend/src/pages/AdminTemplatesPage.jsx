@@ -4,6 +4,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../context/AuthContext';
 import { useUiFeedback } from '../context/UiFeedbackContext';
 import { EntityDataTable } from '../components/EntityDataTable';
+import { HubButton } from '../components/HubButton';
 import { RegistrationTemplateSideover } from '../components/governance/RegistrationTemplateSideover';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
@@ -34,10 +35,10 @@ function friendlyDataError(err) {
     return 'Não foi possível concluir a operação: falha de permissões na base (admin HUB). Peça a um administrador a rever as regras de acesso na consola e tentar de novo.';
   }
   if (low.includes('relationship') && low.includes('schema')) {
-    return 'A base de dados ainda não tem a mesma versão do sistema. Peça a um administrador a aplicar as actualizações de estrutura e a tentar de novo.';
+    return 'A base de dados ainda não tem a mesma versão do sistema. Peça a um administrador para aplicar as atualizações de estrutura e tentar de novo.';
   }
   if (low.includes('does not exist') && low.includes('column')) {
-    return 'A estrutura da base não corresponde a esta versão da aplicação. Peça a um administrador a alinhar o schema ou a actualizar o front.';
+    return 'A estrutura da base não corresponde a esta versão da aplicação. Peça a um administrador para alinhar o schema ou atualizar o front.';
   }
   return m.length > 200 ? `${m.slice(0, 200)}…` : m;
 }
@@ -108,13 +109,13 @@ export function AdminTemplatesPage() {
     try {
       await upsertRegistrationTemplate(supabase, next, userId, isNew);
       await queryClient.invalidateQueries({ queryKey: qk(userId) });
-      toast(isNew ? 'Template criado e lista actualizada.' : 'Alterações guardadas; lista sincronizada.', {
+      toast(isNew ? 'Template criado e lista atualizada.' : 'Alterações salvas; lista sincronizada.', {
         variant: 'success',
         duration: 4500,
       });
       setSideOpen(false);
     } catch (e) {
-      await alert(friendlyDataError(e) || 'Não foi possível guardar.', { title: 'Erro' });
+      await alert(friendlyDataError(e) || 'Não foi possível salvar.', { title: 'Erro' });
     } finally {
       setSaving(false);
     }
@@ -132,7 +133,7 @@ export function AdminTemplatesPage() {
       try {
         await deleteRegistrationTemplate(supabase, id);
         await queryClient.invalidateQueries({ queryKey: qk(userId) });
-        toast('Template excluído. A tabela foi actualizada.', { variant: 'success', duration: 4500 });
+        toast('Template excluído. A tabela foi atualizada.', { variant: 'success', duration: 4500 });
       } catch (e) {
         await alert(friendlyDataError(e) || 'Falha ao excluir.', { title: 'Erro' });
       } finally {
@@ -257,34 +258,35 @@ export function AdminTemplatesPage() {
         header: '',
         cell: (info) => (
           <div className="flex flex-wrap justify-end gap-1">
-            <button
-              type="button"
+            <HubButton
+              variant="tableSecondary"
+              icon="edit"
+              iconClassName="text-[16px]"
               onClick={() => openEdit(info.row.original)}
               disabled={saving}
-              className="rounded-sm border border-surface-container-high px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary hover:bg-slate-50 disabled:opacity-50"
             >
               Editar
-            </button>
-            <button
-              type="button"
+            </HubButton>
+            <HubButton
+              variant="tableSecondary"
+              icon="content_copy"
+              iconClassName="text-[16px]"
               title={info.row.original.inviteLinkEnabled === false ? 'Ative o convite no editor para copiar' : 'Copiar link'}
               onClick={() => copyInviteLink(info.row.original)}
-              className={`rounded-sm border px-2 py-1 text-[10px] font-black uppercase tracking-wider hover:bg-slate-50 ${
-                info.row.original.inviteLinkEnabled === false
-                  ? 'border-slate-200 text-slate-400'
-                  : 'border-surface-container-high text-on-surface-variant'
-              }`}
+              disabled={info.row.original.inviteLinkEnabled === false}
+              className={info.row.original.inviteLinkEnabled === false ? 'opacity-50' : ''}
             >
               Link
-            </button>
-            <button
-              type="button"
+            </HubButton>
+            <HubButton
+              variant="danger"
+              icon="delete"
+              iconClassName="text-[16px]"
               onClick={() => void remove(info.row.original.id)}
               disabled={saving}
-              className="rounded-sm border border-red-200 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-red-800 hover:bg-red-50 disabled:opacity-50"
             >
               Excluir
-            </button>
+            </HubButton>
           </div>
         ),
       }),
@@ -306,15 +308,9 @@ export function AdminTemplatesPage() {
         <div className="min-w-0">
           <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Templates de cadastro</h1>
         </div>
-        <button
-          type="button"
-          onClick={openNew}
-          disabled={!listEnabled || isLoading}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-[#0f2840] disabled:opacity-50"
-        >
-          <span className="material-symbols-outlined text-[20px]">add</span>
+        <HubButton variant="primary" icon="add" onClick={openNew} disabled={!listEnabled || isLoading}>
           Novo template
-        </button>
+        </HubButton>
       </div>
 
       <div className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
@@ -324,11 +320,11 @@ export function AdminTemplatesPage() {
               <span className="material-symbols-outlined text-[18px] animate-pulse" aria-hidden>
                 sync
               </span>
-              A actualizar dados…
+              Atualizando dados…
             </p>
           ) : null}
           {isLoading && listEnabled ? (
-            <p className="text-sm text-on-surface-variant">A carregar…</p>
+            <p className="text-sm text-on-surface-variant">Carregando…</p>
           ) : (
             <EntityDataTable
               data={templates}

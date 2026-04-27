@@ -13,7 +13,7 @@ const IMOBILIARIOS_KIND = 'imobiliarios';
 
 const LS_KEY = 'hub_registration_form_templates_v1';
 
-/** Chave localStorage por utilizador (admin); convites públicos leem `loadTemplatesMerged`. */
+/** Chave localStorage por usuário (admin); convites públicos leem `loadTemplatesMerged`. */
 export function templatesStorageKey(userId) {
   if (!userId) return LS_KEY;
   return `${LS_KEY}__${userId}`;
@@ -143,7 +143,7 @@ export function ensureExtraFieldKey(key, catalog = null) {
 
 /**
  * Gera `key` a partir do rótulo, garantindo unicidade no array (campo_2, campo_3…).
- * Não exige edição manual — o utilizador só define o rótulo.
+ * Não exige edição manual — o usuário só define o rótulo.
  * @param {TemplateField[]} fields
  * @param {{ sections?: unknown[], fields?: unknown[] } | null} [catalog]
  */
@@ -163,11 +163,11 @@ export function assignStableKeysFromLabels(fields, catalog = null) {
 }
 
 /**
- * `field_key` para um novo `hub_standard_field`: mesma regra que campos extras (slug do rótulo, chaves reservadas, único na secção).
+ * `field_key` para um novo `hub_standard_field`: mesma regra que campos extras (slug do rótulo, chaves reservadas, único na seção).
  * @param {string} label
  * @param {string} sectionId
  * @param {{ sections?: unknown[], fields?: unknown[] } | null} [catalog]
- * @param {string | null} [excludeFieldId] em edições futuras — ignorar o próprio registo
+ * @param {string | null} [excludeFieldId] em edições futuras — ignorar o próprio registro
  */
 export function standardCatalogFieldKeyFromLabel(label, sectionId, catalog = null, excludeFieldId = null) {
   const sid = String(sectionId || '');
@@ -262,7 +262,7 @@ export function slugKeyFromLabel(label) {
 }
 
 /**
- * Lista de templates do utilizador atual (admin).
+ * Lista de templates do usuário atual (admin).
  * @param {string | null | undefined} userId id Supabase auth.users
  */
 export function loadTemplates(userId) {

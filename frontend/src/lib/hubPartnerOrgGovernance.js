@@ -45,7 +45,7 @@ export async function rpcClaimOrgInvite(supabase, token) {
 }
 
 /**
- * Resposta da equipa HUB no chat de homologação (sessão admin).
+ * Resposta da equipe HUB no chat de homologação (sessão admin).
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} signupId — UUID do pedido em hub_partner_org_signups
  * @param {string} corpo
@@ -66,7 +66,7 @@ export async function rpcHubAdminSetSignupWorkflowEtapa(supabase, signupId, etap
   if (raw.ok === false) {
     return {
       ok: false,
-      error: [raw.error, raw.detail].filter(Boolean).join(': ') || 'Falha ao actualizar etapa',
+      error: [raw.error, raw.detail].filter(Boolean).join(': ') || 'Falha ao atualizar etapa',
     };
   }
   return { ok: true, raw: data };

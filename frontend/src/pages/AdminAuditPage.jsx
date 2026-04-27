@@ -4,6 +4,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { AuditAccessLogSideover } from '../components/audit/AuditAccessLogSideover';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { EntityDataTable } from '../components/EntityDataTable';
+import { HubButton, hubButtonClass } from '../components/HubButton';
 import { useAuth } from '../context/AuthContext';
 import { getAuditRouteKind } from '../lib/auditRouteKind';
 import {
@@ -155,13 +156,14 @@ export function AdminAuditPage() {
         id: 'actions',
         header: 'Ações',
         cell: ({ row }) => (
-          <button
-            type="button"
+          <HubButton
+            variant="tableSecondary"
+            icon="visibility"
+            iconClassName="text-[16px]"
             onClick={() => setPanel({ open: true, row: row.original })}
-            className="rounded-lg bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary hover:text-white"
           >
             Ver
-          </button>
+          </HubButton>
         ),
       }),
     ];
@@ -170,9 +172,9 @@ export function AdminAuditPage() {
   const logRow = panel.open ? panel.row : null;
 
   const rangeBtns = [
-    { id: 'all', label: 'Tudo' },
-    { id: 'today', label: 'Hoje' },
-    { id: 'week', label: '7 dias' },
+    { id: 'all', label: 'Tudo', icon: 'all_inclusive' },
+    { id: 'today', label: 'Hoje', icon: 'today' },
+    { id: 'week', label: '7 dias', icon: 'date_range' },
   ];
 
   const pageCount = totalCount === 0 ? 1 : Math.ceil(totalCount / PAGE_SIZE);
@@ -193,12 +195,11 @@ export function AdminAuditPage() {
                   type="button"
                   onClick={() => setRange(b.id)}
                   disabled={showInitialSkeleton}
-                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 sm:px-3 ${
-                    range === b.id
-                      ? 'bg-primary text-white shadow-sm shadow-primary/25'
-                      : 'bg-slate-100 text-primary hover:bg-slate-200/90'
-                  }`}
+                  className={`${range === b.id ? hubButtonClass.tablePrimary : hubButtonClass.tableSecondary} gap-1.5 sm:px-3 disabled:opacity-50`}
                 >
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden>
+                    {b.icon}
+                  </span>
                   {b.label}
                 </button>
               ))}
@@ -232,7 +233,7 @@ export function AdminAuditPage() {
                 }
               />
               <DashboardMetricCard
-                label="Utilizadores"
+                label="Usuários"
                 value={auditMetrics.uniqueUsers}
                 surface="whiteMedia"
                 footer={
@@ -288,7 +289,7 @@ export function AdminAuditPage() {
               data={logsForTable}
               columns={logColumns}
               getRowId={(r) => r.id}
-              searchPlaceholder="Buscar por rota, e-mail ou user-agent…"
+              searchPlaceholder="Pesquisar por rota, e-mail ou user-agent…"
               pageSize={PAGE_SIZE}
               emptyLabel="Nenhum registro."
               serverPagination

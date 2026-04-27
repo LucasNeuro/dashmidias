@@ -80,11 +80,11 @@ function mapHubSubmitError(code, detail) {
       return 'Dados do formulário em falta.';
     case 'duplicate_document':
     case 'duplicate_pending_signup':
-      return 'Este CNPJ ou CPF já está cadastrado ou em análise no HUB. Utilize o código ORG ou contacte o suporte.';
+      return 'Este CNPJ ou CPF já está cadastrado ou em análise no HUB. Use o código ORG ou entre em contato com o suporte.';
     case 'duplicate_codigo':
       return 'Conflito ao gerar código de rastreio. Tente novamente.';
     case 'sql_error':
-      return detail ? `Erro ao guardar: ${detail}` : 'Erro ao guardar o pedido.';
+      return detail ? `Erro ao salvar: ${detail}` : 'Erro ao salvar o pedido.';
     default:
       return 'Não foi possível registar o pedido.';
   }

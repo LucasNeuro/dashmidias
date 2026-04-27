@@ -117,7 +117,7 @@ export function resolveConsultaFonteLabel(dbVal, rawSnap) {
   if (direct !== '—') return direct;
   const { inferredFonte } = normalizeHubCnpjSnapshotInput(rawSnap);
   if (inferredFonte) return labelConsultaFonte(inferredFonte);
-  return 'Não registada';
+  return 'Não registrada';
 }
 
 /**

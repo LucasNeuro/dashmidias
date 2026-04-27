@@ -58,7 +58,7 @@ export function AuditAccessLogSideover({ open, onClose, log, emailById, roleById
     <AppSideover
       open={open && !!log}
       onClose={onClose}
-      variant="governance"
+      eyebrow="Auditoria"
       title="Registro de acesso"
       subtitle={log?.path || '—'}
       tabItems={tabItems}

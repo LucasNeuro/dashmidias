@@ -4,7 +4,7 @@ import { rpcHubAdminSetSignupWorkflowEtapa } from '../lib/hubPartnerOrgGovernanc
 const COLS = [
   { id: 'pendente', label: 'Pendente', hint: 'Fila inicial' },
   { id: 'aguardando_retorno', label: 'Aguardando retorno', hint: 'À espera do parceiro ou documentos' },
-  { id: 'em_analise', label: 'Em análise', hint: 'Análise pela equipa Obra10+' },
+  { id: 'em_analise', label: 'Em análise', hint: 'Análise pela equipe Obra10+' },
   { id: 'aprovado', label: 'Aprovado', hint: 'Pronto para formalizar (provisionar)' },
 ];
 
@@ -43,12 +43,12 @@ export function HomologacaoWorkflowKanban({ supabase, signupId, status, workflow
       try {
         const r = await rpcHubAdminSetSignupWorkflowEtapa(supabase, signupId, etapa);
         if (!r.ok) {
-          setErr(r.error || 'Não foi possível actualizar a etapa.');
+          setErr(r.error || 'Não foi possível atualizar a etapa.');
           return;
         }
         onUpdated?.();
       } catch (e) {
-        setErr(e instanceof Error ? e.message : 'Erro ao actualizar.');
+        setErr(e instanceof Error ? e.message : 'Erro ao atualizar.');
       } finally {
         setBusy(false);
       }

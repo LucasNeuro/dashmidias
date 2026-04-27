@@ -101,7 +101,7 @@ export function OrgInviteAcceptPage() {
                 <p className="font-mono text-xs text-slate-600">Código interno: {String(preview.codigo_rastreio)}</p>
               ) : null}
               <p className="text-xs text-on-surface-variant">
-                Convite enviado para <strong>{String(preview.email_convite || '')}</strong>. O utilizador autenticado deve usar o{' '}
+                Convite enviado para <strong>{String(preview.email_convite || '')}</strong>. O usuário autenticado deve usar o{' '}
                 <strong>mesmo e-mail</strong>.
               </p>
             </div>

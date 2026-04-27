@@ -41,10 +41,10 @@ async function insertPartnerOrgSignupDirect(sb, { email, doc, raw, meta }) {
       return {
         ok: false,
         error:
-          'Este CNPJ ou CPF já está cadastrado ou em análise no HUB. Utilize o código ORG ou contacte o suporte.',
+          'Este CNPJ ou CPF já está cadastrado ou em análise no HUB. Use o código ORG ou entre em contato com o suporte.',
       };
     }
-    return { ok: false, error: msg || 'Não foi possível guardar o cadastro.' };
+    return { ok: false, error: msg || 'Não foi possível salvar o cadastro.' };
   }
   return { ok: true, legacyInsert: true };
 }

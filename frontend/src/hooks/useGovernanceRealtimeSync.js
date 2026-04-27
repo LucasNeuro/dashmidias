@@ -40,7 +40,7 @@ export function useGovernanceRealtimeSync({ supabase, enabled }) {
   const scheduleFeedback = useCallback(() => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => {
-      toast('Dados actualizados em tempo real.', { variant: 'success', duration: 4200 });
+      toast('Dados atualizados em tempo real.', { variant: 'success', duration: 4200 });
     }, 500);
   }, [toast]);
 
