@@ -3,6 +3,8 @@ import { formatAuthError } from '../lib/authErrors';
 import { getStoredPortal, isValidPortal, PORTAL_HUB, setStoredPortal } from '../lib/appPortal';
 import { isHubOwnerEmail } from '../lib/hubOwner';
 import { getPostLoginPath } from '../lib/postLoginPath';
+import { queryClient } from '../lib/queryClient';
+import { QUERY_CACHE_STORAGE_KEY } from '../lib/queryPersistConfig';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const AuthContext = createContext(null);
@@ -222,6 +224,12 @@ export function AuthProvider({ children }) {
         setProfile(null);
         setHubAdmin(false);
         setHubSolicitacaoPendente(false);
+        queryClient.clear();
+        try {
+          if (typeof window !== 'undefined') window.localStorage?.removeItem(QUERY_CACHE_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
       },
       async resetPasswordForEmail(email) {
         if (!supabase) throw new Error('Supabase não configurado');
