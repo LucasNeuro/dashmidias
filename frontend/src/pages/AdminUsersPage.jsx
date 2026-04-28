@@ -4,8 +4,10 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { EntityDataTable } from '../components/EntityDataTable';
 import { HubButton } from '../components/HubButton';
 import { AppSideover } from '../components/AppSideover';
+import { FormSideoverFooter } from '../components/FormSideoverFooter';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
+import { useUiFeedback } from '../context/UiFeedbackContext';
 import { fetchAdminUsersBundle, fetchHubSolicitacoesAprovadasRecentes } from '../lib/governanceQueries';
 import { GOV_SECTION_STORAGE, useGovSectionExpanded } from '../lib/govSectionExpand';
 import { getHubOwnerEmail } from '../lib/hubOwner';
@@ -13,6 +15,7 @@ import { AdminConfigurationsPage } from './AdminConfigurationsPage';
 
 export function AdminUsersPage() {
   const { supabase, session, isHubOwner } = useAuth();
+  const { toast, alert } = useUiFeedback();
   const queryClient = useQueryClient();
   const [busySolicId, setBusySolicId] = useState(null);
   const [panel, setPanel] = useState({ open: false, kind: null, row: null });
@@ -42,12 +45,10 @@ export function AdminUsersPage() {
   const solicitacoes = usersQuery.data?.solicitacoes ?? [];
   const loading = usersQuery.isPending && usersQuery.data === undefined;
   const err = usersQuery.isError ? String(usersQuery.error?.message ?? usersQuery.error) : null;
-  const [solicActionErr, setSolicActionErr] = useState(null);
 
   async function resolverSolicitacao(id, status) {
     if (!supabase || !session?.user?.id) return;
     setBusySolicId(id);
-    setSolicActionErr(null);
     try {
       const { error } = await supabase
         .from('hub_solicitacoes_admin')
@@ -66,8 +67,9 @@ export function AdminUsersPage() {
           ? { ...p, row: { ...p.row, status, resolvido_em: new Date().toISOString() } }
           : p
       );
+      toast(status === 'aprovado' ? 'Solicitação aprovada.' : 'Solicitação rejeitada.', { variant: 'success' });
     } catch (e) {
-      setSolicActionErr(e?.message || 'Erro ao atualizar');
+      await alert(String(e?.message || e), { title: 'Erro ao atualizar solicitação' });
     } finally {
       setBusySolicId(null);
     }
@@ -146,9 +148,9 @@ export function AdminUsersPage() {
   return (
     <>
       <div className="w-full min-w-0 space-y-6">
-        {(err || solicActionErr) && (
+        {err && (
           <p className="text-sm font-semibold text-red-600" role="alert">
-            {err || solicActionErr}
+            {err}
           </p>
         )}
         {loading ? <p className="text-sm text-on-surface-variant">Carregando dados de usuários…</p> : null}
@@ -215,7 +217,8 @@ export function AdminUsersPage() {
                         expand_more
                       </span>
                       <span className="min-w-0 flex-1">
-                        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-tertiary">Fila</p>
+                        <h2 className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700">
                           Solicitações — acesso administrativo HUB
                         </h2>
                       </span>
@@ -271,6 +274,46 @@ export function AdminUsersPage() {
         eyebrow="Controles e acessos"
         title="Solicitação HUB"
         subtitle={solicRow?.email}
+        bodyClassName="p-4 sm:p-5 bg-slate-50"
+        footer={
+          solicRow ? (
+            <FormSideoverFooter>
+              <HubButton
+                variant="secondary"
+                icon="close"
+                onClick={() => setPanel({ open: false, kind: null, row: null })}
+                disabled={busySolicId === solicRow.id}
+                className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+              >
+                Fechar
+              </HubButton>
+              {solicRow.status === 'pendente' ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <HubButton
+                    variant="secondary"
+                    icon="cancel"
+                    disabled={busySolicId === solicRow.id}
+                    onClick={() => void resolverSolicitacao(solicRow.id, 'rejeitado')}
+                    className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  >
+                    {busySolicId === solicRow.id ? 'A processar…' : 'Rejeitar'}
+                  </HubButton>
+                  <HubButton
+                    variant="primary"
+                    icon="check_circle"
+                    disabled={busySolicId === solicRow.id}
+                    onClick={() => void resolverSolicitacao(solicRow.id, 'aprovado')}
+                    className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  >
+                    {busySolicId === solicRow.id ? 'A processar…' : 'Aprovar'}
+                  </HubButton>
+                </div>
+              ) : (
+                <span className="hidden min-[480px]:block" aria-hidden />
+              )}
+            </FormSideoverFooter>
+          ) : null
+        }
         tabItems={
           solicRow
             ? [
@@ -310,28 +353,11 @@ export function AdminUsersPage() {
                   id: 'dec',
                   label: 'Decisão',
                   content: (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {solicRow.status === 'pendente' ? (
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                          <HubButton
-                            variant="primary"
-                            icon="check_circle"
-                            disabled={busySolicId === solicRow.id}
-                            onClick={() => resolverSolicitacao(solicRow.id, 'aprovado')}
-                            className="!text-xs !tracking-wide"
-                          >
-                            Aprovar
-                          </HubButton>
-                          <HubButton
-                            variant="secondary"
-                            icon="cancel"
-                            disabled={busySolicId === solicRow.id}
-                            onClick={() => resolverSolicitacao(solicRow.id, 'rejeitado')}
-                            className="!text-xs !tracking-wide"
-                          >
-                            Rejeitar
-                          </HubButton>
-                        </div>
+                        <p className="text-sm leading-relaxed text-on-surface-variant">
+                          Confirme no rodapé: <strong className="text-slate-800">Rejeitar</strong> ou <strong className="text-slate-800">Aprovar</strong>. Esta ação regista quem resolveu e a data.
+                        </p>
                       ) : (
                         <p className="text-sm text-on-surface-variant">
                           Resolvido em{' '}
