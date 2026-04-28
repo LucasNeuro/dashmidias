@@ -138,8 +138,16 @@ export async function fetchAdminUsersBundle(supabase, loadSolicitacoes) {
   if (error) throw error;
   const profiles = data || [];
 
+  const { data: rolesData, error: rolesErr } = await supabase.rpc('hub_admin_list_users_with_roles');
+  if (rolesErr) throw rolesErr;
+  const rolesMap = new Map((rolesData || []).map((r) => [String(r.user_id), Array.isArray(r.role_names) ? r.role_names : []]));
+  const profilesWithHubRoles = profiles.map((p) => ({
+    ...p,
+    hub_role_names: rolesMap.get(String(p.id)) || [],
+  }));
+
   if (!loadSolicitacoes) {
-    return { profiles, solicitacoes: [] };
+    return { profiles: profilesWithHubRoles, solicitacoes: [] };
   }
 
   const { data: solData, error: solErr } = await supabase
@@ -148,5 +156,163 @@ export async function fetchAdminUsersBundle(supabase, loadSolicitacoes) {
     .order('criado_em', { ascending: false })
     .limit(200);
   if (solErr) throw solErr;
-  return { profiles, solicitacoes: solData || [] };
+  return { profiles: profilesWithHubRoles, solicitacoes: solData || [] };
+}
+
+/**
+ * Bundle de configuração de acessos HUB (cargos, permissões e vínculos).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ */
+export async function fetchHubAccessBundle(supabase) {
+  const [
+    { data: roles, error: rolesErr },
+    { data: perms, error: permsErr },
+    { data: rolePerms, error: rpErr },
+    { data: hubAdmins, error: haErr },
+    { data: userRoles, error: urErr },
+    { data: profiles, error: pErr },
+    { data: orgMembers, error: omErr },
+    { data: orgs, error: orgErr },
+    { data: roleTemplates, error: ptErr },
+  ] =
+    await Promise.all([
+      supabase.from('hub_admin_role').select('id, slug, nome, descricao, is_system, is_active, atualizado_em').order('nome', { ascending: true }),
+      supabase.from('hub_admin_permission').select('id, codigo, modulo, acao, descricao, is_active').order('modulo', { ascending: true }).order('acao', { ascending: true }),
+      supabase.from('hub_admin_role_permission').select('role_id, permission_id, allowed'),
+      supabase.from('hub_admins').select('user_id, ativo'),
+      supabase.from('hub_admin_user_role').select('user_id, role_id, is_active, atribuido_em, revogado_em'),
+      supabase.from('profiles').select('id, email, full_name').order('email', { ascending: true }),
+      supabase.from('organizacao_membros').select('id, organizacao_id, user_id, papel_id, papel_legacy, criado_em, ativo').order('criado_em', { ascending: false }).limit(5000),
+      supabase.from('organizacoes').select('id, nome, status').limit(2000),
+      supabase.from('papel_template').select('id, codigo, nome').limit(200),
+    ]);
+
+  if (rolesErr) throw rolesErr;
+  if (permsErr) throw permsErr;
+  if (rpErr) throw rpErr;
+  if (haErr) throw haErr;
+  if (urErr) throw urErr;
+  if (pErr) throw pErr;
+  if (omErr) throw omErr;
+  if (orgErr) throw orgErr;
+  if (ptErr) throw ptErr;
+
+  return {
+    roles: roles || [],
+    permissions: perms || [],
+    rolePermissions: rolePerms || [],
+    hubAdmins: hubAdmins || [],
+    userRoles: userRoles || [],
+    profiles: profiles || [],
+    orgMembers: orgMembers || [],
+    organizations: orgs || [],
+    roleTemplates: roleTemplates || [],
+  };
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ slug: string, nome: string, descricao?: string }} payload
+ */
+export async function createHubRole(supabase, payload) {
+  const { error } = await supabase.from('hub_admin_role').insert({
+    slug: payload.slug,
+    nome: payload.nome,
+    descricao: payload.descricao || null,
+    is_system: false,
+    is_active: true,
+  });
+  if (error) throw error;
+}
+
+/**
+ * Substitui permissões do cargo (whitelist).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} roleId
+ * @param {string[]} permissionIds
+ */
+export async function setHubRolePermissions(supabase, roleId, permissionIds) {
+  const { error: delErr } = await supabase.from('hub_admin_role_permission').delete().eq('role_id', roleId);
+  if (delErr) throw delErr;
+  if (!permissionIds.length) return;
+  const rows = permissionIds.map((pid) => ({ role_id: roleId, permission_id: pid, allowed: true }));
+  const { error: insErr } = await supabase.from('hub_admin_role_permission').insert(rows);
+  if (insErr) throw insErr;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ userId: string, roleId: string, actorUserId?: string | null }} p
+ */
+export async function assignHubRoleToUser(supabase, p) {
+  const { error } = await supabase.from('hub_admin_user_role').upsert(
+    {
+      user_id: p.userId,
+      role_id: p.roleId,
+      is_active: true,
+      revogado_em: null,
+      atribuido_em: new Date().toISOString(),
+      atribuido_por_user_id: p.actorUserId || null,
+    },
+    { onConflict: 'user_id,role_id' }
+  );
+  if (error) throw error;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ userId: string, roleId: string }} p
+ */
+export async function revokeHubRoleFromUser(supabase, p) {
+  const { error } = await supabase
+    .from('hub_admin_user_role')
+    .update({ is_active: false, revogado_em: new Date().toISOString() })
+    .eq('user_id', p.userId)
+    .eq('role_id', p.roleId);
+  if (error) throw error;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ userId: string, actorUserId?: string | null, roleId?: string | null }} p
+ */
+export async function createHubAdminUser(supabase, p) {
+  const { error: upErr } = await supabase.from('hub_admins').upsert(
+    {
+      user_id: p.userId,
+      ativo: true,
+      atualizado_em: new Date().toISOString(),
+      criado_por_user_id: p.actorUserId || null,
+    },
+    { onConflict: 'user_id' }
+  );
+  if (upErr) throw upErr;
+
+  if (p.roleId) {
+    await assignHubRoleToUser(supabase, { userId: p.userId, roleId: p.roleId, actorUserId: p.actorUserId || null });
+  }
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ userId: string, ativo: boolean }} p
+ */
+export async function setHubAdminActive(supabase, p) {
+  const { error } = await supabase
+    .from('hub_admins')
+    .update({ ativo: p.ativo, atualizado_em: new Date().toISOString() })
+    .eq('user_id', p.userId);
+  if (error) throw error;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ memberId: string, ativo: boolean }} p
+ */
+export async function setOrganizationMemberActive(supabase, p) {
+  const { error } = await supabase
+    .from('organizacao_membros')
+    .update({ ativo: p.ativo })
+    .eq('id', p.memberId);
+  if (error) throw error;
 }

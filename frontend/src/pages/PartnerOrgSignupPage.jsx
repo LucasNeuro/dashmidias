@@ -101,6 +101,15 @@ export function PartnerOrgSignupPage() {
     };
   }, [tplId, templateRowId, queryClient, toast]);
 
+  /** Modelos só de CRM/leads não usam este fluxo — o link público correto é /cadastro/captura */
+  useEffect(() => {
+    if (!tplId || templateQuery.isPending) return;
+    const t = templateQuery.data ?? null;
+    if (!t || t.templatePurpose !== 'lead_capture') return;
+    const q = new URLSearchParams(searchParams);
+    navigate(`/cadastro/captura?${q.toString()}`, { replace: true });
+  }, [tplId, templateQuery.isPending, templateQuery.data, navigate, searchParams]);
+
   const inviteBlocked = Boolean(template && template.inviteLinkEnabled === false);
   const showForm = !tplId || (loadStatus === 'ready' && template && !inviteBlocked);
   const showPaused = loadStatus === 'ready' && Boolean(template) && inviteBlocked;

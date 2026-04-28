@@ -1,4 +1,4 @@
--- RPC pública: registo de lead (cliente final) com segmento válido.
+-- RPC pública: registo de lead (cliente final); segmento opcional.
 
 create or replace function public.hub_submit_public_lead(
   p_segment_slug text,
@@ -17,18 +17,16 @@ set search_path = public
 set row_security = off
 as $$
 declare
-  v_seg text := lower(trim(coalesce(p_segment_slug, '')));
+  v_seg text := nullif(lower(trim(coalesce(p_segment_slug, ''))), '');
   v_nome text := trim(coalesce(p_nome, ''));
   v_email text := lower(trim(coalesce(p_email, '')));
   v_tel text := nullif(trim(coalesce(p_telefone, '')), '');
+  v_tel_digits text := regexp_replace(trim(coalesce(p_telefone, '')), '\D', '', 'g');
+  v_email_domain text := split_part(lower(trim(coalesce(p_email, ''))), '@', 2);
   v_cpf text := nullif(regexp_replace(trim(coalesce(p_cpf, '')), '\D', '', 'g'), '');
   v_id uuid;
 begin
-  if v_seg = '' then
-    return jsonb_build_object('ok', false, 'error', 'segment_required');
-  end if;
-
-  if not exists (
+  if v_seg is not null and not exists (
     select 1 from public.hub_lead_segment s where s.slug = v_seg and s.is_active = true
   ) then
     return jsonb_build_object('ok', false, 'error', 'invalid_segment');
@@ -38,8 +36,36 @@ begin
     return jsonb_build_object('ok', false, 'error', 'nome_invalid');
   end if;
 
-  if v_email = '' or position('@' in v_email) = 0 then
+  if v_email = '' or v_email !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
     return jsonb_build_object('ok', false, 'error', 'email_invalid');
+  end if;
+
+  if v_email_domain in (
+    'test.com',
+    'teste.com',
+    'fake.com',
+    'example.com',
+    'example.net',
+    'example.org',
+    'mailinator.com',
+    'mailinator.net',
+    'mailinator.org',
+    'yopmail.com',
+    'yopmail.net',
+    'yopmail.fr',
+    'tempmail.com',
+    'temp-mail.org',
+    'temp-mail.ru',
+    'guerrillamail.com',
+    'guerrillamail.net',
+    'guerrillamail.org',
+    '10minutemail.com'
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'email_disposable');
+  end if;
+
+  if v_tel is null or length(v_tel_digits) < 10 then
+    return jsonb_build_object('ok', false, 'error', 'telefone_invalid');
   end if;
 
   if v_cpf is not null and length(v_cpf) > 0 and length(v_cpf) <> 11 then
@@ -84,7 +110,7 @@ end;
 $$;
 
 comment on function public.hub_submit_public_lead(text, text, text, text, text, jsonb, text, text) is
-  'Cadastro público de lead (PF): valida segmento activo e insere hub_public_leads.';
+  'Cadastro público de lead (PF): segment_slug opcional (null se vazio); se preenchido, valida segmento activo.';
 
 revoke all on function public.hub_submit_public_lead(text, text, text, text, text, jsonb, text, text) from public;
 grant execute on function public.hub_submit_public_lead(text, text, text, text, text, jsonb, text, text) to anon, authenticated;

@@ -367,7 +367,7 @@ export function createLeadCaptureEmptyTemplate() {
     inviteSlug: '',
     standardFieldsDisabled: [],
     disabledBuiltinGroups: [],
-    signupSettings: { cnpjRequired: false, collectCpf: true, leadSegmentSlug: '' },
+    signupSettings: { cnpjRequired: false, collectCpf: false, leadSegmentSlug: '' },
     fields: [],
     createdAt: now,
     updatedAt: now,

@@ -9,6 +9,7 @@ import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
 import { fetchAdminUsersBundle } from '../lib/governanceQueries';
 import { getHubOwnerEmail } from '../lib/hubOwner';
+import { AdminConfigurationsPage } from './AdminConfigurationsPage';
 
 export function AdminUsersPage() {
   const { supabase, session, isHubOwner } = useAuth();
@@ -33,6 +34,13 @@ export function AdminUsersPage() {
   const loading = usersQuery.isPending && usersQuery.data === undefined;
   const err = usersQuery.isError ? String(usersQuery.error?.message ?? usersQuery.error) : null;
   const [solicActionErr, setSolicActionErr] = useState(null);
+
+  function openAccessCenter() {
+    setPanel({ open: false, kind: null, row: null });
+    window.requestAnimationFrame(() => {
+      document.getElementById('controles-acessos-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   async function resolverSolicitacao(id, status) {
     if (!supabase || !session?.user?.id) return;
@@ -163,6 +171,18 @@ export function AdminUsersPage() {
           </span>
         ),
       }),
+      h.accessor('hub_role_names', {
+        header: 'Cargos HUB',
+        cell: ({ getValue }) => {
+          const roles = Array.isArray(getValue()) ? getValue().filter(Boolean) : [];
+          if (!roles.length) return <span className="text-xs text-on-surface-variant">—</span>;
+          return (
+            <span className="text-xs text-on-surface-variant" title={roles.join(', ')}>
+              {roles.join(', ')}
+            </span>
+          );
+        },
+      }),
       h.accessor('updated_at', {
         header: 'Atualizado',
         cell: ({ getValue }) => (
@@ -281,13 +301,21 @@ export function AdminUsersPage() {
             ) : null}
           </div>
         </section>
+
+        <section id="controles-acessos-hub" className="space-y-3 rounded-sm border border-slate-200/80 bg-slate-50/40 p-2 sm:p-3">
+          <div className="px-2 pt-1">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Controles e acessos</h2>
+            <p className="mt-1 text-xs text-on-surface-variant">Gestão consolidada de cargos, permissões e vínculos dos admins HUB.</p>
+          </div>
+          <AdminConfigurationsPage />
+        </section>
       </div>
 
       <AppSideover
         key={solicRow?.id ?? 'solic'}
         open={panel.open && panel.kind === 'solic' && !!solicRow}
         onClose={() => setPanel({ open: false, kind: null, row: null })}
-        eyebrow="Controle de usuários"
+        eyebrow="Controles e acessos"
         title="Solicitação HUB"
         subtitle={solicRow?.email}
         tabItems={
@@ -369,7 +397,7 @@ export function AdminUsersPage() {
         key={profileRow?.id ?? 'profile'}
         open={panel.open && panel.kind === 'profile' && !!profileRow}
         onClose={() => setPanel({ open: false, kind: null, row: null })}
-        eyebrow="Controle de usuários"
+        eyebrow="Controles e acessos"
         title="Perfil"
         subtitle={profileRow?.email}
         tabItems={
@@ -397,6 +425,14 @@ export function AdminUsersPage() {
                         <dd className="mt-0.5">{profileRow.can_access_audit ? 'Sim' : 'Não'}</dd>
                       </div>
                       <div>
+                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">Cargos HUB</dt>
+                        <dd className="mt-0.5">
+                          {Array.isArray(profileRow.hub_role_names) && profileRow.hub_role_names.length
+                            ? profileRow.hub_role_names.join(', ')
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div>
                         <dt className="text-[10px] font-black uppercase text-on-surface-variant">Atualizado</dt>
                         <dd className="mt-0.5 font-mono text-xs">
                           {profileRow.updated_at ? new Date(profileRow.updated_at).toLocaleString('pt-BR') : '—'}
@@ -420,16 +456,16 @@ export function AdminUsersPage() {
                           </span>
                           Auditoria
                         </Link>
-                        <Link
-                          to="/adm/configuracoes"
-                          onClick={() => setPanel({ open: false, kind: null, row: null })}
-                          className={`${hubButtonClass.secondary} w-full justify-center no-underline`}
+                        <button
+                          type="button"
+                          onClick={openAccessCenter}
+                          className={`${hubButtonClass.secondary} w-full justify-center`}
                         >
                           <span className="material-symbols-outlined text-[20px]" aria-hidden>
                             settings
                           </span>
-                          Configurações
-                        </Link>
+                          Controles e acessos
+                        </button>
                     </div>
                   ),
                 },

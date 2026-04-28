@@ -387,7 +387,11 @@ export function RegistrationTemplateSideover({
                 disabled={suggestAiDisabled}
                 onClick={() => void handleSuggestDescription()}
                 className="absolute right-1 top-1/2 flex h-8 max-w-[calc(100%-0.5rem)] -translate-y-1/2 items-center gap-0.5 overflow-hidden rounded-md border-0 bg-violet-50/95 px-1.5 text-[10px] font-bold uppercase tracking-wide text-violet-900 shadow-none hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-45 sm:gap-1 sm:px-2.5 sm:text-[11px]"
-                title="Sugere título e descrição com base no ramo de parceiro (como em homologação), no segmento CRM se já escolhido, e no texto que escreveu aqui."
+                title={
+                  isLeadMode
+                    ? 'Sugere título e descrição com base no nome e no segmento CRM (se já escolher).'
+                    : 'Sugere título e descrição com base no tipo de parceiro, no segmento CRM se já escolhido, e no texto que escreveu aqui.'
+                }
               >
                 <span
                   className={`material-symbols-outlined shrink-0 text-[18px] sm:text-[19px] ${suggestDescBusy ? 'animate-spin' : ''}`}
@@ -407,11 +411,61 @@ export function RegistrationTemplateSideover({
             </div>
             <p id="template-name-ia-hint" className="mt-1 text-[11px] text-slate-400">
               {isLeadMode
-                ? 'A IA usa o ramo de parceiro abaixo (o mesmo conceito de Cadastro homologação), o segmento CRM se definido, e o que você escrever neste título.'
+                ? 'A IA usa o nome que escreveu e o segmento CRM quando já estiver definido abaixo.'
                 : 'A IA usa o tipo de parceiro deste modelo e o texto atual do nome.'}{' '}
               Revise sempre antes de salvar.
             </p>
           </label>
+          {isLeadMode ? (
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2.5 text-[11px] leading-snug text-slate-700">
+              <span className="font-semibold text-slate-900">No link público </span>
+              o visitante vê o título e a descrição deste modelo e preenche sempre{' '}
+              <strong>nome completo, e-mail e telefone</strong>. Na aba <strong>Perguntas</strong> define o que mais quiser (texto, listas,
+              anexos, etc.). Regras condicionais entre campos podem ser acrescentadas numa evolução do produto.
+            </div>
+          ) : null}
+          <div className="block">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Descrição</span>
+            <input
+              type="text"
+              value={draft.description}
+              maxLength={200}
+              onChange={(e) => onChangeDraft({ ...draft, description: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+              placeholder="Texto de ajuda no formulário público (opcional)"
+              aria-describedby="template-desc-hint"
+            />
+            <p id="template-desc-hint" className="mt-1 text-[11px] text-slate-400">
+              {draft.description?.length ?? 0}/200 · use <strong>Sugerir com IA</strong> no campo Nome do modelo para gerar título e texto de uma
+              vez
+            </p>
+          </div>
+          {isLeadMode ? (
+            <label className="block">
+              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Segmento no CRM (opcional)
+              </span>
+              <select
+                value={normalizeSignupOptions(draft.signupSettings).leadSegmentSlug}
+                onChange={(e) => {
+                  const su = normalizeSignupOptions(draft.signupSettings);
+                  onChangeDraft({ ...draft, signupSettings: { ...su, leadSegmentSlug: e.target.value } });
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+              >
+                <option value="">— Não classificar / escolher depois —</option>
+                {(segmentsQuery.data ?? []).map((s) => (
+                  <option key={s.slug} value={s.slug}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                Se escolher PARCEIRO, CLIENTE ou IMOVEL, os envios públicos gravam com essa etiqueta. Pode deixar em branco e classificar no CRM
+                depois.
+              </p>
+            </label>
+          ) : null}
           <label className="block">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Slug do link de convite (opcional)
@@ -429,86 +483,7 @@ export function RegistrationTemplateSideover({
               interno gerado pelo sistema.
             </p>
           </label>
-          <div className="block">
-            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Descrição</span>
-            <input
-              type="text"
-              value={draft.description}
-              maxLength={200}
-              onChange={(e) => onChangeDraft({ ...draft, description: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-              placeholder="Opcional"
-              aria-describedby="template-desc-hint"
-            />
-            <p id="template-desc-hint" className="mt-1 text-[11px] text-slate-400">
-              {draft.description?.length ?? 0}/200 · use <strong>Sugerir com IA</strong> no campo Nome do modelo para gerar título e texto de uma
-              vez
-            </p>
-          </div>
-          {isLeadMode ? (
-            <div>
-              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Ramo do parceiro</span>
-              <p className="mb-2 text-[11px] leading-snug text-slate-600">
-                Mesmas opções de <strong>Cadastro homologação</strong>. A sugestão por IA usa este ramo junto com o título que você escreveu
-                acima.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {HUB_PARTNER_KINDS.map((k) => {
-                  const active = normalizePartnerKindSlug(draft.partnerKind) === k.value;
-                  return (
-                    <button
-                      key={k.value}
-                      type="button"
-                      onClick={() =>
-                        onChangeDraft({
-                          ...draft,
-                          partnerKind: k.value,
-                          disabledBuiltinGroups: defaultDisabledBuiltinGroupsForPartnerKind(k.value),
-                        })
-                      }
-                      className={`rounded-xl border px-3 py-3 text-left transition-all ${
-                        active
-                          ? 'border-emerald-600 bg-emerald-50/90 shadow-sm ring-2 ring-emerald-600/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                      }`}
-                    >
-                      <span className="block text-sm font-semibold text-slate-900">{k.label}</span>
-                      {k.description ? (
-                        <span className="mt-1 block text-xs leading-snug text-slate-500">{k.description}</span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-          {isLeadMode ? (
-            <label className="block">
-              <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Segmento no CRM *
-              </span>
-              <select
-                value={normalizeSignupOptions(draft.signupSettings).leadSegmentSlug}
-                onChange={(e) => {
-                  const su = normalizeSignupOptions(draft.signupSettings);
-                  onChangeDraft({ ...draft, signupSettings: { ...su, leadSegmentSlug: e.target.value } });
-                }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-              >
-                <option value="">— Escolher segmento —</option>
-                {(segmentsQuery.data ?? []).map((s) => (
-                  <option key={s.slug} value={s.slug}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500">
-                Quem preencher o formulário público aparece nos seus contactos com esta etiqueta. Para criar ou ordenar segmentos, use a
-                página <strong>Cadastro</strong> (entrada pública) ou peça apoio à equipa técnica.
-              </p>
-            </label>
-          ) : null}
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3.5">
+          <div className={`space-y-3 rounded-xl border px-4 py-3.5 ${isLeadMode ? 'border-emerald-100 bg-emerald-50/35' : 'border-slate-200 bg-slate-50/90'}`}>
             {!isLeadMode ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
@@ -537,34 +512,34 @@ export function RegistrationTemplateSideover({
                 </button>
               </div>
             ) : null}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">Pedir CPF</p>
-                <p className="mt-0.5 text-xs text-slate-600">
-                  {isLeadMode
-                    ? 'Mostra o campo CPF no formulário público de captura.'
-                    : 'Mostra o campo CPF na etapa Empresa (validação com CNPJ conforme regras acima).'}
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={normalizeSignupOptions(draft.signupSettings).collectCpf}
-                onClick={() => {
-                  const su = normalizeSignupOptions(draft.signupSettings);
-                  onChangeDraft({ ...draft, signupSettings: { ...su, collectCpf: !su.collectCpf } });
-                }}
-                className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
-                  normalizeSignupOptions(draft.signupSettings).collectCpf ? 'bg-emerald-600' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                    normalizeSignupOptions(draft.signupSettings).collectCpf ? 'translate-x-5' : 'translate-x-0'
+            {!isLeadMode ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">Pedir CPF</p>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    Mostra o campo CPF na etapa Empresa (validação com CNPJ conforme regras acima).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={normalizeSignupOptions(draft.signupSettings).collectCpf}
+                  onClick={() => {
+                    const su = normalizeSignupOptions(draft.signupSettings);
+                    onChangeDraft({ ...draft, signupSettings: { ...su, collectCpf: !su.collectCpf } });
+                  }}
+                  className={`relative h-8 w-[52px] shrink-0 rounded-full transition-colors ${
+                    normalizeSignupOptions(draft.signupSettings).collectCpf ? 'bg-emerald-600' : 'bg-slate-300'
                   }`}
-                />
-              </button>
-            </div>
+                >
+                  <span
+                    className={`pointer-events-none absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                      normalizeSignupOptions(draft.signupSettings).collectCpf ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            ) : null}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-900">Convite por link</p>
@@ -645,7 +620,7 @@ export function RegistrationTemplateSideover({
           </p>
           <p className="text-xs text-slate-500">
             <Link to="/adm/catalogo-padrao" className="font-semibold text-primary underline-offset-2 hover:underline">
-              Catálogo de campos padrão
+              Campos
             </Link>
             — para gerenciar seções e configurações compartilhadas por todos os modelos (tabela + formulários no painel lateral).
           </p>
@@ -761,7 +736,7 @@ export function RegistrationTemplateSideover({
           </HubButton>
           {draft.fields.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-10 text-center">
-              <p className="text-sm text-slate-500">Nenhum campo extra</p>
+              <p className="text-sm text-slate-500">Nenhuma pergunta extra. O formulário público já pede nome, e-mail e telefone; adicione aqui o que mais precisar.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -785,9 +760,7 @@ export function RegistrationTemplateSideover({
 
   const active = tabItems.find((t) => t.id === tab) || tabItems[0];
 
-  const canSave =
-    draft.name.trim().length > 0 &&
-    (!isLeadMode || Boolean(normalizeSignupOptions(draft.signupSettings).leadSegmentSlug));
+  const canSave = draft.name.trim().length > 0;
 
   return (
     <AppSideover

@@ -9,6 +9,8 @@ export function AuthSplitLayout({
   heroSubtitle,
   /** Opcional: faixa pequena acima da marca (ex.: campanha). Omitir para não mostrar. */
   badge,
+  /** Só marca + rodapé (sem título/descrição longos na lateral) — ex. captura de leads. */
+  brandOnlyAside = false,
   buildLabel = 'Build 2.4.0-GA',
   children,
 }) {
@@ -27,24 +29,26 @@ export function AuthSplitLayout({
             ) : null}
             <HubBrandMark />
           </div>
-          <div className="mt-6 min-h-0 w-full min-w-0 sm:mt-8 lg:mt-12">
-            {showHeroTitle ? (
-              <>
-                <h1 className="break-words text-lg leading-snug font-black tracking-tight hyphens-auto sm:text-xl lg:text-2xl">
-                  {heroTitle}
-                </h1>
-                {heroSubtitle ? (
-                  <p className="mt-3 max-w-none text-xs leading-relaxed break-words text-white/75 sm:max-w-md sm:text-sm">
-                    {heroSubtitle}
-                  </p>
-                ) : null}
-              </>
-            ) : heroSubtitle ? (
-              <p className="max-w-none break-words text-xs leading-relaxed text-white/80 sm:max-w-sm sm:text-sm">
-                {heroSubtitle}
-              </p>
-            ) : null}
-          </div>
+          {!brandOnlyAside ? (
+            <div className="mt-6 min-h-0 w-full min-w-0 sm:mt-8 lg:mt-12">
+              {showHeroTitle ? (
+                <>
+                  <h1 className="break-words text-lg leading-snug font-black tracking-tight hyphens-auto sm:text-xl lg:text-2xl">
+                    {heroTitle}
+                  </h1>
+                  {heroSubtitle ? (
+                    <p className="mt-3 max-w-none text-xs leading-relaxed break-words text-white/75 sm:max-w-md sm:text-sm">
+                      {heroSubtitle}
+                    </p>
+                  ) : null}
+                </>
+              ) : heroSubtitle ? (
+                <p className="max-w-none break-words text-xs leading-relaxed text-white/80 sm:max-w-sm sm:text-sm">
+                  {heroSubtitle}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="mt-auto shrink-0 pt-6 sm:pt-8 lg:pt-10">
             <p className="text-[10px] tracking-widest text-white/50 uppercase">{buildLabel}</p>
           </div>

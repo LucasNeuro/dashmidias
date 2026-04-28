@@ -14,22 +14,28 @@ create table if not exists public.hub_lead_segment (
 );
 
 comment on table public.hub_lead_segment is
-  'Segmentação de intenção para hub_public_leads (ex.: projeto, imovel); não confundir com partner_kind.';
+  'Segmentação para hub_public_leads: PARCEIRO, CLIENTE, IMOVEL (slugs parceiro, cliente, imovel).';
 
 create index if not exists hub_lead_segment_active_sort on public.hub_lead_segment (is_active, sort_order);
 
 insert into public.hub_lead_segment (slug, label, description, sort_order, is_active)
 values
-  ('projeto', 'Projeto de arquitetura / interiores', 'Cliente procura projeto, estudo ou consultoria.', 10, true),
-  ('imovel', 'Imóvel', 'Cliente procura compra, venda ou locação.', 20, true),
-  ('obra-reforma', 'Obra ou reforma', 'Cliente procura execução, reforma ou obra.', 30, true),
-  ('outro', 'Outro', 'Demais intenções comerciais.', 90, true)
+  ('parceiro', 'PARCEIRO', 'Classificação CRM: contacto no ecossistema de parceiros.', 10, true),
+  ('cliente', 'CLIENTE', 'Classificação CRM: contacto como cliente.', 20, true),
+  ('imovel', 'IMOVEL', 'Classificação CRM: contacto ligado a imóvel.', 30, true)
 on conflict (slug) do update set
   label = excluded.label,
   description = excluded.description,
   sort_order = excluded.sort_order,
   is_active = excluded.is_active,
   updated_at = now();
+
+-- Manter só estes três activos nos envios públicos (legados ficam na tabela por FK histórico).
+update public.hub_lead_segment
+set
+  is_active = false,
+  updated_at = now()
+where slug not in ('parceiro', 'cliente', 'imovel');
 
 alter table public.hub_lead_segment enable row level security;
 

@@ -36,9 +36,6 @@ const AdminGovernanceLayout = lazy(() =>
   import('./pages/AdminGovernanceLayout').then((m) => ({ default: m.AdminGovernanceLayout }))
 );
 const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
-const AdminHubPlaceholderPage = lazy(() =>
-  import('./pages/AdminHubPlaceholderPage').then((m) => ({ default: m.AdminHubPlaceholderPage }))
-);
 const AdminTemplatesPage = lazy(() =>
   import('./pages/AdminTemplatesPage').then((m) => ({ default: m.AdminTemplatesPage }))
 );
@@ -156,7 +153,7 @@ function AppRoutes() {
           >
             <Route index element={<Navigate to="auditoria" replace />} />
             <Route path="auditoria" element={withSuspense(<AdminAuditPage />)} />
-            <Route path="configuracoes" element={withSuspense(<AdminHubPlaceholderPage title="Configurações" />)} />
+            <Route path="configuracoes" element={<Navigate to="/adm/usuarios" replace />} />
             <Route path="templates" element={withSuspense(<AdminTemplatesPage />)} />
             <Route path="captura-leads" element={withSuspense(<AdminLeadCaptureTemplatesPage />)} />
             <Route path="catalogo-padrao" element={withSuspense(<AdminStandardCatalogPage />)} />

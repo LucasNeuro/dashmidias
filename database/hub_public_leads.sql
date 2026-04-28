@@ -3,7 +3,7 @@
 
   create table if not exists public.hub_public_leads (
     id uuid primary key default gen_random_uuid(),
-    segment_slug text not null references public.hub_lead_segment (slug) on update cascade on delete restrict,
+    segment_slug text references public.hub_lead_segment (slug) on update cascade on delete restrict,
     nome text not null,
     email text not null,
     telefone text,
@@ -18,7 +18,7 @@
   );
 
   comment on table public.hub_public_leads is
-    'Pedidos de contacto de cliente final; segment_slug classifica intenção; dados_formulario = payload extra (JSON).';
+    'Pedidos de contacto de cliente final; segment_slug opcional (classificação CRM); dados_formulario = payload extra (JSON).';
 
   create index if not exists hub_public_leads_criado on public.hub_public_leads (criado_em desc);
   create index if not exists hub_public_leads_segment on public.hub_public_leads (segment_slug);

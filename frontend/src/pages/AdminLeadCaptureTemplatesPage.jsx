@@ -89,13 +89,6 @@ export function AdminLeadCaptureTemplatesPage() {
       await alert('Sessão inválida. Inicie sessão e tente de novo.', { title: 'Cadastro geral leads' });
       return;
     }
-    const seg = normalizeSignupOptions(draft.signupSettings).leadSegmentSlug;
-    if (!seg) {
-      await alert('Escolha o segmento CRM na aba Geral — assim classificamos o contacto na base de leads.', {
-        title: 'Segmento obrigatório',
-      });
-      return;
-    }
     const now = new Date().toISOString();
     const next = normalizeTemplate({
       ...draft,

@@ -17,6 +17,7 @@ import {
   insertHubStandardSection,
   updateHubStandardField,
   updateHubStandardSection,
+  updateSignupWizardStep,
   upsertSignupWizardStep,
 } from '../lib/hubStandardCatalogApi';
 import { hubStandardCatalogQueryKey } from '../lib/queryKeys';
@@ -52,20 +53,10 @@ function optionsToTextarea(opts) {
   return opts.map((x) => String(x)).join('\n');
 }
 
-/** @param {Record<string, unknown>} row @param {unknown[]} wizardSteps */
-function inferSectionPartitionBucket(row, wizardSteps) {
-  const stepSlug = String(row.wizard_step ?? '').trim();
-  const slug = String(row.slug ?? '').trim();
-  const list = Array.isArray(wizardSteps) ? wizardSteps : [];
-  const hub = list.find((w) => String(w.slug) === stepSlug);
-  if (hub?.partition_bucket === 'logistics') return 'logistics';
-  if (hub?.partition_bucket === 'commercial') return 'commercial';
-  const low = stepSlug.toLowerCase();
-  if (low === 'logistics' || low === 'logistica') return 'logistics';
-  if (low === 'commercial') return 'commercial';
-  const hubBySec = list.find((w) => String(w.slug) === slug);
-  if (hubBySec?.partition_bucket === 'logistics') return 'logistics';
-  return 'commercial';
+/** Persistido em `hub_signup_wizard_step.partition_bucket` por compatibilidade — o cadastro público usa uma etapa por grupo. */
+function partitionBucketFromSectionSlug(slug) {
+  const s = String(slug ?? '').trim().toLowerCase();
+  return s === 'logistica' || s === 'logistics' ? 'logistics' : 'commercial';
 }
 
 export function AdminStandardCatalogPage() {
@@ -80,7 +71,6 @@ export function AdminStandardCatalogPage() {
   const [sectionIsNew, setSectionIsNew] = useState(true);
   const [sectionEditId, setSectionEditId] = useState(/** @type {string | null} */ (null));
   const [secTitle, setSecTitle] = useState('');
-  const [secPartition, setSecPartition] = useState('commercial');
   const [secSort, setSecSort] = useState('0');
   const [secActive, setSecActive] = useState(true);
   const [secSlugReadonly, setSecSlugReadonly] = useState(/** @type {string | null} */ (null));
@@ -144,7 +134,6 @@ export function AdminStandardCatalogPage() {
     setSectionIsNew(true);
     setSectionEditId(null);
     setSecTitle('');
-    setSecPartition('commercial');
     const maxOrder = sectionsSorted.reduce((m, s) => Math.max(m, Number(s.sort_order ?? 0)), -1);
     setSecSort(String(maxOrder + 1));
     setSecActive(true);
@@ -157,13 +146,12 @@ export function AdminStandardCatalogPage() {
       setSectionIsNew(false);
       setSectionEditId(row.id);
       setSecTitle(row.title ?? '');
-      setSecPartition(inferSectionPartitionBucket(row, catalog.wizardSteps ?? []));
       setSecSort(String(row.sort_order ?? 0));
       setSecActive(row.is_active !== false);
       setSecSlugReadonly(row.slug ?? null);
       setSectionOpen(true);
     },
-    [catalog.wizardSteps]
+    []
   );
 
   const closeSection = useCallback(() => setSectionOpen(false), []);
@@ -172,15 +160,15 @@ export function AdminStandardCatalogPage() {
     if (!supabase) return;
     const title = secTitle.trim();
     if (!title) {
-      await alert('Indique o título da seção.', { title: 'Catálogo' });
+      await alert('Indique o nome do grupo.', { title: 'Campos' });
       return;
     }
     const secSlug = sectionIsNew ? slugifyTitle(title) : String(secSlugReadonly ?? '').trim();
     if (!secSlug) {
-      await alert('Slug da seção em falta.', { title: 'Catálogo' });
+      await alert('Identificador do grupo em falta.', { title: 'Campos' });
       return;
     }
-    const partition = secPartition === 'logistics' ? 'logistics' : 'commercial';
+    const partition = partitionBucketFromSectionSlug(secSlug);
     setBusy(true);
     try {
       if (sectionIsNew) {
@@ -191,7 +179,7 @@ export function AdminStandardCatalogPage() {
           wizard_step: secSlug,
           is_active: secActive,
         });
-        toast('Seção criada.', { variant: 'success', duration: 4000 });
+        toast('Grupo criado.', { variant: 'success', duration: 4000 });
       } else if (sectionEditId) {
         await updateHubStandardSection(supabase, sectionEditId, {
           title,
@@ -199,7 +187,7 @@ export function AdminStandardCatalogPage() {
           wizard_step: secSlug,
           is_active: secActive,
         });
-        toast('Seção atualizada.', { variant: 'success', duration: 4000 });
+        toast('Grupo atualizado.', { variant: 'success', duration: 4000 });
       }
       await upsertSignupWizardStep(supabase, {
         slug: secSlug,
@@ -220,7 +208,6 @@ export function AdminStandardCatalogPage() {
     closeSection,
     invalidate,
     secActive,
-    secPartition,
     secSort,
     secSlugReadonly,
     secTitle,
@@ -235,10 +222,10 @@ export function AdminStandardCatalogPage() {
       if (!supabase) return;
       const n = await countFieldsInSection(supabase, row.id);
       if (n > 0) {
-        await alert(`Remova os ${n} campo(s) desta seção antes de a excluir.`, { title: 'Catálogo' });
+        await alert(`Remova os ${n} campo(s) deste grupo antes de o excluir.`, { title: 'Campos' });
         return;
       }
-      const ok = await confirm(`Excluir a seção «${row.title}»?`, { title: 'Confirmar', danger: true });
+      const ok = await confirm(`Excluir o grupo «${row.title}»?`, { title: 'Confirmar', danger: true });
       if (!ok) return;
       setBusy(true);
       try {
@@ -249,7 +236,7 @@ export function AdminStandardCatalogPage() {
           console.warn(e2);
         }
         invalidate();
-        toast('Seção excluída.', { variant: 'success', duration: 4000 });
+        toast('Grupo excluído.', { variant: 'success', duration: 4000 });
       } catch (e) {
         await alert(String(e?.message || e), { title: 'Erro' });
       } finally {
@@ -261,7 +248,7 @@ export function AdminStandardCatalogPage() {
 
   const openNewField = useCallback(async () => {
     if (!sectionsSorted.length) {
-      await alert('Crie primeiro uma seção.', { title: 'Catálogo' });
+      await alert('Crie primeiro um grupo de campos.', { title: 'Campos' });
       return;
     }
     setFieldIsNew(true);
@@ -303,12 +290,12 @@ export function AdminStandardCatalogPage() {
     if (!supabase) return;
     const sid = fldSectionId;
     if (!sid) {
-      await alert('Selecione a seção.', { title: 'Catálogo' });
+      await alert('Seleccione o grupo.', { title: 'Campos' });
       return;
     }
     const label = fldLabel.trim();
     if (!label) {
-      await alert('Indique o rótulo.', { title: 'Catálogo' });
+      await alert('Indique o nome do campo.', { title: 'Campos' });
       return;
     }
     const catalogForKeys = { sections: catalog.sections, fields: catalog.fields };
@@ -321,12 +308,12 @@ export function AdminStandardCatalogPage() {
           .replace(/_+/g, '_')
           .slice(0, 80);
     if (!fieldIsNew && !key) {
-      await alert('Chave técnica em falta.', { title: 'Catálogo' });
+      await alert('Código do campo em falta.', { title: 'Campos' });
       return;
     }
     const options = FIELD_TYPES_WITH_OPTIONS.includes(fldType) ? parseOptionsTextarea(fldOptions) : [];
     if (FIELD_TYPES_WITH_OPTIONS.includes(fldType) && options.length === 0) {
-      await alert('Preencha pelo menos uma opção (uma por linha).', { title: 'Catálogo' });
+      await alert('Preencha pelo menos uma opção (uma por linha).', { title: 'Campos' });
       return;
     }
     setBusy(true);
@@ -407,30 +394,137 @@ export function AdminStandardCatalogPage() {
     [alert, confirm, invalidate, supabase, toast]
   );
 
+  const syncWizardStepFromSectionRow = useCallback(
+    async (sectionRow, sortOrder) => {
+      if (!supabase) return;
+      const slug = String(sectionRow.slug ?? '').trim();
+      if (!slug) return;
+      const partition = partitionBucketFromSectionSlug(slug);
+      await upsertSignupWizardStep(supabase, {
+        slug,
+        label: String(sectionRow.title ?? slug).trim() || slug,
+        partition_bucket: partition,
+        sort_order: sortOrder,
+        is_active: sectionRow.is_active !== false,
+      });
+    },
+    [supabase]
+  );
+
+  const toggleSectionActive = useCallback(
+    async (row) => {
+      if (!supabase) return;
+      const next = row.is_active === false;
+      setBusy(true);
+      try {
+        await updateHubStandardSection(supabase, row.id, { is_active: next });
+        await syncWizardStepFromSectionRow({ ...row, is_active: next }, Number(row.sort_order ?? 0));
+        invalidate();
+        toast(next ? 'Grupo ativado.' : 'Grupo desativado (deixa de aparecer no cadastro público).', {
+          variant: 'success',
+          duration: 4500,
+        });
+      } catch (e) {
+        await alert(String(e?.message || e), { title: 'Erro' });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [alert, invalidate, supabase, syncWizardStepFromSectionRow, toast]
+  );
+
+  const moveSection = useCallback(
+    async (row, delta) => {
+      if (!supabase) return;
+      const idx = sectionsSorted.findIndex((s) => s.id === row.id);
+      const j = idx + delta;
+      if (idx < 0 || j < 0 || j >= sectionsSorted.length) return;
+      const a = sectionsSorted[idx];
+      const b = sectionsSorted[j];
+      const oa = Number(a.sort_order ?? 0);
+      const ob = Number(b.sort_order ?? 0);
+      setBusy(true);
+      try {
+        await updateHubStandardSection(supabase, a.id, { sort_order: ob });
+        await updateHubStandardSection(supabase, b.id, { sort_order: oa });
+        await syncWizardStepFromSectionRow({ ...a, sort_order: ob }, ob);
+        await syncWizardStepFromSectionRow({ ...b, sort_order: oa }, oa);
+        invalidate();
+        toast('Ordem dos grupos atualizada.', { variant: 'success', duration: 3500 });
+      } catch (e) {
+        await alert(String(e?.message || e), { title: 'Erro' });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [alert, invalidate, sectionsSorted, supabase, syncWizardStepFromSectionRow, toast]
+  );
+
+  const toggleFieldActive = useCallback(
+    async (row) => {
+      if (!supabase) return;
+      const next = row.is_active === false;
+      setBusy(true);
+      try {
+        await updateHubStandardField(supabase, row.id, { is_active: next });
+        invalidate();
+        toast(next ? 'Campo ativado.' : 'Campo desativado.', { variant: 'success', duration: 3500 });
+      } catch (e) {
+        await alert(String(e?.message || e), { title: 'Erro' });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [alert, invalidate, supabase, toast]
+  );
+
+  const moveField = useCallback(
+    async (row, delta) => {
+      if (!supabase) return;
+      const sid = row.section_id;
+      const inSec = fieldsSorted.filter((f) => f.section_id === sid);
+      const byOrder = [...inSec].sort((x, y) => Number(x.sort_order ?? 0) - Number(y.sort_order ?? 0));
+      const idx = byOrder.findIndex((f) => f.id === row.id);
+      const j = idx + delta;
+      if (idx < 0 || j < 0 || j >= byOrder.length) return;
+      const a = byOrder[idx];
+      const b = byOrder[j];
+      const oa = Number(a.sort_order ?? 0);
+      const ob = Number(b.sort_order ?? 0);
+      setBusy(true);
+      try {
+        await updateHubStandardField(supabase, a.id, { sort_order: ob });
+        await updateHubStandardField(supabase, b.id, { sort_order: oa });
+        invalidate();
+        toast('Ordem dos campos atualizada.', { variant: 'success', duration: 3500 });
+      } catch (e) {
+        await alert(String(e?.message || e), { title: 'Erro' });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [alert, fieldsSorted, invalidate, supabase, toast]
+  );
+
   const sectionColumns = useMemo(
     () => [
       colS.accessor('title', {
-        header: 'Seção',
+        header: 'Grupo',
         cell: (info) => <span className="font-semibold text-primary">{info.getValue() || '—'}</span>,
       }),
       colS.accessor('slug', {
-        header: 'Slug',
+        header: 'Código',
         cell: (info) => <span className="font-mono text-xs text-on-surface-variant">{info.getValue()}</span>,
       }),
       colS.display({
         id: 'publico',
-        header: 'No cadastro público',
+        header: 'Nome no cadastro público',
         cell: (info) => {
           const row = info.row.original;
           const step =
             wizardStepsSorted.find((w) => String(w.slug) === String(row.wizard_step)) ||
             wizardStepsSorted.find((w) => String(w.slug) === String(row.slug));
-          const partLabel = step?.partition_bucket === 'logistics' ? 'Logística e doca' : 'Informações comerciais';
-          return (
-            <span className="text-sm text-on-surface-variant" title={step?.label ? String(step.label) : undefined}>
-              {partLabel}
-            </span>
-          );
+          return <span className="text-sm text-on-surface-variant">{step?.label ? String(step.label) : '—'}</span>;
         },
       }),
       colS.accessor('sort_order', {
@@ -445,7 +539,7 @@ export function AdminStandardCatalogPage() {
               info.getValue() === false ? 'text-amber-800' : 'text-emerald-800'
             }`}
           >
-            {info.getValue() === false ? 'Inativo' : 'Ativo'}
+            {info.getValue() === false ? 'Desligado' : 'Ligado'}
           </span>
         ),
       }),
@@ -454,8 +548,43 @@ export function AdminStandardCatalogPage() {
         header: '',
         cell: (info) => {
           const row = info.row.original;
+          const idx = sectionsSorted.findIndex((s) => s.id === row.id);
+          const atTop = idx <= 0;
+          const atBottom = idx < 0 || idx >= sectionsSorted.length - 1;
           return (
-            <div className="flex flex-wrap justify-end gap-1">
+            <div className="flex min-w-max shrink-0 flex-nowrap items-center justify-end gap-1">
+              <HubButton
+                variant="tableSecondary"
+                icon="arrow_upward"
+                iconClassName="text-[16px]"
+                disabled={busy || atTop}
+                title="Mover grupo para cima"
+                onClick={() => void moveSection(row, -1)}
+                className="!px-2"
+              >
+                <span className="sr-only">Subir</span>
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon="arrow_downward"
+                iconClassName="text-[16px]"
+                disabled={busy || atBottom}
+                title="Mover grupo para baixo"
+                onClick={() => void moveSection(row, 1)}
+                className="!px-2"
+              >
+                <span className="sr-only">Descer</span>
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon={row.is_active === false ? 'toggle_on' : 'toggle_off'}
+                iconClassName="text-[16px]"
+                disabled={busy}
+                title={row.is_active === false ? 'Ligar grupo no cadastro público' : 'Desligar sem apagar'}
+                onClick={() => void toggleSectionActive(row)}
+              >
+                {row.is_active === false ? 'Ligar' : 'Desligar'}
+              </HubButton>
               <HubButton
                 variant="tableSecondary"
                 icon="edit"
@@ -470,16 +599,18 @@ export function AdminStandardCatalogPage() {
                 icon="delete"
                 iconClassName="text-[16px]"
                 disabled={busy}
+                title="Excluir grupo"
                 onClick={() => void removeSection(row)}
+                className="!px-2"
               >
-                Excluir
+                <span className="sr-only">Excluir</span>
               </HubButton>
             </div>
           );
         },
       }),
     ],
-    [busy, openEditSection, removeSection, wizardStepsSorted]
+    [busy, moveSection, openEditSection, removeSection, sectionsSorted, toggleSectionActive, wizardStepsSorted]
   );
 
   const wizardStepsSummary = useMemo(
@@ -488,23 +619,82 @@ export function AdminStandardCatalogPage() {
     [wizardStepsSorted, sectionsSorted]
   );
 
+  const wizardStepsSummaryOrdered = useMemo(
+    () =>
+      [...wizardStepsSummary].sort(
+        (a, b) =>
+          Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) || String(a.slug ?? '').localeCompare(String(b.slug ?? ''))
+      ),
+    [wizardStepsSummary]
+  );
+
+  const openEditFromWizardRow = useCallback(
+    async (wrow) => {
+      const sec = sectionsSorted.find((s) => String(s.slug) === String(wrow.slug));
+      if (!sec) {
+        await alert('Não há grupo com este código — crie ou edite o grupo na primeira tabela.', { title: 'Campos' });
+        return;
+      }
+      openEditSection(sec);
+    },
+    [alert, openEditSection, sectionsSorted]
+  );
+
+  const toggleWizardStepRow = useCallback(
+    async (wrow) => {
+      const sec = sectionsSorted.find((s) => String(s.slug) === String(wrow.slug));
+      if (!sec) {
+        await alert('Grupo não encontrado para esta etapa.', { title: 'Campos' });
+        return;
+      }
+      await toggleSectionActive(sec);
+    },
+    [alert, sectionsSorted, toggleSectionActive]
+  );
+
+  const moveWizardStep = useCallback(
+    async (wrow, delta) => {
+      if (!supabase) return;
+      const list = wizardStepsSummaryOrdered;
+      const idx = list.findIndex((w) => w.id === wrow.id);
+      const j = idx + delta;
+      if (idx < 0 || j < 0 || j >= list.length) return;
+      const wa = list[idx];
+      const wb = list[j];
+      const oa = Number(wa.sort_order ?? 0);
+      const ob = Number(wb.sort_order ?? 0);
+      const secA = sectionsSorted.find((s) => String(s.slug) === String(wa.slug));
+      const secB = sectionsSorted.find((s) => String(s.slug) === String(wb.slug));
+      if (!secA?.id || !secB?.id) {
+        await alert('Não foi possível alinhar esta etapa a um grupo.', { title: 'Campos' });
+        return;
+      }
+      setBusy(true);
+      try {
+        await updateSignupWizardStep(supabase, wa.id, { sort_order: ob });
+        await updateSignupWizardStep(supabase, wb.id, { sort_order: oa });
+        await updateHubStandardSection(supabase, secA.id, { sort_order: ob });
+        await updateHubStandardSection(supabase, secB.id, { sort_order: oa });
+        invalidate();
+        toast('Ordem das etapas e dos grupos actualizada.', { variant: 'success', duration: 3500 });
+      } catch (e) {
+        await alert(String(e?.message || e), { title: 'Erro' });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [alert, invalidate, sectionsSorted, supabase, toast, wizardStepsSummaryOrdered]
+  );
+
   const wstepSummaryColumns = useMemo(
     () => [
       colW.accessor('label', {
-        header: 'Rótulo (seção)',
+        header: 'Nome da etapa',
         cell: (info) => <span className="font-semibold text-primary">{info.getValue() || '—'}</span>,
       }),
       colW.accessor('slug', {
-        header: 'Slug',
+        header: 'Código',
         cell: (info) => <span className="font-mono text-xs text-on-surface-variant">{info.getValue()}</span>,
-      }),
-      colW.accessor('partition_bucket', {
-        header: 'Bloco no cadastro',
-        cell: (info) => (
-          <span className="text-sm text-on-surface-variant">
-            {info.getValue() === 'logistics' ? 'Logística e doca' : 'Informações comerciais'}
-          </span>
-        ),
       }),
       colW.accessor('sort_order', {
         header: 'Ordem',
@@ -518,22 +708,78 @@ export function AdminStandardCatalogPage() {
               info.getValue() === false ? 'text-amber-800' : 'text-emerald-800'
             }`}
           >
-            {info.getValue() === false ? 'Inativo' : 'Ativo'}
+            {info.getValue() === false ? 'Desligado' : 'Ligado'}
           </span>
         ),
       }),
+      colW.display({
+        id: 'wactions',
+        header: '',
+        cell: (info) => {
+          const row = info.row.original;
+          const idx = wizardStepsSummaryOrdered.findIndex((w) => w.id === row.id);
+          const atTop = idx <= 0;
+          const atBottom = idx < 0 || idx >= wizardStepsSummaryOrdered.length - 1;
+          return (
+            <div className="flex min-w-max shrink-0 flex-nowrap items-center justify-end gap-1">
+              <HubButton
+                variant="tableSecondary"
+                icon="arrow_upward"
+                iconClassName="text-[16px]"
+                disabled={busy || atTop}
+                title="Mover etapa para cima"
+                onClick={() => void moveWizardStep(row, -1)}
+                className="!px-2"
+              >
+                <span className="sr-only">Subir</span>
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon="arrow_downward"
+                iconClassName="text-[16px]"
+                disabled={busy || atBottom}
+                title="Mover etapa para baixo"
+                onClick={() => void moveWizardStep(row, 1)}
+                className="!px-2"
+              >
+                <span className="sr-only">Descer</span>
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon={row.is_active === false ? 'toggle_on' : 'toggle_off'}
+                iconClassName="text-[16px]"
+                disabled={busy}
+                title={row.is_active === false ? 'Ligar etapa e grupo' : 'Desligar etapa e grupo'}
+                onClick={() => void toggleWizardStepRow(row)}
+              >
+                {row.is_active === false ? 'Ligar' : 'Desligar'}
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon="edit"
+                iconClassName="text-[16px]"
+                disabled={busy}
+                title="Editar nome e ordem da etapa"
+                onClick={() => void openEditFromWizardRow(row)}
+              >
+                Editar
+              </HubButton>
+            </div>
+          );
+        },
+      }),
     ],
-    []
+    [busy, moveWizardStep, openEditFromWizardRow, toggleWizardStepRow, wizardStepsSummaryOrdered]
   );
 
   const fieldColumns = useMemo(
     () => [
       colF.accessor('label', {
-        header: 'Rótulo',
+        header: 'Campo',
         cell: (info) => <span className="font-semibold text-slate-900">{info.getValue() || '—'}</span>,
       }),
       colF.accessor('field_key', {
-        header: 'Chave',
+        header: 'Código',
         cell: (info) => <span className="font-mono text-xs text-on-surface-variant">{info.getValue()}</span>,
       }),
       colF.accessor('field_type', {
@@ -542,7 +788,7 @@ export function AdminStandardCatalogPage() {
       }),
       colF.display({
         id: 'section',
-        header: 'Seção',
+        header: 'Grupo',
         cell: (info) => {
           const sid = info.row.original.section_id;
           const sec = catalog.sections.find((s) => s.id === sid);
@@ -561,7 +807,7 @@ export function AdminStandardCatalogPage() {
               info.getValue() === false ? 'text-amber-800' : 'text-emerald-800'
             }`}
           >
-            {info.getValue() === false ? 'Inativo' : 'Ativo'}
+            {info.getValue() === false ? 'Desligado' : 'Ligado'}
           </span>
         ),
       }),
@@ -570,8 +816,46 @@ export function AdminStandardCatalogPage() {
         header: '',
         cell: (info) => {
           const row = info.row.original;
+          const sid = row.section_id;
+          const inSec = fieldsSorted.filter((f) => f.section_id === sid);
+          const byOrder = [...inSec].sort((x, y) => Number(x.sort_order ?? 0) - Number(y.sort_order ?? 0));
+          const fIdx = byOrder.findIndex((f) => f.id === row.id);
+          const atTop = fIdx <= 0;
+          const atBottom = fIdx < 0 || fIdx >= byOrder.length - 1;
           return (
-            <div className="flex flex-wrap justify-end gap-1">
+            <div className="flex min-w-max shrink-0 flex-nowrap items-center justify-end gap-1">
+              <HubButton
+                variant="tableSecondary"
+                icon="arrow_upward"
+                iconClassName="text-[16px]"
+                disabled={busy || atTop}
+                title="Mover campo para cima neste grupo"
+                onClick={() => void moveField(row, -1)}
+                className="!px-2"
+              >
+                <span className="sr-only">Subir</span>
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon="arrow_downward"
+                iconClassName="text-[16px]"
+                disabled={busy || atBottom}
+                title="Mover campo para baixo neste grupo"
+                onClick={() => void moveField(row, 1)}
+                className="!px-2"
+              >
+                <span className="sr-only">Descer</span>
+              </HubButton>
+              <HubButton
+                variant="tableSecondary"
+                icon={row.is_active === false ? 'toggle_on' : 'toggle_off'}
+                iconClassName="text-[16px]"
+                disabled={busy}
+                title={row.is_active === false ? 'Ligar campo' : 'Desligar campo sem apagar'}
+                onClick={() => void toggleFieldActive(row)}
+              >
+                {row.is_active === false ? 'Ligar' : 'Desligar'}
+              </HubButton>
               <HubButton
                 variant="tableSecondary"
                 icon="edit"
@@ -586,16 +870,18 @@ export function AdminStandardCatalogPage() {
                 icon="delete"
                 iconClassName="text-[16px]"
                 disabled={busy}
+                title="Excluir campo"
                 onClick={() => void removeField(row)}
+                className="!px-2"
               >
-                Excluir
+                <span className="sr-only">Excluir</span>
               </HubButton>
             </div>
           );
         },
       }),
     ],
-    [busy, catalog.sections, openEditField, removeField]
+    [busy, catalog.sections, fieldsSorted, moveField, openEditField, removeField, toggleFieldActive]
   );
 
   const secSlugPreview = sectionIsNew ? slugifyTitle(secTitle || 'exemplo') : null;
@@ -610,11 +896,20 @@ export function AdminStandardCatalogPage() {
 
   return (
     <div className="min-w-0 w-full max-w-none space-y-8">
+      <header className="space-y-1.5">
+        <h1 className="text-sm font-black uppercase tracking-[0.18em] text-primary">Campos</h1>
+        <p className="max-w-3xl text-xs leading-relaxed text-slate-600">
+          Monte <strong>grupos</strong> de campos e os <strong>campos</strong> reutilizáveis nos modelos. Cada grupo vira uma{' '}
+          <strong>etapa sua</strong> no cadastro público, na ordem que definir. Use <strong>Ligar / Desligar</strong> para esconder algo
+          sem apagar, e as setas para mudar a ordem.
+        </p>
+      </header>
+
       <section className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Seções (blocos)</h2>
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Grupos de campos</h2>
           <HubButton variant="primary" icon="add" disabled={busy || isLoading} onClick={openNewSection}>
-            Nova seção
+            Novo grupo
           </HubButton>
         </div>
         <div className="p-4 sm:p-5">
@@ -625,8 +920,8 @@ export function AdminStandardCatalogPage() {
               data={sectionsSorted}
               columns={sectionColumns}
               getRowId={(r) => r.id}
-              searchPlaceholder="Pesquisar seções…"
-              emptyLabel="Nenhuma seção"
+              searchPlaceholder="Pesquisar grupos…"
+              emptyLabel="Nenhum grupo — crie o primeiro acima"
               pageSize={12}
             />
           )}
@@ -636,11 +931,11 @@ export function AdminStandardCatalogPage() {
       <section className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">
-            Resumo: etapas no cadastro público
+            Etapas no cadastro público
           </h2>
           <p className="mt-2 max-w-3xl text-xs leading-relaxed text-on-surface-variant">
-            Gerado automaticamente ao salvar uma seção (rótulo, slug e bloco comercial vs. logística). Não é preciso criar etapas
-            manualmente.
+            Cada linha é a etapa pública ligada a um <strong>grupo</strong>. Pode <strong>subir/descer</strong>, <strong>ligar ou desligar</strong>{' '}
+            (atualiza grupo e etapa) e <strong>editar</strong> (nome e ordem — mesmo painel do grupo).
           </p>
         </div>
         <div className="p-4 sm:p-5">
@@ -652,7 +947,7 @@ export function AdminStandardCatalogPage() {
               columns={wstepSummaryColumns}
               getRowId={(r) => r.id}
               searchPlaceholder="Buscar…"
-              emptyLabel="Crie uma seção para ver o resumo das etapas"
+              emptyLabel="Crie um grupo para ver as etapas aqui"
               pageSize={12}
             />
           )}
@@ -661,7 +956,7 @@ export function AdminStandardCatalogPage() {
 
       <section className="w-full overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Campos do catálogo</h2>
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-600">Campos</h2>
           <HubButton
             variant="secondaryDashed"
             icon="add_circle"
@@ -693,8 +988,6 @@ export function AdminStandardCatalogPage() {
         isNew={sectionIsNew}
         title={secTitle}
         setTitle={setSecTitle}
-        partitionBucket={secPartition}
-        setPartitionBucket={setSecPartition}
         publicWizardUrl={publicWizardUrl}
         sortOrder={secSort}
         setSortOrder={setSecSort}

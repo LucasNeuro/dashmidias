@@ -5,7 +5,7 @@
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {{
- *   segmentSlug: string,
+ *   segmentSlug?: string | null,
  *   nome: string,
  *   email: string,
  *   telefone?: string | null,
@@ -17,8 +17,9 @@
  * @returns {Promise<{ ok: boolean, leadId?: string, error?: string }>}
  */
 export async function rpcSubmitPublicLead(supabase, p) {
+  const seg = (p.segmentSlug != null ? String(p.segmentSlug) : '').trim();
   const { data, error } = await supabase.rpc('hub_submit_public_lead', {
-    p_segment_slug: p.segmentSlug,
+    p_segment_slug: seg === '' ? null : seg,
     p_nome: p.nome,
     p_email: p.email,
     p_telefone: p.telefone ?? null,
@@ -57,6 +58,10 @@ function mapLeadSubmitError(code) {
       return 'Indique o nome completo.';
     case 'email_invalid':
       return 'E-mail inválido.';
+    case 'email_disposable':
+      return 'Use um e-mail habitual. Endereços temporários/de teste não são aceites.';
+    case 'telefone_invalid':
+      return 'Telefone inválido. Informe DDD/indicativo e número válido.';
     case 'cpf_invalid':
       return 'CPF inválido (11 dígitos).';
     case 'dados_required':

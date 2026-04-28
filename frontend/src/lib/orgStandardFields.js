@@ -10,6 +10,29 @@
 import { FALLBACK_SIGNUP_WIZARD_STEPS, hubStandardCatalogHasData } from './hubStandardCatalogApi';
 
 /**
+ * Secções destinadas só a cenários CRM / formulários de lead no catálogo — não fazem parte do cadastro público de **parceiro**
+ * (`/#/cadastro/organizacao`). Evita aparecer uma etapa «Captura de lead simples» (ou similar) dentro da homologação.
+ * @param {string | undefined | null} slug — `hub_standard_field_section.slug`
+ */
+export function isCatalogSectionExcludedFromPartnerOrgSignup(slug) {
+  const s = String(slug ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_');
+  if (!s) return false;
+  const exact = new Set([
+    'captura_lead_simples',
+    'captura_de_lead_simples',
+    'captura_de_leads_simples',
+    'lead_capture_simple',
+    'leads_capture_simple',
+  ]);
+  if (exact.has(s)) return true;
+  if (s.includes('captura') && s.includes('lead')) return true;
+  return false;
+}
+
+/**
  * Mapeia o slug da seção (hub_standard_field_section.wizard_step) para o bucket do wizard atual.
  * @param {string | undefined | null} sectionWizardSlug
  * @param {Array<{ slug?: string, partition_bucket?: string }> | undefined} wizardSteps
@@ -253,7 +276,11 @@ export function getOrgBuiltinPartnerFieldGroups(catalog = null) {
     return legacyBuiltinGroups();
   }
   const sections = [...catalog.sections]
-    .filter((s) => s.is_active !== false)
+    .filter(
+      (s) =>
+        s.is_active !== false &&
+        !isCatalogSectionExcludedFromPartnerOrgSignup(String(/** @type {{ slug?: string }} */ (s).slug ?? ''))
+    )
     .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
   const fields = [...catalog.fields]
     .filter((f) => f.is_active !== false)
@@ -337,9 +364,10 @@ export function partitionPartnerOrgExtraFields(mergedFields = []) {
 
 /**
  * Etapas opcionais do cadastro (após Empresa, Endereço e Acesso): só entram fatias com campos.
- * Ordem fixa: bloco comercial do catálogo → logística do catálogo → campos extras definidos no template (sempre por último).
+ * Com catálogo na BD: **uma etapa por grupo** (`hub_signup_wizard_step.sort_order`), sem fundir tudo em «comercial» vs «logística».
+ * Sem catálogo (fallback em JS): mantém o modelo antigo (comercial + logística em blocos).
  * @param {Array<{ key: string, group?: string, wizardStep?: string, label?: string }>} mergedFields — `mergePartnerOrgExtraFields`
- * @param {{ sections?: unknown[], fields?: unknown[] } | null} catalog
+ * @param {{ sections?: unknown[], fields?: unknown[], wizardSteps?: unknown[] } | null} catalog
  * @returns {{ extraSteps: Array<{ id: string, label: string, slice: typeof mergedFields, layout: 'commercial-split' | 'grid' }> }}
  */
 export function partitionSignupWizardExtraSlices(mergedFields = [], catalog = null) {
@@ -352,25 +380,105 @@ export function partitionSignupWizardExtraSlices(mergedFields = [], catalog = nu
     if (reservedLc.has(String(f.key).toLowerCase())) builtins.push(f);
     else templateExtras.push(f);
   }
-  const { commercial, logistics } = partitionPartnerOrgExtraFields(builtins);
+
   /** @type {Array<{ id: string, label: string, slice: typeof mergedFields, layout: 'commercial-split' | 'grid' }>} */
   const extraSteps = [];
-  if (commercial.length > 0) {
-    extraSteps.push({
-      id: 'builtin-commercial',
-      label: 'Informações comerciais',
-      slice: commercial,
-      layout: 'commercial-split',
+
+  const useWizardStepSlices =
+    hubStandardCatalogHasData(catalog) &&
+    Array.isArray(catalog?.wizardSteps) &&
+    catalog.wizardSteps.length > 0;
+
+  if (useWizardStepSlices) {
+    /** @type {Map<string, typeof mergedFields>} */
+    const builtinsByGroup = new Map();
+    for (const f of builtins) {
+      const g = String(f.group || '').trim().toLowerCase() || '_outros';
+      if (!builtinsByGroup.has(g)) builtinsByGroup.set(g, []);
+      builtinsByGroup.get(g)?.push(f);
+    }
+
+    const stepsSorted = [...catalog.wizardSteps]
+      .filter((w) => /** @type {{ is_active?: boolean }} */ (w).is_active !== false)
+      .sort(
+        (a, b) =>
+          Number(/** @type {{ sort_order?: number }} */ (a).sort_order ?? 0) -
+            Number(/** @type {{ sort_order?: number }} */ (b).sort_order ?? 0) ||
+          String(/** @type {{ slug?: string }} */ (a).slug ?? '').localeCompare(String(/** @type {{ slug?: string }} */ (b).slug ?? ''))
+      );
+
+    /** @type {Set<string>} */
+    const usedSlugs = new Set();
+
+    for (const w of stepsSorted) {
+      const slug = String(/** @type {{ slug?: string }} */ (w).slug ?? '')
+        .trim()
+        .toLowerCase();
+      if (!slug || isCatalogSectionExcludedFromPartnerOrgSignup(slug)) continue;
+      const slice = builtinsByGroup.get(slug);
+      if (!Array.isArray(slice) || slice.length === 0) continue;
+      usedSlugs.add(slug);
+      const label = String(/** @type {{ label?: string }} */ (w).label ?? '').trim() || slug;
+      extraSteps.push({
+        id: `builtin-${slug}`,
+        label,
+        slice,
+        layout: 'grid',
+      });
+    }
+
+    const sectionsSorted = [...(catalog.sections ?? [])].sort(
+      (a, b) =>
+        Number(/** @type {{ sort_order?: number }} */ (a).sort_order ?? 0) -
+        Number(/** @type {{ sort_order?: number }} */ (b).sort_order ?? 0)
+    );
+    /** @type {Map<string, { title?: unknown, sort_order?: number }>} */
+    const sectionMeta = new Map(
+      sectionsSorted.map((s) => [String(/** @type {{ slug?: string }} */ (s).slug ?? '').toLowerCase(), s])
+    );
+
+    /** @type {string[]} */
+    const orphanKeys = [...builtinsByGroup.keys()]
+      .filter((k) => k !== '_outros')
+      .filter((k) => !usedSlugs.has(k))
+      .filter((k) => builtinsByGroup.get(k)?.length);
+    orphanKeys.sort((a, b) => {
+      const oa = Number(sectionMeta.get(a)?.sort_order ?? 999);
+      const ob = Number(sectionMeta.get(b)?.sort_order ?? 999);
+      return oa - ob || a.localeCompare(b);
     });
+    for (const slug of orphanKeys) {
+      if (isCatalogSectionExcludedFromPartnerOrgSignup(slug)) continue;
+      const slice = builtinsByGroup.get(slug);
+      if (!Array.isArray(slice) || slice.length === 0) continue;
+      const title = sectionMeta.get(slug)?.title;
+      extraSteps.push({
+        id: `builtin-${slug}-orphan`,
+        label: title != null ? String(title) : slug,
+        slice,
+        layout: 'grid',
+      });
+    }
+  } else {
+    const { commercial, logistics } = partitionPartnerOrgExtraFields(builtins);
+    if (commercial.length > 0) {
+      extraSteps.push({
+        id: 'builtin-commercial',
+        label: 'Informações comerciais',
+        slice: commercial,
+        layout: 'commercial-split',
+      });
+    }
+    if (logistics.length > 0) {
+      extraSteps.push({
+        id: 'builtin-logistics',
+        label: 'Logística e doca',
+        slice: logistics,
+        layout: 'grid',
+      });
+    }
   }
-  if (logistics.length > 0) {
-    extraSteps.push({
-      id: 'builtin-logistics',
-      label: 'Logística e doca',
-      slice: logistics,
-      layout: 'grid',
-    });
-  }
+
   if (templateExtras.length > 0) {
     extraSteps.push({
       id: 'template-extras',
@@ -379,7 +487,7 @@ export function partitionSignupWizardExtraSlices(mergedFields = [], catalog = nu
       layout: 'grid',
     });
   }
-  /** Só etapas com campos visíveis — coerente com blocos desligados no template. */
+
   return {
     extraSteps: extraSteps.filter((s) => {
       if (!Array.isArray(s.slice) || s.slice.length === 0) return false;

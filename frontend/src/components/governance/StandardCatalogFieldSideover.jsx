@@ -61,8 +61,8 @@ export function StandardCatalogFieldSideover({
       open={open}
       onClose={onClose}
       variant="operational"
-      eyebrow="Catálogo de campos padrão"
-      title={isNew ? 'Novo campo padrão' : 'Editar campo padrão'}
+      eyebrow="Campos"
+      title={isNew ? 'Novo campo' : 'Editar campo'}
       bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50 p-0"
     >
       <div className="flex h-full min-h-0 flex-col">
@@ -70,7 +70,7 @@ export function StandardCatalogFieldSideover({
           <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)] ring-1 ring-slate-900/[0.03] sm:p-5">
             <div className="flex flex-wrap items-start gap-3">
               <label className="block min-w-[200px] flex-1">
-                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Seção *</span>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Grupo *</span>
                 <select
                   value={sectionId}
                   onChange={(e) => setSectionId(e.target.value)}
@@ -87,7 +87,7 @@ export function StandardCatalogFieldSideover({
               {!isNew ? (
                 <label className="block w-full min-[480px]:w-[220px]">
                   <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Chave técnica
+                    Código (fixo após criar)
                   </span>
                   <input
                     type="text"
@@ -196,7 +196,7 @@ export function StandardCatalogFieldSideover({
                 onChange={(e) => setIsActive(e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/30"
               />
-              <span className="text-sm font-medium text-slate-700">Campo ativo no catálogo</span>
+              <span className="text-sm font-medium text-slate-700">Campo ligado (visível quando o modelo inclui este grupo)</span>
             </label>
           </div>
         </div>

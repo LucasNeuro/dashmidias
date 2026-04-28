@@ -134,8 +134,8 @@ export function EntityDataTable({
         </p>
       </div>
 
-      <div className="hub-table-scrollbar max-h-[min(55vh,560px)] overflow-auto rounded-xl border border-slate-200/90 bg-slate-50/50 shadow-inner">
-        <table className="w-full border-collapse text-left text-sm">
+      <div className="hub-table-scrollbar max-h-[min(55vh,560px)] overflow-x-auto overflow-y-auto rounded-xl border border-slate-200/90 bg-slate-50/50 shadow-inner">
+        <table className="w-max min-w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 border-b-2 border-slate-200/80 bg-slate-100/95 text-[10px] font-black uppercase tracking-wider text-slate-600 backdrop-blur-sm">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>

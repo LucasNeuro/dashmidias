@@ -37,15 +37,6 @@ export function AdminGovernanceLayout() {
         Auditoria
       </NavLink>
       <NavLink
-        to="/adm/configuracoes"
-        className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
-      >
-        <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
-          settings
-        </span>
-        Configurações
-      </NavLink>
-      <NavLink
         to="/adm/templates"
         className={({ isActive }) => `${TAB_LINK} ${isActive ? TAB_ACTIVE : ''}`}
       >
@@ -70,7 +61,7 @@ export function AdminGovernanceLayout() {
         <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
           category
         </span>
-        Catálogo de campos padrão
+        Campos
       </NavLink>
       <NavLink
         to="/adm/usuarios"
@@ -79,7 +70,7 @@ export function AdminGovernanceLayout() {
         <span className="material-symbols-outlined text-[18px] opacity-80" aria-hidden>
           group
         </span>
-        Controle de usuários
+        Controles e acessos
       </NavLink>
       <NavLink
         to="/adm/organizacoes"
@@ -97,7 +88,7 @@ export function AdminGovernanceLayout() {
   return (
     <AppShell
       title="Config e governança"
-      subtitle="Auditoria, cadastro homologação, cadastro geral leads (CRM), catálogo padrão e organizações — a sessão aparece na barra superior."
+      subtitle="Auditoria, cadastro homologação, cadastro geral leads (CRM), campos padrão dos formulários e organizações — a sessão aparece na barra superior."
       navItems={navItems}
       headerTabs={headerTabs}
       contentClassName={GOVERNANCE_CONTENT_SHELL}
