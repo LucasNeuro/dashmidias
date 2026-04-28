@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppSideover } from '../AppSideover';
+import { FormSideoverFooter } from '../FormSideoverFooter';
 import { HorizontalScrollNav } from '../HorizontalScrollNav';
 import { HubButton } from '../HubButton';
 import { useAuth } from '../../context/AuthContext';
@@ -762,6 +763,8 @@ export function RegistrationTemplateSideover({
 
   const canSave = draft.name.trim().length > 0;
 
+  const savePrimaryLabel = isNew ? 'Criar modelo' : 'Salvar alterações';
+
   return (
     <AppSideover
       open={open}
@@ -770,6 +773,17 @@ export function RegistrationTemplateSideover({
       eyebrow={isLeadMode ? 'Cadastro geral leads' : 'Cadastro homologação'}
       title={isNew ? 'Novo modelo' : 'Editar modelo'}
       bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden bg-slate-50 p-0"
+      footer={
+        <FormSideoverFooter
+          onCancel={onClose}
+          primaryIcon={isNew ? 'add' : 'save'}
+          primaryDisabled={!canSave || isSaving}
+          busy={isSaving}
+          loadingLabel="Salvando…"
+          primaryLabel={savePrimaryLabel}
+          onPrimary={() => void onSave?.()}
+        />
+      }
     >
       <div className="flex h-full min-h-0 flex-col">
         <div className="shrink-0 border-b border-slate-200/90 bg-white px-1 shadow-[0_1px_0_rgba(15,23,42,0.04)] sm:px-2">
@@ -791,22 +805,6 @@ export function RegistrationTemplateSideover({
           </HorizontalScrollNav>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">{active?.content}</div>
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-4px_24px_rgba(15,23,42,0.06)] sm:px-6">
-          <div className="flex flex-wrap gap-3">
-            <HubButton variant="secondary" icon="close" onClick={onClose} className="!text-xs !font-semibold !tracking-wide">
-              Cancelar
-            </HubButton>
-            <HubButton
-              variant="primary"
-              icon={isNew ? 'add' : 'save'}
-              disabled={!canSave || isSaving}
-              onClick={() => void onSave?.()}
-              className="!text-xs !font-semibold !tracking-wide"
-            >
-              {isSaving ? 'Salvando…' : isNew ? 'Criar modelo' : 'Salvar alterações'}
-            </HubButton>
-          </div>
-        </div>
       </div>
     </AppSideover>
   );

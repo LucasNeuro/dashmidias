@@ -152,11 +152,49 @@ export async function fetchAdminUsersBundle(supabase, loadSolicitacoes) {
 
   const { data: solData, error: solErr } = await supabase
     .from('hub_solicitacoes_admin')
-    .select('id, email, nome, telefone, cpf, user_id, mensagem, status, criado_em, resolvido_em')
+    .select('id, email, nome, telefone, cpf, user_id, mensagem, status, criado_em, resolvido_em, resolvido_por_user_id')
     .order('criado_em', { ascending: false })
     .limit(200);
   if (solErr) throw solErr;
   return { profiles: profilesWithHubRoles, solicitacoes: solData || [] };
+}
+
+const HUB_SOLIC_APROVADAS_LIMIT = 50;
+
+/**
+ * Pedidos administrativos já aprovados (ordenados por resolvido_em).
+ * Enriquece com e-mail/nome de quem resolveu, quando existe em profiles.
+ * hub_admin_access_audit não é escrito pela app hoje — histórico vem desta tabela.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {number} [limit]
+ */
+export async function fetchHubSolicitacoesAprovadasRecentes(supabase, limit = HUB_SOLIC_APROVADAS_LIMIT) {
+  const cap = Math.min(200, Math.max(1, Number(limit) || HUB_SOLIC_APROVADAS_LIMIT));
+  const { data, error } = await supabase
+    .from('hub_solicitacoes_admin')
+    .select('id, email, nome, telefone, cpf, mensagem, criado_em, resolvido_em, resolvido_por_user_id, user_id, status')
+    .eq('status', 'aprovado')
+    .not('resolvido_em', 'is', null)
+    .order('resolvido_em', { ascending: false })
+    .limit(cap);
+  if (error) throw error;
+  const rows = data || [];
+  const resolverIds = [...new Set(rows.map((r) => r.resolvido_por_user_id).filter(Boolean))];
+  /** @type {Map<string, { id: string, email?: string | null, full_name?: string | null }>} */
+  const resolverMap = new Map();
+  if (resolverIds.length) {
+    const { data: profs, error: pErr } = await supabase.from('profiles').select('id, email, full_name').in('id', resolverIds);
+    if (!pErr) for (const p of profs || []) resolverMap.set(String(p.id), p);
+  }
+  return rows.map((r) => {
+    const res = r.resolvido_por_user_id ? resolverMap.get(String(r.resolvido_por_user_id)) : null;
+    return {
+      ...r,
+      resolvido_por_email: res?.email ?? null,
+      resolvido_por_nome: res?.full_name ?? null,
+    };
+  });
 }
 
 /**
@@ -213,15 +251,34 @@ export async function fetchHubAccessBundle(supabase) {
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {{ slug: string, nome: string, descricao?: string }} payload
+ * @returns {Promise<{ id: string }>}
  */
 export async function createHubRole(supabase, payload) {
-  const { error } = await supabase.from('hub_admin_role').insert({
-    slug: payload.slug,
-    nome: payload.nome,
-    descricao: payload.descricao || null,
-    is_system: false,
-    is_active: true,
-  });
+  const { data, error } = await supabase
+    .from('hub_admin_role')
+    .insert({
+      slug: payload.slug,
+      nome: payload.nome,
+      descricao: payload.descricao || null,
+      is_system: false,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Atualiza metadados do cargo (não altera slug).
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {{ id: string, nome: string, descricao?: string | null }} payload
+ */
+export async function updateHubRole(supabase, payload) {
+  const { error } = await supabase
+    .from('hub_admin_role')
+    .update({ nome: payload.nome, descricao: payload.descricao ?? null })
+    .eq('id', payload.id);
   if (error) throw error;
 }
 

@@ -118,7 +118,15 @@ Documento de referência para **tokens visuais**, **padrões de layout**, **comp
 - **Ativação de item:** barra lateral/borda em `tertiary` + fundo sutil (`bg-tertiary/15`).
 - **Contratos do componente:** `title`, `subtitle`, `headerActions`, `orgLabel`, `navItems` (já filtrados por permissão/módulo).
 
+### 3.8 Sideovers de formulário (padrão)
+
+- **Componente base:** `AppSideover` ([`src/components/AppSideover.jsx`](../frontend/src/components/AppSideover.jsx)) — cabeçalho em gradiente escuro (eyebrow + título + fechar), opcionalmente abas com sublinhado **emerald** na ativa, corpo com scroll.
+- **Rodapé fixo:** prop `footer` no painel (fora do scroll). Para o par **Cancelar** (secundário, ícone `close`) + ação principal (`HubButton` primary), usar **`FormSideoverFooter`** ([`src/components/FormSideoverFooter.jsx`](../frontend/src/components/FormSideoverFooter.jsx)) com `onCancel`, `primaryLabel`, `onPrimary`, `primaryIcon`, `busy` / `loadingLabel` quando aplicável.
+- **Composição extra:** passar `children` a `FormSideoverFooter` em vez das props únicas quando forem vários botões.
+- **Referência:** `RegistrationTemplateSideover.jsx` — abas GERAL · PADRÃO · CAMPOS EXTRAS + rodapé padrão.
+
 ---
+
 
 ## 4. Componentes e padrões por área
 

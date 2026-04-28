@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { EntityDataTable } from '../components/EntityDataTable';
-import { HubButton, hubButtonClass } from '../components/HubButton';
+import { HubButton } from '../components/HubButton';
 import { AppSideover } from '../components/AppSideover';
 import { DashboardMetricCard } from '../components/DashboardMetricCard';
 import { useAuth } from '../context/AuthContext';
-import { fetchAdminUsersBundle } from '../lib/governanceQueries';
+import { fetchAdminUsersBundle, fetchHubSolicitacoesAprovadasRecentes } from '../lib/governanceQueries';
+import { GOV_SECTION_STORAGE, useGovSectionExpanded } from '../lib/govSectionExpand';
 import { getHubOwnerEmail } from '../lib/hubOwner';
 import { AdminConfigurationsPage } from './AdminConfigurationsPage';
 
@@ -16,6 +16,7 @@ export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [busySolicId, setBusySolicId] = useState(null);
   const [panel, setPanel] = useState({ open: false, kind: null, row: null });
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const ownerEmailConfigured = Boolean(getHubOwnerEmail());
   const showFilaHub = useMemo(
@@ -23,10 +24,18 @@ export function AdminUsersPage() {
     [ownerEmailConfigured, isHubOwner]
   );
 
+  const [solicSectionOpen, toggleSolicSection] = useGovSectionExpanded(GOV_SECTION_STORAGE.solicHubAdmins);
+
   const usersQuery = useQuery({
     queryKey: ['governance', 'users-page', showFilaHub],
     queryFn: () => fetchAdminUsersBundle(supabase, showFilaHub),
     enabled: Boolean(supabase),
+  });
+
+  const aprovadasQuery = useQuery({
+    queryKey: ['governance', 'hub-solic-aprovadas'],
+    queryFn: () => fetchHubSolicitacoesAprovadasRecentes(supabase),
+    enabled: Boolean(supabase) && historyOpen && showFilaHub,
   });
 
   const profiles = usersQuery.data?.profiles ?? [];
@@ -34,13 +43,6 @@ export function AdminUsersPage() {
   const loading = usersQuery.isPending && usersQuery.data === undefined;
   const err = usersQuery.isError ? String(usersQuery.error?.message ?? usersQuery.error) : null;
   const [solicActionErr, setSolicActionErr] = useState(null);
-
-  function openAccessCenter() {
-    setPanel({ open: false, kind: null, row: null });
-    window.requestAnimationFrame(() => {
-      document.getElementById('controles-acessos-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
 
   async function resolverSolicitacao(id, status) {
     if (!supabase || !session?.user?.id) return;
@@ -57,6 +59,8 @@ export function AdminUsersPage() {
         .eq('id', id);
       if (error) throw error;
       await queryClient.invalidateQueries({ queryKey: ['governance', 'users-page'] });
+      await queryClient.invalidateQueries({ queryKey: ['governance', 'hub-access-config'] });
+      await queryClient.invalidateQueries({ queryKey: ['governance', 'hub-solic-aprovadas'] });
       setPanel((p) =>
         p.open && p.kind === 'solic' && p.row?.id === id
           ? { ...p, row: { ...p.row, status, resolvido_em: new Date().toISOString() } }
@@ -137,77 +141,7 @@ export function AdminUsersPage() {
     ];
   }, []);
 
-  const profileColumns = useMemo(() => {
-    const h = createColumnHelper();
-    return [
-      h.accessor('email', {
-        header: 'E-mail',
-        cell: ({ getValue }) => <span className="font-mono text-xs break-all">{getValue() || '—'}</span>,
-      }),
-      h.accessor('full_name', {
-        header: 'Nome',
-        cell: ({ getValue }) => <span className="min-w-0 break-words">{getValue() || '—'}</span>,
-      }),
-      h.accessor('role', {
-        header: 'Papel',
-        cell: ({ getValue }) => {
-          const r = getValue();
-          return (
-            <span
-              className={`text-[10px] font-black uppercase px-2 py-0.5 ${
-                r === 'owner' ? 'bg-primary text-white' : r === 'admin' ? 'bg-tertiary/20 text-primary' : 'bg-slate-100 text-on-surface-variant'
-              }`}
-            >
-              {r}
-            </span>
-          );
-        },
-      }),
-      h.accessor('can_access_audit', {
-        header: 'Audit',
-        cell: ({ getValue }) => (
-          <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${getValue() ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-on-surface-variant'}`}>
-            {getValue() ? 'Sim' : 'Não'}
-          </span>
-        ),
-      }),
-      h.accessor('hub_role_names', {
-        header: 'Cargos HUB',
-        cell: ({ getValue }) => {
-          const roles = Array.isArray(getValue()) ? getValue().filter(Boolean) : [];
-          if (!roles.length) return <span className="text-xs text-on-surface-variant">—</span>;
-          return (
-            <span className="text-xs text-on-surface-variant" title={roles.join(', ')}>
-              {roles.join(', ')}
-            </span>
-          );
-        },
-      }),
-      h.accessor('updated_at', {
-        header: 'Atualizado',
-        cell: ({ getValue }) => (
-          <span className="text-xs text-on-surface-variant whitespace-nowrap">{getValue() ? new Date(getValue()).toLocaleString('pt-BR') : '—'}</span>
-        ),
-      }),
-      h.display({
-        id: 'actions',
-        header: 'Ações',
-        cell: ({ row }) => (
-          <HubButton
-            variant="tableSecondary"
-            icon="visibility"
-            iconClassName="text-[16px]"
-            onClick={() => setPanel({ open: true, kind: 'profile', row: row.original })}
-          >
-            Ver
-          </HubButton>
-        ),
-      }),
-    ];
-  }, []);
-
   const solicRow = panel.kind === 'solic' ? panel.row : null;
-  const profileRow = panel.kind === 'profile' ? panel.row : null;
 
   return (
     <>
@@ -259,56 +193,75 @@ export function AdminUsersPage() {
           </div>
         ) : null}
 
-        {showFilaHub && (
-          <section className="overflow-hidden rounded-sm border border-surface-container-high bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5 sm:py-3.5">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">
-                Solicitações — acesso administrativo HUB
-              </h2>
-              {usersQuery.isFetching && !loading ? (
-                <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">A atualizar…</p>
-              ) : null}
-            </div>
-            <div className="p-4 sm:p-5">
-              {!loading ? (
-                <EntityDataTable
-                  data={solicitacoes}
-                  columns={solicColumns}
-                  getRowId={(r) => r.id}
-                  searchPlaceholder="Pesquisar solicitações…"
-                  pageSize={8}
-                  emptyLabel="Nenhuma solicitação."
-                />
-              ) : null}
-            </div>
-          </section>
-        )}
-
-        <section className="overflow-hidden rounded-sm border border-surface-container-high bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5 sm:py-3.5">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Usuários (profiles)</h2>
-          </div>
-          <div className="p-4 sm:p-5">
-            {!loading ? (
-              <EntityDataTable
-                data={profiles}
-                columns={profileColumns}
-                getRowId={(r) => r.id}
-                searchPlaceholder="Pesquisar usuários…"
-                pageSize={10}
-                emptyLabel="Nenhum usuário."
-              />
+        {!loading ? (
+          <div className="space-y-6">
+            {showFilaHub ? (
+              <section className="overflow-hidden rounded-sm border border-surface-container-high bg-white shadow-sm">
+                <div className="border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5 sm:py-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      id="gov-section-solic-hub-heading"
+                      aria-expanded={solicSectionOpen}
+                      aria-controls="gov-section-solic-hub-panel"
+                      className="min-w-0 flex flex-1 cursor-pointer items-center gap-2 rounded-sm py-0.5 text-left outline-none ring-inset focus-visible:ring-2 focus-visible:ring-primary/40"
+                      onClick={toggleSolicSection}
+                    >
+                      <span
+                        className="material-symbols-outlined shrink-0 text-[20px] text-slate-600 transition-transform"
+                        style={{ transform: solicSectionOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+                        aria-hidden
+                      >
+                        expand_more
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">
+                          Solicitações — acesso administrativo HUB
+                        </h2>
+                      </span>
+                    </button>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <HubButton
+                        variant="secondary"
+                        icon="history"
+                        className="!px-3 !py-2 !text-[9px]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHistoryOpen(true);
+                        }}
+                      >
+                        Histórico de aprovações
+                      </HubButton>
+                      {usersQuery.isFetching ? (
+                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">
+                          A atualizar…
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  id="gov-section-solic-hub-panel"
+                  role="region"
+                  aria-labelledby="gov-section-solic-hub-heading"
+                  hidden={!solicSectionOpen}
+                  className="p-4 sm:p-5"
+                >
+                  <EntityDataTable
+                    data={solicitacoes}
+                    columns={solicColumns}
+                    getRowId={(r) => r.id}
+                    searchPlaceholder="Pesquisar solicitações…"
+                    pageSize={8}
+                    emptyLabel="Nenhuma solicitação."
+                  />
+                </div>
+              </section>
             ) : null}
-          </div>
-        </section>
 
-        <section id="controles-acessos-hub" className="space-y-3 rounded-sm border border-slate-200/80 bg-slate-50/40 p-2 sm:p-3">
-          <div className="px-2 pt-1">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Controles e acessos</h2>
-            <p className="mt-1 text-xs text-on-surface-variant">Gestão consolidada de cargos, permissões e vínculos dos admins HUB.</p>
+            <AdminConfigurationsPage />
           </div>
-          <AdminConfigurationsPage />
-        </section>
+        ) : null}
       </div>
 
       <AppSideover
@@ -394,85 +347,44 @@ export function AdminUsersPage() {
       />
 
       <AppSideover
-        key={profileRow?.id ?? 'profile'}
-        open={panel.open && panel.kind === 'profile' && !!profileRow}
-        onClose={() => setPanel({ open: false, kind: null, row: null })}
-        eyebrow="Controles e acessos"
-        title="Perfil"
-        subtitle={profileRow?.email}
-        tabItems={
-          profileRow
-            ? [
-                {
-                  id: 'p',
-                  label: 'Dados',
-                  content: (
-                    <dl className="space-y-3 text-sm">
-                      <div>
-                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">ID</dt>
-                        <dd className="mt-0.5 break-all font-mono text-[11px]">{profileRow.id}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">Nome</dt>
-                        <dd className="mt-0.5">{profileRow.full_name || '—'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">Papel</dt>
-                        <dd className="mt-0.5">{profileRow.role}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">Acesso audit</dt>
-                        <dd className="mt-0.5">{profileRow.can_access_audit ? 'Sim' : 'Não'}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">Cargos HUB</dt>
-                        <dd className="mt-0.5">
-                          {Array.isArray(profileRow.hub_role_names) && profileRow.hub_role_names.length
-                            ? profileRow.hub_role_names.join(', ')
-                            : '—'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-[10px] font-black uppercase text-on-surface-variant">Atualizado</dt>
-                        <dd className="mt-0.5 font-mono text-xs">
-                          {profileRow.updated_at ? new Date(profileRow.updated_at).toLocaleString('pt-BR') : '—'}
-                        </dd>
-                      </div>
-                    </dl>
-                  ),
-                },
-                {
-                  id: 'g',
-                  label: 'Gestão',
-                  content: (
-                    <div className="flex flex-col gap-2 text-sm">
-                        <Link
-                          to="/adm/auditoria"
-                          onClick={() => setPanel({ open: false, kind: null, row: null })}
-                          className={`${hubButtonClass.secondary} w-full justify-center no-underline`}
-                        >
-                          <span className="material-symbols-outlined text-[20px]" aria-hidden>
-                            monitoring
-                          </span>
-                          Auditoria
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={openAccessCenter}
-                          className={`${hubButtonClass.secondary} w-full justify-center`}
-                        >
-                          <span className="material-symbols-outlined text-[20px]" aria-hidden>
-                            settings
-                          </span>
-                          Controles e acessos
-                        </button>
-                    </div>
-                  ),
-                },
-              ]
-            : []
-        }
-      />
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        eyebrow="Solicitações administrativas HUB"
+        title="Histórico de aprovações"
+        subtitle="Últimas solicitações com estado «aprovado» (timestamps de resolução)"
+        bodyClassName="p-0 bg-slate-50"
+      >
+        {aprovadasQuery.isError ? (
+          <p className="p-4 text-sm font-semibold text-red-600" role="alert">
+            {String(aprovadasQuery.error?.message ?? aprovadasQuery.error)}
+          </p>
+        ) : aprovadasQuery.isPending ? (
+          <p className="p-4 text-sm text-on-surface-variant">A carregar histórico…</p>
+        ) : (
+          <ul className="divide-y divide-slate-200 border-t border-slate-200">
+            {(aprovadasQuery.data || []).length === 0 ? (
+              <li className="px-4 py-6 text-sm text-on-surface-variant">Nenhuma aprovação registada ainda.</li>
+            ) : (
+              (aprovadasQuery.data || []).map((row) => (
+                <li key={row.id} className="px-4 py-3 sm:px-5">
+                  <p className="text-xs font-black uppercase tracking-wider text-tertiary">
+                    {row.resolvido_em ? new Date(row.resolvido_em).toLocaleString('pt-BR') : '—'}
+                  </p>
+                  <p className="mt-1 font-mono text-xs break-all text-slate-800">{row.email || '—'}</p>
+                  <p className="mt-0.5 text-sm text-slate-700">{row.nome || '—'}</p>
+                  <p className="mt-1 text-[11px] text-on-surface-variant">
+                    Aprovado por{' '}
+                    <span className="font-medium text-slate-700">
+                      {[row.resolvido_por_nome, row.resolvido_por_email].filter(Boolean).join(' · ') ||
+                        (row.resolvido_por_user_id ? String(row.resolvido_por_user_id) : '—')}
+                    </span>
+                  </p>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </AppSideover>
     </>
   );
 }

@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
  * Painel lateral (mobile-first). **Cromado unificado** com o sideover de templates:
  * cabeçalho em gradiente escuro, abas com realce verde (emerald), corpo claro.
  *
+ * **Formulários (padrão da aplicação):** cabeçalho + `tabItems` (opcional) + área com scroll + **rodapé fixo**
+ * na prop `footer` — usar `FormSideoverFooter` (Cancelar + ação principal).
+ *
  * `variant` mantém-se por compatibilidade; `operational`, `governance` e `default` usam o mesmo visual.
  */
 export function AppSideover({
@@ -13,6 +16,7 @@ export function AppSideover({
   subtitle,
   children,
   tabItems = null,
+  footer = null,
   className = '',
   bodyClassName = 'p-4 sm:p-5 bg-slate-50',
   variant = 'operational',
@@ -56,7 +60,7 @@ export function AppSideover({
     <div className="fixed inset-0 z-[100] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="app-sideover-title">
       <button
         type="button"
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-inset"
         aria-label="Fechar painel"
         onClick={onClose}
       />
@@ -81,7 +85,7 @@ export function AppSideover({
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-sm border border-white/25 p-2 text-white hover:bg-white/10"
+            className="shrink-0 rounded-sm border border-white/25 p-2 text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             aria-label="Fechar"
           >
             <span className="material-symbols-outlined text-[22px] leading-none">close</span>
@@ -96,7 +100,7 @@ export function AppSideover({
                   key={t.id}
                   type="button"
                   onClick={() => setActiveTab(t.id)}
-                  className={`shrink-0 border-b-[3px] px-5 py-3.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                  className={`shrink-0 border-b-[3px] px-5 py-3.5 text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 ${
                     activeTab === t.id
                       ? 'border-emerald-600 text-slate-900'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -109,8 +113,11 @@ export function AppSideover({
           </div>
         ) : null}
 
-        <div className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
-          {tabItems?.length ? active?.content : children}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden ${bodyClassName}`}>
+            {tabItems?.length ? active?.content : children}
+          </div>
+          {footer}
         </div>
       </div>
     </div>
