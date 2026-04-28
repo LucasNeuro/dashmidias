@@ -585,6 +585,40 @@ export function AdminConfigurationsPage() {
         eyebrow="Controles e acessos · Passo 1"
         title="Novo cargo do HUB"
         bodyClassName="p-4 sm:p-5 bg-slate-50"
+        tabItems={[
+          {
+            id: 'cargo',
+            label: 'Cargo',
+            content: (
+              <div className="space-y-4">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Nome do cargo
+                  <input
+                    value={roleName}
+                    onChange={(e) => setRoleName(e.target.value)}
+                    className="mt-1 w-full rounded-none border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Descrição
+                  <textarea
+                    value={roleDescription}
+                    onChange={(e) => setRoleDescription(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-none border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                  />
+                </label>
+                <HubRolePermissionChecklist
+                  permByModule={permByModule}
+                  selectedPermIds={selectedPermIds}
+                  onToggle={toggleSelectedPerm}
+                  disabled={busyKey === 'create-role'}
+                  showIntro
+                />
+              </div>
+            ),
+          },
+        ]}
         footer={
           <FormSideoverFooter
             onCancel={() => setCreateRolePanelOpen(false)}
@@ -596,42 +630,85 @@ export function AdminConfigurationsPage() {
             loadingLabel="A criar…"
           />
         }
-      >
-        <div className="space-y-3">
-          <label className="block text-xs font-semibold text-slate-700">
-            Nome do cargo
-            <input
-              value={roleName}
-              onChange={(e) => setRoleName(e.target.value)}
-              className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
-            />
-          </label>
-          <label className="block text-xs font-semibold text-slate-700">
-            Descrição
-            <textarea
-              value={roleDescription}
-              onChange={(e) => setRoleDescription(e.target.value)}
-              rows={3}
-              className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
-            />
-          </label>
-          <HubRolePermissionChecklist
-            permByModule={permByModule}
-            selectedPermIds={selectedPermIds}
-            onToggle={toggleSelectedPerm}
-            disabled={busyKey === 'create-role'}
-            showIntro
-          />
-        </div>
-      </AppSideover>
+      />
 
       <AppSideover
         open={rolePanel.open && !!activeRole}
         onClose={() => setRolePanel({ open: false, roleId: '' })}
-        eyebrow="Controles e acessos"
-        title="Editar cargo do HUB"
+        eyebrow="Controles e acessos · Passo 1"
+        title="Cargo do HUB"
         subtitle={activeRole ? `${activeRole.nome} · ${activeRole.slug}` : ''}
         bodyClassName="p-4 sm:p-5 bg-slate-50"
+        tabItems={
+          activeRole
+            ? [
+                {
+                  id: 'cargo',
+                  label: 'Cargo',
+                  content: (
+                    <div className="space-y-4">
+                      {activeRole.is_system ? (
+                        <p className="rounded-sm border border-slate-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-on-surface-variant">
+                          Cargo de sistema: o <strong>código</strong> (<span className="font-mono">{activeRole.slug}</span>) não é alterado aqui; pode ajustar o nome, a descrição e as permissões.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-on-surface-variant">
+                          Código: <span className="font-mono text-xs text-slate-700">{activeRole.slug}</span>
+                        </p>
+                      )}
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Nome do cargo
+                        <input
+                          value={editRoleNome}
+                          onChange={(e) => setEditRoleNome(e.target.value)}
+                          className="mt-1 w-full rounded-none border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                        />
+                      </label>
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Descrição
+                        <textarea
+                          value={editRoleDescricao}
+                          onChange={(e) => setEditRoleDescricao(e.target.value)}
+                          rows={3}
+                          className="mt-1 w-full rounded-none border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+                        />
+                      </label>
+                      <HubRolePermissionChecklist
+                        permByModule={permByModule}
+                        selectedPermIds={selectedPermIds}
+                        onToggle={toggleSelectedPerm}
+                        disabled={busyKey === `save-role:${activeRole.id}`}
+                        showIntro={false}
+                      />
+                    </div>
+                  ),
+                },
+                {
+                  id: 'usuarios',
+                  label: `Usuários com este cargo${usuariosPorCargoAtivo.length ? ` (${usuariosPorCargoAtivo.length})` : ''}`,
+                  content: (
+                    <div className="space-y-4">
+                      <p className="text-sm leading-relaxed text-on-surface-variant">
+                        Contas com associação ativa a este cargo. Para ligar ou remover cargos a um utilizador, use <strong>Passo 2</strong> e <strong>Gerir</strong> na linha do administrador do HUB.
+                      </p>
+                      {usuariosPorCargoAtivo.length ? (
+                        <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                          {usuariosPorCargoAtivo.map((u) => (
+                            <li key={u.user_id} className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2.5 text-sm">
+                              <span className="break-all font-mono text-xs text-slate-600">{u.email}</span>
+                              <span className="text-slate-900">{u.nome}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-sm text-on-surface-variant">Nenhum utilizador ligado a este cargo.</div>
+                      )}
+                    </div>
+                  ),
+                },
+              ]
+            : []
+        }
         footer={
           activeRole ? (
             <FormSideoverFooter
@@ -645,36 +722,6 @@ export function AdminConfigurationsPage() {
             />
           ) : null
         }
-      >
-        {activeRole ? (
-          <div className="space-y-5">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dados do cargo</p>
-            <label className="block text-xs font-semibold text-slate-700">
-              Nome
-              <input
-                value={editRoleNome}
-                onChange={(e) => setEditRoleNome(e.target.value)}
-                className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
-              />
-            </label>
-            <label className="block text-xs font-semibold text-slate-700">
-              Descrição
-              <textarea
-                value={editRoleDescricao}
-                onChange={(e) => setEditRoleDescricao(e.target.value)}
-                rows={2}
-                className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
-              />
-            </label>
-            <HubRolePermissionChecklist
-              permByModule={permByModule}
-              selectedPermIds={selectedPermIds}
-              onToggle={toggleSelectedPerm}
-              disabled={busyKey === `save-role:${activeRole.id}`}
-              showIntro={false}
-            />
-          </div>
-        ) : null}
       />
 
       <AppSideover

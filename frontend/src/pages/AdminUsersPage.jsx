@@ -296,7 +296,7 @@ export function AdminUsersPage() {
                     onClick={() => void resolverSolicitacao(solicRow.id, 'rejeitado')}
                     className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                   >
-                    {busySolicId === solicRow.id ? 'A processar…' : 'Rejeitar'}
+                    Rejeitar
                   </HubButton>
                   <HubButton
                     variant="primary"
@@ -305,7 +305,7 @@ export function AdminUsersPage() {
                     onClick={() => void resolverSolicitacao(solicRow.id, 'aprovado')}
                     className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                   >
-                    {busySolicId === solicRow.id ? 'A processar…' : 'Aprovar'}
+                    Aprovar
                   </HubButton>
                 </div>
               ) : (
@@ -379,6 +379,19 @@ export function AdminUsersPage() {
         title="Histórico de aprovações"
         subtitle="Últimas solicitações com estado «aprovado» (timestamps de resolução)"
         bodyClassName="p-0 bg-slate-50"
+        footer={
+          <FormSideoverFooter>
+            <HubButton
+              variant="secondary"
+              icon="close"
+              onClick={() => setHistoryOpen(false)}
+              className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+            >
+              Fechar
+            </HubButton>
+            <span className="hidden min-[480px]:block" aria-hidden />
+          </FormSideoverFooter>
+        }
       >
         {aprovadasQuery.isError ? (
           <p className="p-4 text-sm font-semibold text-red-600" role="alert">
