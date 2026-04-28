@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createColumnHelper } from '@tanstack/react-table';
 import { AppSideover } from '../components/AppSideover';
@@ -19,7 +19,7 @@ import {
   updateHubRole,
 } from '../lib/governanceQueries';
 import { HubRolePermissionChecklist } from '../components/governance/HubRolePermissionChecklist';
-import { HubRolePermissionChecklist } from '../components/governance/HubRolePermissionChecklist';
+import { GOV_SECTION_STORAGE, useGovSectionExpanded } from '../lib/govSectionExpand';
 
 function slugifyRoleName(value) {
   return String(value || '')
@@ -161,14 +161,11 @@ export function AdminConfigurationsPage() {
       .map((ur) => {
         const pid = String(ur.user_id);
         const p = profileById.get(pid);
-        return {
-          user_id: pid,
-          email: p?.email ?? '—',
-          nome: p?.full_name ?? '—',
-        };
+        return { user_id: pid, email: p?.email ?? '—', nome: p?.full_name ?? '—' };
       })
       .sort((a, b) => String(a.email).localeCompare(String(b.email)));
   }, [activeRole, userRoles, profileById]);
+
   const activeHubUser = hubAdminRows.find((r) => String(r.user_id) === hubUserPanel.userId) || null;
   const activeOrgUser = orgMemberRows.find((r) => String(r.id) === orgUserPanel.memberId) || null;
 
@@ -185,6 +182,22 @@ export function AdminConfigurationsPage() {
     setSelectedPermIds((prev) => (checked ? Array.from(new Set([...prev, pid])) : prev.filter((x) => x !== pid)));
   }
 
+  const lastHydratedRoleId = useRef('');
+  useEffect(() => {
+    if (!rolePanel.open || !rolePanel.roleId) {
+      lastHydratedRoleId.current = '';
+      return;
+    }
+    const rid = String(rolePanel.roleId);
+    if (lastHydratedRoleId.current === rid) return;
+    lastHydratedRoleId.current = rid;
+    const role = roles.find((r) => String(r.id) === rid);
+    if (!role) return;
+    setEditRoleNome(role.nome || '');
+    setEditRoleDescricao(role.descricao || '');
+    setSelectedPermIds(Array.from(rolePermMap.get(rid) || []));
+  }, [rolePanel.open, rolePanel.roleId, roles, rolePermMap]);
+
   async function onCreateRole() {
     if (!supabase) return;
     const nome = roleName.trim();
@@ -198,16 +211,19 @@ export function AdminConfigurationsPage() {
       return;
     }
     setBusyKey('create-role');
+    const permissionIdsSnapshot = [...selectedPermIds];
     try {
       const { id: newRoleId } = await createHubRole(supabase, { slug, nome, descricao: roleDescription.trim() });
-      await setHubRolePermissions(supabase, String(newRoleId), selectedPermIds);
+      await setHubRolePermissions(supabase, String(newRoleId), permissionIdsSnapshot);
       setRoleName('');
       setRoleDescription('');
       setCreateRolePanelOpen(false);
       toast('Cargo criado com sucesso.', { variant: 'success' });
       await refresh();
+      lastHydratedRoleId.current = '';
       setEditRoleNome(nome);
       setEditRoleDescricao(roleDescription.trim());
+      setSelectedPermIds(permissionIdsSnapshot);
       setRolePanel({ open: true, roleId: String(newRoleId) });
     } catch (e) {
       await alert(String(e?.message || e), { title: 'Erro ao criar cargo' });
@@ -575,7 +591,7 @@ export function AdminConfigurationsPage() {
             primaryLabel="Criar cargo"
             primaryIcon="add"
             onPrimary={() => void onCreateRole()}
-            primaryDisabled={busyKey === 'create-role'}
+            primaryDisabled={busyKey === 'create-role' || roleName.trim().length < 3}
             busy={busyKey === 'create-role'}
             loadingLabel="A criar…"
           />
@@ -599,6 +615,13 @@ export function AdminConfigurationsPage() {
               className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
             />
           </label>
+          <HubRolePermissionChecklist
+            permByModule={permByModule}
+            selectedPermIds={selectedPermIds}
+            onToggle={toggleSelectedPerm}
+            disabled={busyKey === 'create-role'}
+            showIntro
+          />
         </div>
       </AppSideover>
 
@@ -606,43 +629,52 @@ export function AdminConfigurationsPage() {
         open={rolePanel.open && !!activeRole}
         onClose={() => setRolePanel({ open: false, roleId: '' })}
         eyebrow="Controles e acessos"
-        title="Módulos e permissões do cargo"
-        subtitle={activeRole ? `${activeRole.nome} (${activeRole.slug})` : ''}
-        tabItems={
-          activeRole
-            ? [{
-                id: 'perms',
-                label: 'Permissões',
-                content: (
-                  <div className="space-y-4">
-                    {permByModule.map(([mod, list]) => (
-                      <div key={mod} className="rounded-lg border border-slate-200 bg-white p-3">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-600">{mod}</h4>
-                        <div className="mt-2 space-y-1.5">
-                          {list.map((perm) => {
-                            const pid = String(perm.id);
-                            const checked = selectedPermIds.includes(pid);
-                            return (
-                              <label key={pid} className="flex items-start gap-2 text-sm text-slate-700">
-                                <input type="checkbox" checked={checked} onChange={(e) => setSelectedPermIds((prev) => (e.target.checked ? Array.from(new Set([...prev, pid])) : prev.filter((x) => x !== pid)))} />
-                                <span>
-                                  <span className="font-semibold">{perm.codigo}</span>
-                                  {perm.descricao ? <span className="block text-xs text-on-surface-variant">{perm.descricao}</span> : null}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="flex justify-end">
-                      <HubButton variant="primary" icon="save" disabled={busyKey === `save-role:${activeRole.id}`} onClick={() => void onSaveRolePermissions()}>Salvar permissões</HubButton>
-                    </div>
-                  </div>
-                ),
-              }]
-            : []
+        title="Editar cargo do HUB"
+        subtitle={activeRole ? `${activeRole.nome} · ${activeRole.slug}` : ''}
+        bodyClassName="p-4 sm:p-5 bg-slate-50"
+        footer={
+          activeRole ? (
+            <FormSideoverFooter
+              onCancel={() => setRolePanel({ open: false, roleId: '' })}
+              primaryLabel="Guardar cargo"
+              primaryIcon="save"
+              onPrimary={() => void onSaveRolePanel()}
+              primaryDisabled={busyKey === `save-role:${activeRole.id}` || editRoleNome.trim().length < 3}
+              busy={busyKey === `save-role:${activeRole.id}`}
+              loadingLabel="A guardar…"
+            />
+          ) : null
         }
+      >
+        {activeRole ? (
+          <div className="space-y-5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dados do cargo</p>
+            <label className="block text-xs font-semibold text-slate-700">
+              Nome
+              <input
+                value={editRoleNome}
+                onChange={(e) => setEditRoleNome(e.target.value)}
+                className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-slate-700">
+              Descrição
+              <textarea
+                value={editRoleDescricao}
+                onChange={(e) => setEditRoleDescricao(e.target.value)}
+                rows={2}
+                className="mt-1 w-full rounded-none border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+              />
+            </label>
+            <HubRolePermissionChecklist
+              permByModule={permByModule}
+              selectedPermIds={selectedPermIds}
+              onToggle={toggleSelectedPerm}
+              disabled={busyKey === `save-role:${activeRole.id}`}
+              showIntro={false}
+            />
+          </div>
+        ) : null}
       />
 
       <AppSideover
@@ -665,7 +697,7 @@ export function AdminConfigurationsPage() {
       >
         <div className="space-y-3">
           <p className="rounded-sm border border-slate-100 bg-white px-3 py-2 text-[11px] leading-relaxed text-on-surface-variant">
-            A conta tem de estar <strong>já registada</strong> no projeto (Auth). As permissões na consola vêm sempre dos <strong>cargos do HUB</strong>; pode afiná-los em <strong>Gerir</strong> ou em <strong>Módulos</strong> dentro de cada cargo.
+            A conta tem de estar <strong>já registada</strong> no projeto (Auth). As permissões na consola vêm sempre dos <strong>cargos do HUB</strong>; pode afiná-los em <strong>Gerir</strong> ou em <strong>Gerir cargo</strong> em cada linha.
           </p>
           <label className="block text-xs font-semibold text-slate-700">
             Conta (e-mail já existente)
@@ -699,11 +731,24 @@ export function AdminConfigurationsPage() {
         title="Cargos HUB ligados ao utilizador"
         subtitle={activeHubUser?.email}
         bodyClassName="p-4 sm:p-5 bg-slate-50"
+        footer={
+          <FormSideoverFooter>
+            <HubButton
+              variant="secondary"
+              icon="close"
+              onClick={() => setHubUserPanel({ open: false, userId: '' })}
+              className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+            >
+              Fechar
+            </HubButton>
+            <span className="hidden min-[480px]:block" aria-hidden />
+          </FormSideoverFooter>
+        }
       >
         {activeHubUser ? (
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-on-surface-variant">
-              Ligá-lo ou tirá-lo de cada cargo na lista abaixo. O acesso à consola segue os módulos ativos por cargo (<strong>Módulos</strong> ao editar cada cargo).
+              Ligá-lo ou tirá-lo de cada cargo na lista abaixo. O acesso à consola segue os módulos ativos por cargo (<strong>Gerir cargo</strong> na tabela de cargos).
             </p>
             <p className="text-sm font-semibold text-slate-800">{activeHubUser.nome}</p>
             {roles.map((role) => {
@@ -733,6 +778,30 @@ export function AdminConfigurationsPage() {
         title="Consulta e estado do vínculo"
         subtitle={activeOrgUser?.email}
         bodyClassName="p-4 sm:p-5 bg-slate-50"
+        footer={
+          activeOrgUser ? (
+            <FormSideoverFooter>
+              <HubButton
+                variant="secondary"
+                icon="close"
+                onClick={() => setOrgUserPanel({ open: false, memberId: '' })}
+                className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+              >
+                Fechar
+              </HubButton>
+              <HubButton
+                variant={activeOrgUser.ativo ? 'danger' : 'primary'}
+                icon={activeOrgUser.ativo ? 'toggle_off' : 'toggle_on'}
+                iconClassName="text-[16px]"
+                disabled={busyKey === `org-member:${activeOrgUser.id}`}
+                onClick={() => void onToggleOrgMember(activeOrgUser.id, !activeOrgUser.ativo)}
+                className="!text-xs !font-semibold !tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+              >
+                {activeOrgUser.ativo ? 'Desativar utilizador' : 'Ativar utilizador'}
+              </HubButton>
+            </FormSideoverFooter>
+          ) : null
+        }
       >
         {activeOrgUser ? (
           <div className="space-y-4">
@@ -745,17 +814,6 @@ export function AdminConfigurationsPage() {
               <div><dt className="text-[10px] font-black uppercase text-on-surface-variant">Papel</dt><dd>{activeOrgUser.papel}</dd></div>
               <div><dt className="text-[10px] font-black uppercase text-on-surface-variant">Criado em</dt><dd>{activeOrgUser.criado_em ? new Date(activeOrgUser.criado_em).toLocaleString('pt-BR') : '—'}</dd></div>
             </dl>
-            <div className="flex justify-end">
-              <HubButton
-                variant={activeOrgUser.ativo ? 'danger' : 'tableSecondary'}
-                icon={activeOrgUser.ativo ? 'toggle_off' : 'toggle_on'}
-                iconClassName="text-[16px]"
-                disabled={busyKey === `org-member:${activeOrgUser.id}`}
-                onClick={() => void onToggleOrgMember(activeOrgUser.id, !activeOrgUser.ativo)}
-              >
-                {activeOrgUser.ativo ? 'Desativar usuário' : 'Ativar usuário'}
-              </HubButton>
-            </div>
           </div>
         ) : null}
       </AppSideover>
